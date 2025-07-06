@@ -1,6 +1,7 @@
+import sys
+from termcolor import colored
 from pydantic import Field, field_validator, ValidationError
 from pydantic_settings import SettingsConfigDict, BaseSettings
-import sys
 from utils.helper import helper
 
 
@@ -115,15 +116,15 @@ def get_user_friendly_error_message(error: ValidationError) -> str:
 
         # Map field names to user-friendly names
         field_mapping = {
-            "api_key_assemblyai": "AssemblyAI API Key",
-            "api_key_openai": "OpenAI API Key",
-            "logging_level": "Logging Level",
-            "openai_api_type": "OpenAI API Type",
-            "openai_api_version": "OpenAI API Version",
-            "openai_api_base": "OpenAI API Base URL",
-            "openai_deployment_name": "OpenAI Deployment Name",
-            "openai_api_model": "OpenAI API Model",
-            "openai_api_system_prompt": "OpenAI System Prompt"
+            "api_key_assemblyai": "API_KEY_ASSEMBLYAI",
+            "api_key_openai": "API_KEY_OPENAI",
+            "logging_level": "LOGGING_LEVEL",
+            "openai_api_type": "OPENAI_API_TYPE",
+            "api_key_azure_openai": "API_KEY_AZURE_OPENAI",
+            "api_version_azure_openai": "API_VERSION_AZURE_OPENAI",
+            "api_endpoint_azure_openai": "API_ENDPOINT_AZURE_OPENAI",
+            "api_deployment_name_azure_openai": "API_DEPLOYMENT_NAME_AZURE_OPENAI"
+
         }
 
         friendly_field_name = field_mapping.get(
@@ -132,10 +133,10 @@ def get_user_friendly_error_message(error: ValidationError) -> str:
         # Handle different error types
         if error_type == "missing":
             error_messages.append(
-                f"❌ Missing: {friendly_field_name} is required")
+                f"❌ {colored('Invalid:', 'red')} {friendly_field_name} is required")
         elif error_type == "value_error":
             error_messages.append(
-                f"❌ Invalid: {friendly_field_name} - {error_msg}")
+                f"❌ {colored('Invalid:', 'red')} {colored(friendly_field_name, 'light_grey', attrs=["bold"])} - {error_msg}")
         else:
             error_messages.append(f"❌ {friendly_field_name}: {error_msg}")
 
@@ -148,15 +149,15 @@ try:
 except ValidationError as e:
     error_message = get_user_friendly_error_message(e)
     print("\n" + "="*50)
-    print("🚨 Configuration Error")
+    print(colored("🚨 Configuration Error", "red", attrs=["bold"]))
     print("="*50)
     print(error_message)
-    print("\n💡 Please check your .env file and ensure all required API keys are set.")
+    print(f"\n💡 Please check your {colored('.env', 'blue')} file and ensure all required API keys are set.")
     print("="*50)
     sys.exit(1)
 except Exception as e:
     print("\n" + "="*50)
-    print("🚨 Unexpected Error")
+    print(colored("🚨 Unexpected Error", "red", attrs=["bold"]))
     print("="*50)
     print(f"An unexpected error occurred: {str(e)}")
     print("="*50)
