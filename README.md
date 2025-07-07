@@ -54,7 +54,7 @@ To install `uv` follow these steps:
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
 
-- **Windows**:
+- **Windows** (Use Powershell for this command):
   ```
   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
   ```
