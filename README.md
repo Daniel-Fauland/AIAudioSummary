@@ -36,7 +36,10 @@ More information about the backend can be found in [backend/README.md](./backend
 
 1. Make sure you have an API key for [AssemblyAI](https://www.assemblyai.com/) and (Azure) [OpenAI](https://openai.com/api/).
 
-2. Go to `/backend` folder and rename `.env.example` to `.env`
+2. Go to `/backend` folder and create a `.env` file from the `.env.example` file.
+   ```
+   cp .env.example .env
+   ```
 3. Insert your API keys in `.env`
 
 ---

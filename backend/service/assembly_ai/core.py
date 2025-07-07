@@ -2,6 +2,7 @@ import assemblyai as aai
 from config import config
 from utils.logging import logger
 
+aai.settings.base_url = "https://api.eu.assemblyai.com"
 api_key = config.api_key_assemblyai
 
 
