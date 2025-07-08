@@ -35,7 +35,7 @@ class OpenAIService:
             if config.openai_api_type == "azure":
                 # Azure OpenAI
                 response = self.client.chat.completions.create(
-                    model=config.openai_deployment_name,  # Use deployment name for Azure
+                    model=config.api_deployment_name_azure_openai,  # Use deployment name for Azure
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": f"Please summarize the following text:\n\n{text}"}
