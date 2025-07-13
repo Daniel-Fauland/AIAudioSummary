@@ -6,7 +6,7 @@
 - [Installation](#installation)
   - [Prerequisites](#prerequisites)
   - [Install and run backend](#install-and-run-backend)
-  - [Install and run frontend](#install-and-run-frontend)
+  - [Install and run frontend](#install-and-run-frontend-streamlit)
 
 ## Introduction
 
@@ -77,12 +77,12 @@ To install `uv` follow these steps:
 
    Swagger Docs are avaible here: [http://localhost:8080/docs](http://localhost:8080/docs)
 
-### Install and run frontend
+### Install and run frontend (Streamlit)
 
-1. Open terminal and go to the `/frontend` folder:
+1. Open terminal and go to the `/streamlit` folder:
 
    ```
-   cd frontend
+   cd streamlit
    ```
 
 2. Start the frontend (This will automatically install pyhton and all dependencies when run for the first time):
