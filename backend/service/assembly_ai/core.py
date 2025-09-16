@@ -6,7 +6,7 @@ from config import config
 from utils.logging import logger
 
 aai.settings.base_url = "https://api.eu.assemblyai.com"
-api_key = config.api_key_assemblyai
+# api_key = config.api_key_assemblyai
 
 
 class AssemblyAIService:
@@ -32,7 +32,7 @@ class AssemblyAIService:
         finally:
             temp_file.close()
 
-    async def get_transcript(self, path_to_file: str,
+    async def get_transcript(self, path_to_file: str, api_key: str,
                              lang_code: str = None,
                              min_speaker: int = 1,
                              max_speaker: int = 10):

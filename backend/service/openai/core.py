@@ -22,7 +22,7 @@ class OpenAIService:
                 api_key=config.api_key_openai
             )
 
-    async def generate_summary(self, text: str, system_prompt: str, date: datetime.date = None, stream: bool = False) -> Union[str, AsyncGenerator[str, None]]:
+    async def generate_summary(self, text: str, system_prompt: str, openai_key: str, date: datetime.date = None, stream: bool = False) -> Union[str, AsyncGenerator[str, None]]:
         """Generate a summary using either OpenAI or Azure OpenAI.
 
         Args:
@@ -50,6 +50,10 @@ class OpenAIService:
                 )
             else:
                 # OpenAI
+                if not openai_key:
+                    logger.error("No OpenAI Key provided")
+                    raise RuntimeError()
+                self.client = OpenAI(api_key=openai_key)
                 response = self.client.chat.completions.create(
                     model=config.openai_api_model,
                     messages=[

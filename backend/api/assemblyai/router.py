@@ -11,6 +11,7 @@ service = AssemblyAIService()
 @assembly_ai_router.post("/createTranscript", response_model=CreateTranscriptResponse, status_code=200)
 async def create_transcript(
     file: UploadFile = File(..., description="The audio file to transcribe"),
+    api_key: str = File(..., description="The AssemblyAI API key"),
     lang_code: str | None = Form(None, description="Language code (e.g., 'en', 'de'). If not provided, language will be automatically detected", example=None),
     min_speaker: int = Form(1, description="Minimum number of speakers expected", ge=1),
     max_speaker: int = Form(10, description="Maximum number of speakers expected", le=20)
@@ -31,6 +32,7 @@ async def create_transcript(
         # Get transcript using the temporary file path
         transcript = await service.get_transcript(
             path_to_file=temp_file_path,
+            api_key=api_key,
             lang_code=lang_code,
             min_speaker=min_speaker,
             max_speaker=max_speaker

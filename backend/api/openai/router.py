@@ -17,7 +17,7 @@ async def create_summary(
 ):
     """Generate a summary of the provided text using OpenAI. Supports streaming."""
     if request.stream:
-        generator = await service.generate_summary(request.text, request.system_prompt, stream=True)
+        generator = await service.generate_summary(request.text, request.system_prompt, request.openai_key, stream=True)
         return StreamingResponse(generator, media_type="text/plain")
-    summary = await service.generate_summary(request.text, request.system_prompt, stream=False)
+    summary = await service.generate_summary(request.text, request.system_prompt, request.openai_key, stream=False)
     return {"summary": summary}

@@ -10,6 +10,7 @@ class CreateSummaryRequest(BaseModel):
     text: str = Field(..., description="To prompt for the LLM",
                       examples=["Hello there."])
     date: datetime.date = Field(..., description="The date of the transcription")
+    openai_key: str = Field(..., description="The OpenAI key")
     
 
 
