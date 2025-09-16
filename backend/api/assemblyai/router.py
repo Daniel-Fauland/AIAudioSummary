@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Query
+import os
+import tempfile
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from service.assembly_ai.core import AssemblyAIService
 from models.assemblyai import CreateTranscriptResponse
 
@@ -6,28 +8,44 @@ assembly_ai_router = APIRouter()
 service = AssemblyAIService()
 
 
-@assembly_ai_router.get("/createTranscript", response_model=CreateTranscriptResponse, status_code=200)
+@assembly_ai_router.post("/createTranscript", response_model=CreateTranscriptResponse, status_code=200)
 async def create_transcript(
-    file_path: str = Query(..., description="The path to the audio file"),
-    lang_code: str = Query(
-        None, description="Language code (e.g., 'en', 'de'). If not provided, language will be automatically detected"),
-    min_speaker: int = Query(
-        1, description="Minimum number of speakers expected", ge=1),
-    max_speaker: int = Query(
-        10, description="Maximum number of speakers expected", le=20)
+    file: UploadFile = File(..., description="The audio file to transcribe"),
+    lang_code: str | None = Form(None, description="Language code (e.g., 'en', 'de'). If not provided, language will be automatically detected", example=None),
+    min_speaker: int = Form(1, description="Minimum number of speakers expected", ge=1),
+    max_speaker: int = Form(10, description="Maximum number of speakers expected", le=20)
 ):
-    """Create a transcript of a provided audio file using AssemblyAI.
+    """Create a transcript of an uploaded audio file using AssemblyAI.
 
     Args:
-        file_path (str): The path to the audio file.
+        file (UploadFile): The uploaded audio file.
         lang_code (str, optional): Language code. If not provided, language detection will be enabled.
         min_speaker (int): Minimum number of speakers expected (default: 1).
         max_speaker (int): Maximum number of speakers expected (default: 10).
     """
-    transcript = await service.get_transcript(
-        path_to_file=file_path,
-        lang_code=lang_code,
-        min_speaker=min_speaker,
-        max_speaker=max_speaker
-    )
-    return CreateTranscriptResponse(transcript=transcript)
+    temp_file_path = None
+    try:
+        # Save uploaded file to temporary location
+        temp_file_path = await service.save_uploaded_file_to_temp(file)
+        
+        # Get transcript using the temporary file path
+        transcript = await service.get_transcript(
+            path_to_file=temp_file_path,
+            lang_code=lang_code,
+            min_speaker=min_speaker,
+            max_speaker=max_speaker
+        )
+        
+        return CreateTranscriptResponse(transcript=transcript)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing audio file: {str(e)}")
+        
+    finally:
+        # Clean up: delete the temporary file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                # Log the error but don't raise it since we've already processed the file
+                print(f"Warning: Could not delete temporary file {temp_file_path}: {e}")

@@ -10,16 +10,7 @@ service = OpenAIService()
 @openai_router.post(
     "/createSummary",
     status_code=200,
-    response_model=CreateSummaryResponse,
-    responses={
-        200: {
-            "content": {
-                "application/json": {"schema": CreateSummaryResponse.model_json_schema()},
-                "text/plain": {"schema": {"type": "string"}, "description": "Streamed summary text"},
-            },
-            "description": "Returns a summary as JSON or streams summary as plain text if stream=true.",
-        }
-    }
+    response_model=CreateSummaryResponse
 )
 async def create_summary(
     request: CreateSummaryRequest = Body(...)

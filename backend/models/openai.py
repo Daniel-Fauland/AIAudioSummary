@@ -1,7 +1,5 @@
+import datetime
 from pydantic import BaseModel, Field
-from config import config
-
-# system_prompt = config.openai_api_system_prompt
 
 
 class CreateSummaryRequest(BaseModel):
@@ -11,7 +9,9 @@ class CreateSummaryRequest(BaseModel):
                                "You are a helpful assistant"])
     text: str = Field(..., description="To prompt for the LLM",
                       examples=["Hello there."])
+    date: datetime.date = Field(..., description="The date of the transcription")
+    
 
 
 class CreateSummaryResponse(BaseModel):
-    summary: str
+    summary: str = Field(..., description="The AI summary of the transcription", examples=["John asked Jane about the weather"])

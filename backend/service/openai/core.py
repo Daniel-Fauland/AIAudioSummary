@@ -1,3 +1,4 @@
+import datetime
 from openai import OpenAI, AzureOpenAI
 from config import config
 from utils.logging import logger
@@ -21,7 +22,7 @@ class OpenAIService:
                 api_key=config.api_key_openai
             )
 
-    async def generate_summary(self, text: str, system_prompt: str, stream: bool = False) -> Union[str, AsyncGenerator[str, None]]:
+    async def generate_summary(self, text: str, system_prompt: str, date: datetime.date = None, stream: bool = False) -> Union[str, AsyncGenerator[str, None]]:
         """Generate a summary using either OpenAI or Azure OpenAI.
 
         Args:
@@ -31,6 +32,10 @@ class OpenAIService:
         Returns:
             Either a string (complete response) or an async generator (streaming chunks)
         """
+        if date is None:
+            date = datetime.date.today()
+
+        user_prompt = f"Please summarize the following transcription:\n\nRecording Date: {date}\n{text}"
         try:
             if config.openai_api_type == "azure":
                 # Azure OpenAI
@@ -38,7 +43,7 @@ class OpenAIService:
                     model=config.api_deployment_name_azure_openai,  # Use deployment name for Azure
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Please summarize the following text:\n\n{text}"}
+                        {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.5,
                     stream=stream
@@ -49,7 +54,7 @@ class OpenAIService:
                     model=config.openai_api_model,
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Transcription:\n\n{text}"}
+                        {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.5,
                     stream=stream
