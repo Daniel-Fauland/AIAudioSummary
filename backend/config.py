@@ -2,7 +2,6 @@ import sys
 from termcolor import colored
 from pydantic import Field, field_validator, ValidationError
 from pydantic_settings import SettingsConfigDict, BaseSettings
-from utils.helper import helper
 
 
 class Settings(BaseSettings):
@@ -24,6 +23,12 @@ class Settings(BaseSettings):
     fastapi_welcome_msg: str = Field(
         default="Access the swagger docs at '/docs'",
         description="The default message shown when opening the fastapi url in the browser"
+    )
+
+    # --- Prompt Template Settings ---
+    prompt_template_directory: str = Field(
+        default="./prompt_templates",
+        description="The directory where the prompt templates are stored within the backend"
     )
 
     # --- API Settings ---
@@ -57,10 +62,6 @@ class Settings(BaseSettings):
     api_deployment_name_azure_openai: str = Field(
         description="The deployment name of the Azure OpenAI model"
     )
-
-    # --- Prompt Templates ---
-    openai_api_system_prompt: str = helper.file_to_str(
-        "./prompt_template_openai.md")
 
     # --- Validation methods ---
     @field_validator("logging_level")

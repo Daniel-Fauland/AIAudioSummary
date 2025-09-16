@@ -1,5 +1,32 @@
+import os
+from utils.logging import logger
+
 class Helper():
-    def file_to_str(self, file_path):
+    async def list_files(self, directory_path: str) -> list[str]:
+        """Reads the directory path and returns all files within this path as a list
+
+        Args:
+            directory_path (str): The directory path
+
+        Returns:
+            list[str]: List of file names in the directory.
+        """
+        try:
+            # List all files (not directories) in the given directory
+            files = [
+                f for f in os.listdir(directory_path)
+                if os.path.isfile(os.path.join(directory_path, f))
+            ]
+            return files
+        except FileNotFoundError:
+            logger.error(f"The directory at {directory_path} was not found.")
+            return []
+        except Exception as e:
+            logger.error(f"An error occurred while listing files in {directory_path}: {e}")
+            return []
+        
+
+    async def file_to_str(self, file_path: str) -> str:
         """
         Reads the contents of a .txt or .md file and returns it as a string.
 
@@ -14,10 +41,10 @@ class Helper():
                 content = file.read()
             return content
         except FileNotFoundError:
-            print(f"The file at {file_path} was not found.")
+            logger.error(f"The file at {file_path} was not found.")
             return None
         except IOError:
-            print(
+            logger.error(
                 f"An I/O error occurred while reading the file at {file_path}.")
             return None
 
