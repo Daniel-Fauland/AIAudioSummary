@@ -22,7 +22,7 @@ class OpenAIService:
                 api_key=config.api_key_openai
             )
 
-    async def generate_summary(self, text: str, system_prompt: str, openai_key: str, date: datetime.date = None, stream: bool = False) -> Union[str, AsyncGenerator[str, None]]:
+    async def generate_summary(self, text: str, system_prompt: str, target_language: str, openai_key: str, date: datetime.date = None, stream: bool = False) -> Union[str, AsyncGenerator[str, None]]:
         """Generate a summary using either OpenAI or Azure OpenAI.
 
         Args:
@@ -36,13 +36,14 @@ class OpenAIService:
             date = datetime.date.today()
 
         user_prompt = f"Please summarize the following transcription:\n\nRecording Date: {date}\n{text}"
+        sys_prompt = f"{system_prompt}\nYour Summary must be in {target_language}"
         try:
             if config.openai_api_type == "azure":
                 # Azure OpenAI
                 response = self.client.chat.completions.create(
                     model=config.api_deployment_name_azure_openai,  # Use deployment name for Azure
                     messages=[
-                        {"role": "system", "content": system_prompt},
+                        {"role": "system", "content": sys_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.5,
@@ -57,7 +58,7 @@ class OpenAIService:
                 response = self.client.chat.completions.create(
                     model=config.openai_api_model,
                     messages=[
-                        {"role": "system", "content": system_prompt},
+                        {"role": "system", "content": sys_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.5,

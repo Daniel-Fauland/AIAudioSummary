@@ -9,6 +9,7 @@ class CreateSummaryRequest(BaseModel):
                                "You are a helpful assistant"])
     text: str = Field(..., description="To prompt for the LLM",
                       examples=["Hello there."])
+    target_language: str = Field("English", description="The Output Language of the AI answer", examples=["English"])
     date: datetime.date = Field(..., description="The date of the transcription")
     openai_key: str = Field(..., description="The OpenAI key")
     

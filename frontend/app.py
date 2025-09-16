@@ -205,14 +205,24 @@ if st.session_state.transcription_done:
     
     templates = st.session_state.config.get("prompt_templates", {})
     if templates:
+        # Transform template names for better readability
+        template_display_names = {}
         template_names = list(templates.keys())
-        selected_template = st.radio(
+        
+        for template_name in template_names:
+            # Convert filename to readable format
+            # e.g., "short_meeting_summary.md" -> "Short Meeting Summary"
+            display_name = template_name.replace('.md', '').replace('_', ' ').title()
+            template_display_names[display_name] = template_name
+        
+        selected_display_name = st.radio(
             "Select a prompt template:",
-            template_names,
+            list(template_display_names.keys()),
             key="template_radio"
         )
         
-        if selected_template:
+        if selected_display_name:
+            selected_template = template_display_names[selected_display_name]
             st.session_state.selected_template = selected_template
             st.session_state.template_content = templates[selected_template]
             
@@ -228,6 +238,25 @@ if st.session_state.transcription_done:
     else:
         st.warning("No prompt templates available. Please check the backend configuration.")
 
+# --- ADDITIONAL SETTINGS ---
+if st.session_state.transcription_done:
+    st.markdown("---")
+    st.subheader("Additional Settings")
+    
+    # Date input with default to today
+    selected_date = st.date_input(
+        "Select the meeting date:",
+        key="meeting_date"
+    )
+    
+    # Language selection
+    target_language = st.radio(
+        "Select target language:",
+        ["English", "German", "French", "Spanish"],
+        index=0,  # Default to English (first option)
+        key="target_language"
+    )
+
 # --- AI SUMMARY GENERATION ---
 if st.session_state.transcription_done and st.session_state.template_content:
     st.markdown("---")
@@ -241,12 +270,15 @@ if st.session_state.transcription_done and st.session_state.template_content:
         else:
             try:
                 with st.spinner("Generating AI summary..."):
+                    # Use the selected date from the date input widget
+                    selected_date = st.session_state.get("meeting_date", date.today())
                     summary_data = {
                         "text": st.session_state.transcript,
                         "system_prompt": st.session_state.template_content,
                         "openai_key": st.session_state.openai_key,
                         "stream": False,
-                        "date": date.today().isoformat()
+                        "date": selected_date.isoformat(),
+                        "target_language": st.session_state.get("target_language", "English")
                     }
                     
                     resp = requests.post(SUMMARY_ENDPOINT, json=summary_data)
