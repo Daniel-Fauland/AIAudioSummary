@@ -76,6 +76,8 @@ if "template_content" not in st.session_state:
     st.session_state.template_content = ""
 if "transcription_done" not in st.session_state:
     st.session_state.transcription_done = False
+if "informal_german" not in st.session_state:
+    st.session_state.informal_german = True
 
 # --- FILE UPLOAD ---
 uploaded_file = st.file_uploader("Upload your audio file", type=[
@@ -256,6 +258,18 @@ if st.session_state.transcription_done:
         index=0,  # Default to English (first option)
         key="target_language"
     )
+    
+    # German formality selection (only show when German is selected)
+    if st.session_state.get("target_language") == "German":
+        informal_german = st.checkbox(
+            "Use informal German (Du instead of Sie)",
+            value=True,  # Default to True (informal)
+            help="Check this box to use informal German addressing (Du). Uncheck for formal German (Sie).",
+            key="informal_german"
+        )
+    else:
+        # Set default value when German is not selected
+        st.session_state.informal_german = True
 
 # --- AI SUMMARY GENERATION ---
 if st.session_state.transcription_done and st.session_state.template_content:
@@ -278,7 +292,8 @@ if st.session_state.transcription_done and st.session_state.template_content:
                         "openai_key": st.session_state.openai_key,
                         "stream": False,
                         "date": selected_date.isoformat(),
-                        "target_language": st.session_state.get("target_language", "English")
+                        "target_language": st.session_state.get("target_language", "English"),
+                        "informal_german": st.session_state.get("informal_german", True)
                     }
                     
                     resp = requests.post(SUMMARY_ENDPOINT, json=summary_data)

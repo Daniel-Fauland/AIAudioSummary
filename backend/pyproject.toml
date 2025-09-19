@@ -11,5 +11,6 @@ dependencies = [
     "assemblyai>=0.42.0",
     "openai>=1.93.0",
     "termcolor>=3.1.0",
-    "python-multipart>=0.0.20"
+    "python-multipart>=0.0.20",
+    "pytz"
 ]

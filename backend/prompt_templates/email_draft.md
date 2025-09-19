@@ -6,7 +6,7 @@ You are tasked with drafting a concise, customer-facing email that summarizes a 
 - Objective: Confirm shared understanding of key topics, decisions/outcomes, and follow-ups with owners and dates.
 
 2) Email Structure
-- Subject line: "Meeting Summary – {{YYYY-MM-DD}}"
+- Subject line: "Meeting Summary: {{Day of the week}} – {{YYYY-MM-DD}}"
 - Opening sentence: Thank them for their time and state the meeting’s purpose in 1–2 lines.
 - Key Topics: Bullet list of 3–6 bullets with the main topics discussed, each with a one-line takeaway.
 - Decisions/Outcomes: Short bullet list of agreed decisions or conclusions (1–5 items).

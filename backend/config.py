@@ -32,11 +32,6 @@ class Settings(BaseSettings):
     )
 
     # --- API Settings ---
-    # AssemblyAI
-    api_key_assemblyai: str = Field(
-        description="AssemblyAI API key for audio processing"
-    )
-
     # OpenAI
     openai_api_type: str = Field(
         default="openai",
@@ -45,9 +40,6 @@ class Settings(BaseSettings):
     openai_api_model: str = Field(
         default="gpt-4.1-mini",
         description="The OpenAI model that should be used"
-    )
-    api_key_openai: str = Field(
-        description="OpenAI API key for AI processing"
     )
 
     api_key_azure_openai: str = Field(
@@ -76,28 +68,6 @@ class Settings(BaseSettings):
             )
         return level
 
-    @field_validator("api_key_assemblyai")
-    @classmethod
-    def validate_assemblyai_key(cls, v: str) -> str:
-        """Validate AssemblyAI API key is not empty."""
-        if not v or not v.strip():
-            raise ValueError("AssemblyAI API key cannot be empty or None")
-        if len(v.strip()) < 10:  # Basic length check
-            raise ValueError("AssemblyAI API key appears to be too short")
-        return v.strip()
-
-    @field_validator("api_key_openai")
-    @classmethod
-    def validate_openai_key(cls, v: str) -> str:
-        """Validate OpenAI API key is not empty."""
-        if not v or not v.strip():
-            raise ValueError("OpenAI API key cannot be empty or None")
-        if not v.startswith("sk-"):
-            raise ValueError("OpenAI API key should start with 'sk-'")
-        if len(v.strip()) < 20:  # Basic length check
-            raise ValueError("OpenAI API key appears to be too short")
-        return v.strip()
-
     def validate_all(self) -> None:
         """Validate all settings and raise ValidationError if any fail."""
         # This method is automatically called by Pydantic
@@ -117,8 +87,6 @@ def get_user_friendly_error_message(error: ValidationError) -> str:
 
         # Map field names to user-friendly names
         field_mapping = {
-            "api_key_assemblyai": "API_KEY_ASSEMBLYAI",
-            "api_key_openai": "API_KEY_OPENAI",
             "logging_level": "LOGGING_LEVEL",
             "openai_api_type": "OPENAI_API_TYPE",
             "api_key_azure_openai": "API_KEY_AZURE_OPENAI",
