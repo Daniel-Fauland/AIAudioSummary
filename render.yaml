@@ -36,5 +36,4 @@ services:
         fromService:
           type: web
           name: aias-backend
-          property: host
           envVarKey: RENDER_EXTERNAL_URL
