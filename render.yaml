@@ -35,7 +35,4 @@ services:
       - key: AUTH_URL
         sync: false
       - key: BACKEND_INTERNAL_URL
-        fromService:
-          type: web
-          name: aias-backend
-          property: host
+        sync: false  # Set manually to https://aias-backend.onrender.com
