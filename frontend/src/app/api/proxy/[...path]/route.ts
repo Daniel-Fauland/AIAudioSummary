@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 
 function getBackendUrl(): string {
   const raw = process.env.BACKEND_INTERNAL_URL || "http://localhost:8080";
-  // Render's hostport format may omit http://, ensure it's present
+  // Ensure protocol is present (Render may provide URL with or without it)
   return raw.startsWith("http") ? raw : `http://${raw}`;
 }
 
