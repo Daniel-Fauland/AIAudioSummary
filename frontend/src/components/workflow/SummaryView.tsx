@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, FileText, RefreshCw, ArrowLeft } from "lucide-react";
+import { Copy, FileText, RefreshCw, ArrowLeft, Maximize2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 interface SummaryViewProps {
@@ -24,6 +31,7 @@ export function SummaryView({
   onRegenerate,
   onBack,
 }: SummaryViewProps) {
+  const [fullscreen, setFullscreen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll during streaming
@@ -68,14 +76,26 @@ export function SummaryView({
     <Card className="border-border">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Summary</CardTitle>
-        {loading ? (
-          <Badge
-            variant="outline"
-            className="border-primary-muted bg-primary-muted text-primary"
-          >
-            Generating...
-          </Badge>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {!loading && summary ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden md:inline-flex"
+              onClick={() => setFullscreen(true)}
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          ) : null}
+          {loading ? (
+            <Badge
+              variant="outline"
+              className="border-primary-muted bg-primary-muted text-primary"
+            >
+              Generating...
+            </Badge>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div
@@ -122,6 +142,39 @@ export function SummaryView({
           </div>
         ) : null}
       </CardContent>
+
+      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
+        <DialogContent className="sm:max-w-[95vw] h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Summary</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto rounded-md bg-card p-4">
+            <div className="markdown-prose">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-start">
+            <div className="grid w-full grid-cols-2 gap-2">
+              <Button variant="secondary" className="justify-start" onClick={handleCopyFormatted}>
+                <Copy className="mr-2 h-4 w-4" />
+                Copy Summary
+              </Button>
+              <Button variant="secondary" className="justify-start" onClick={handleCopyMarkdown}>
+                <FileText className="mr-2 h-4 w-4" />
+                Copy as Markdown
+              </Button>
+              <Button variant="secondary" className="justify-start" onClick={onRegenerate}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Regenerate
+              </Button>
+              <Button variant="ghost" className="justify-start" onClick={onBack}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Transcript
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

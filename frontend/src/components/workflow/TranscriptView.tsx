@@ -1,9 +1,16 @@
 "use client";
 
-import { Loader2, Copy } from "lucide-react";
+import { useState } from "react";
+import { Loader2, Copy, Maximize2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 interface TranscriptViewProps {
@@ -19,6 +26,8 @@ export function TranscriptView({
   loading,
   readOnly,
 }: TranscriptViewProps) {
+  const [fullscreen, setFullscreen] = useState(false);
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(transcript);
@@ -59,12 +68,24 @@ export function TranscriptView({
     <Card className="border-border">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Transcript</CardTitle>
-        {transcript ? (
-          <Button variant="secondary" size="sm" onClick={handleCopy}>
-            <Copy className="mr-2 h-4 w-4" />
-            Copy Transcript
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {transcript ? (
+            <Button variant="secondary" size="sm" onClick={handleCopy}>
+              <Copy className="mr-2 h-4 w-4" />
+              Copy Transcript
+            </Button>
+          ) : null}
+          {readOnly && transcript ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden md:inline-flex"
+              onClick={() => setFullscreen(true)}
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent>
         {readOnly ? (
@@ -80,6 +101,17 @@ export function TranscriptView({
           />
         )}
       </CardContent>
+
+      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
+        <DialogContent className="sm:max-w-[95vw] h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Transcript</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto whitespace-pre-wrap font-mono text-sm text-foreground p-4">
+            {transcript}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
