@@ -1,6 +1,10 @@
 version = 1
 revision = 2
 requires-python = ">=3.12"
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version < '3.14'",
+]
 
 [[package]]
 name = "ag-ui-protocol"
@@ -183,17 +187,18 @@ wheels = [
 
 [[package]]
 name = "assemblyai"
-version = "0.42.0"
+version = "0.52.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
+    { name = "pydantic-settings", marker = "python_full_version >= '3.14'" },
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/35/e8/e1947433beb862a1a976e688fdb63d8a731aad6fef7c2771c465c4fc9f54/assemblyai-0.42.0.tar.gz", hash = "sha256:5c48f27d4982e69081b2de0f6b6c20262680e3602ad1fcd09c9eb38275c00923", size = 53550, upload-time = "2025-07-03T16:47:08.443Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/eb/f40142b7d90a96f0fc2e8d29949b7bdca352ddbe921b6faec1e019c8abca/assemblyai-0.52.0.tar.gz", hash = "sha256:7aa63126a41072197e9383f8831c52ab8b51a365fad6497cd28694c7ccd81569", size = 57554, upload-time = "2026-02-12T03:00:07.36Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a8/31/00c86528de0b7a2fb3d0d78ae73611b3a98bcd9ea8521cdac9f6e2bfe124/assemblyai-0.42.0-py3-none-any.whl", hash = "sha256:1471065d855778df80489d7322ff928d2db9808b0b5cbc0e4c17a83f66e2f8c6", size = 49585, upload-time = "2025-07-03T16:47:07.107Z" },
+    { url = "https://files.pythonhosted.org/packages/71/ee/009629dae0ebdf161891a89099547c114072a76b94e45817eae32b1bb4c2/assemblyai-0.52.0-py3-none-any.whl", hash = "sha256:442a0dea5d55f5186b66b72ec978f15da266ff18c4ac9a2840e72641a81147aa", size = 53499, upload-time = "2026-02-12T03:00:05.874Z" },
 ]
 
 [[package]]
@@ -233,9 +238,9 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "assemblyai", specifier = ">=0.42.0" },
+    { name = "assemblyai" },
     { name = "fastapi", specifier = ">=0.115.12" },
-    { name = "pydantic-ai", extras = ["anthropic", "google", "openai"], specifier = ">=1.59.0" },
+    { name = "pydantic-ai", specifier = ">=1.59.0" },
     { name = "pydantic-settings", specifier = ">=2.10.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "pytz" },

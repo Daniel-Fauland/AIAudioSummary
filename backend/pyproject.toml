@@ -8,8 +8,8 @@ dependencies = [
     "fastapi>=0.115.12",
     "uvicorn>=0.34.2",
     "pydantic-settings>=2.10.0",
-    "assemblyai>=0.42.0",
     "python-multipart>=0.0.20",
+    "assemblyai",
     "pytz",
-    "pydantic-ai[anthropic,google,openai]>=1.59.0",
+    "pydantic-ai>=1.59.0",
 ]

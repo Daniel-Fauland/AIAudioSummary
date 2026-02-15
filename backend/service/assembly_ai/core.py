@@ -10,17 +10,19 @@ aai.settings.base_url = "https://api.eu.assemblyai.com"
 class AssemblyAIService:
     async def save_uploaded_file_to_temp(self, uploaded_file: UploadFile) -> str:
         """Save uploaded file to a temporary location and return the file path.
-        
+
         Args:
             uploaded_file (UploadFile): The uploaded file from FastAPI
-            
+
         Returns:
             str: Path to the temporary file
         """
         # Create a temporary file with the same extension as the uploaded file
-        file_extension = os.path.splitext(uploaded_file.filename)[1] if uploaded_file.filename else ""
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_extension)
-        
+        file_extension = os.path.splitext(uploaded_file.filename)[
+            1] if uploaded_file.filename else ""
+        temp_file = tempfile.NamedTemporaryFile(
+            delete=False, suffix=file_extension)
+
         try:
             # Write the uploaded file content to the temporary file
             content = uploaded_file.file.read()
@@ -44,7 +46,7 @@ class AssemblyAIService:
             language_code = lang_code
 
         config = aai.TranscriptionConfig(
-            speech_model=aai.SpeechModel.best,
+            speech_models=["universal-3-pro", "universal-2"],
             language_detection=language_detection,
             language_code=language_code,
             speaker_labels=True,
