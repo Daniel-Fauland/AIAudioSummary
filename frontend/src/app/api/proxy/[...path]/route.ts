@@ -74,8 +74,15 @@ async function proxyRequest(request: NextRequest) {
   // For all other responses, pass through as-is
   const body = await upstream.arrayBuffer();
   const responseHeaders = new Headers();
+  // Strip hop-by-hop headers and encoding headers (Node fetch auto-decompresses,
+  // so forwarding content-encoding/content-length would corrupt the response)
+  const skipResponseHeaders = new Set([
+    "transfer-encoding",
+    "content-encoding",
+    "content-length",
+  ]);
   upstream.headers.forEach((value, key) => {
-    if (key.toLowerCase() !== "transfer-encoding") {
+    if (!skipResponseHeaders.has(key.toLowerCase())) {
       responseHeaders.set(key, value);
     }
   });
