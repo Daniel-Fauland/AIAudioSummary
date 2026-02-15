@@ -15,16 +15,14 @@ class MiscService:
             list[str]: A list of identified speakers
         """
         try:
-            # Use regex to find all speaker patterns like "Speaker A:", "Speaker B:", etc.
-            # Pattern matches "Speaker" followed by a space and one or more letters/numbers, then a colon
-            speaker_pattern = r'Speaker\s+[A-Za-z0-9]+:'
-            speaker_matches = re.findall(speaker_pattern, transcript)
-            
-            # Remove the colon from each match and get unique speakers
-            speakers = list(set([match.rstrip(':') for match in speaker_matches]))
-            
-            # Sort the speakers for consistent ordering
-            speakers.sort()
+            # Match any speaker label at the start of a line followed by a colon.
+            # Handles original AssemblyAI format ("Speaker A:") and renamed labels ("Max:", "Müller:").
+            # The capture group returns just the name (without the colon).
+            speaker_pattern = r'^([A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F0-9 ]*?):'
+            speaker_matches = re.findall(speaker_pattern, transcript, re.MULTILINE)
+
+            # Deduplicate, strip whitespace, and sort
+            speakers = sorted(set(match.strip() for match in speaker_matches))
             return speakers
         except Exception as e:
             logger.error(f"Error identifying speakers: {str(e)}")

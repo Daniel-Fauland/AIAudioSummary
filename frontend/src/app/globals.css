@@ -1,0 +1,262 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-mono);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Custom semantic colors */
+  --color-success: #22C55E;
+  --color-success-muted: rgba(34, 197, 94, 0.15);
+  --color-warning: #F59E0B;
+  --color-warning-muted: rgba(245, 158, 11, 0.15);
+  --color-info: #3B82F6;
+  --color-info-muted: rgba(59, 130, 246, 0.15);
+  --color-error: #EF4444;
+  --color-error-muted: rgba(239, 68, 68, 0.15);
+  --color-card-elevated: #1A1A1A;
+  --color-primary-hover: #E04A0A;
+  --color-primary-active: #C84209;
+  --color-primary-muted: rgba(252, 82, 11, 0.15);
+  --color-border-hover: #3A3A3A;
+  --color-border-accent: #FC520B;
+  --color-foreground-secondary: #A1A1AA;
+  --color-foreground-muted: #71717A;
+  --color-foreground-accent: #FC520B;
+}
+
+/* Dark-mode only: set variables directly on :root */
+:root {
+  --radius: 0.5rem;
+  --background: #0A0A0A;
+  --foreground: #FAFAFA;
+  --card: #141414;
+  --card-foreground: #FAFAFA;
+  --popover: #1A1A1A;
+  --popover-foreground: #FAFAFA;
+  --primary: #FC520B;
+  --primary-foreground: #FFFFFF;
+  --secondary: #141414;
+  --secondary-foreground: #FAFAFA;
+  --muted: #1A1A1A;
+  --muted-foreground: #71717A;
+  --accent: #1A1A1A;
+  --accent-foreground: #FAFAFA;
+  --destructive: #EF4444;
+  --border: #262626;
+  --input: #262626;
+  --ring: rgba(252, 82, 11, 0.4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Markdown prose styles for summary rendering */
+.markdown-prose {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: #FAFAFA;
+}
+
+.markdown-prose h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  line-height: 1.3;
+  color: #FAFAFA;
+}
+
+.markdown-prose h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+  color: #FAFAFA;
+}
+
+.markdown-prose h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.4rem;
+  line-height: 1.5;
+  color: #FAFAFA;
+}
+
+.markdown-prose h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.35rem;
+  color: #FAFAFA;
+}
+
+.markdown-prose p {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-prose ul,
+.markdown-prose ol {
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-left: 1.5rem;
+}
+
+.markdown-prose ul {
+  list-style-type: disc;
+}
+
+.markdown-prose ol {
+  list-style-type: decimal;
+}
+
+.markdown-prose li {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-prose li > ul,
+.markdown-prose li > ol {
+  margin-top: 0.25rem;
+  margin-bottom: 0;
+}
+
+.markdown-prose strong {
+  font-weight: 600;
+  color: #FAFAFA;
+}
+
+.markdown-prose em {
+  font-style: italic;
+}
+
+.markdown-prose blockquote {
+  border-left: 3px solid #3A3A3A;
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  color: #A1A1AA;
+}
+
+.markdown-prose code {
+  font-size: 0.8em;
+  background: #1A1A1A;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
+  color: #FAFAFA;
+}
+
+.markdown-prose pre {
+  background: #1A1A1A;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.markdown-prose pre code {
+  background: none;
+  padding: 0;
+}
+
+.markdown-prose hr {
+  border: none;
+  border-top: 1px solid #262626;
+  margin: 1.5rem 0;
+}
+
+.markdown-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.8rem;
+}
+
+.markdown-prose th {
+  font-weight: 600;
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 2px solid #3A3A3A;
+  color: #FAFAFA;
+}
+
+.markdown-prose td {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid #262626;
+}
+
+.markdown-prose a {
+  color: #FC520B;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-prose a:hover {
+  color: #E04A0A;
+}
+
+.markdown-prose > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Streaming cursor animation */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.streaming-cursor {
+  animation: blink 1s step-end infinite;
+  color: #FC520B;
+}
+
+/* Step transition animation */
+.step-content {
+  animation: stepEnter 300ms ease-out;
+}
+
+@keyframes stepEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

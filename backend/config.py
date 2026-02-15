@@ -1,5 +1,3 @@
-import sys
-from termcolor import colored
 from pydantic import Field, field_validator, ValidationError
 from pydantic_settings import SettingsConfigDict, BaseSettings
 
@@ -31,30 +29,6 @@ class Settings(BaseSettings):
         description="The directory where the prompt templates are stored within the backend"
     )
 
-    # --- API Settings ---
-    # OpenAI
-    openai_api_type: str = Field(
-        default="openai",
-        description="The type of OpenAI service used. Can be either 'openai' or 'azure'"
-    )
-    openai_api_model: str = Field(
-        default="gpt-4.1-mini",
-        description="The OpenAI model that should be used"
-    )
-
-    api_key_azure_openai: str = Field(
-        description="Azure OpenAI API key for AI processing"
-    )
-    api_version_azure_openai: str = Field(
-        description="The api version used for Azure OpenAI"
-    )
-    api_endpoint_azure_openai: str = Field(
-        description="The endpoint url where the Azure OpenAI models are deployed"
-    )
-    api_deployment_name_azure_openai: str = Field(
-        description="The deployment name of the Azure OpenAI model"
-    )
-
     # --- Validation methods ---
     @field_validator("logging_level")
     @classmethod
@@ -68,66 +42,5 @@ class Settings(BaseSettings):
             )
         return level
 
-    def validate_all(self) -> None:
-        """Validate all settings and raise ValidationError if any fail."""
-        # This method is automatically called by Pydantic
-        # but you can call it explicitly if needed
-        pass
 
-
-def get_user_friendly_error_message(error: ValidationError) -> str:
-    """Convert Pydantic validation errors to user-friendly messages."""
-    error_messages = []
-
-    for error_detail in error.errors():
-        field_name = error_detail.get(
-            "loc", [])[-1] if error_detail.get("loc") else "unknown"
-        error_type = error_detail.get("type", "")
-        error_msg = error_detail.get("msg", "")
-
-        # Map field names to user-friendly names
-        field_mapping = {
-            "logging_level": "LOGGING_LEVEL",
-            "openai_api_type": "OPENAI_API_TYPE",
-            "api_key_azure_openai": "API_KEY_AZURE_OPENAI",
-            "api_version_azure_openai": "API_VERSION_AZURE_OPENAI",
-            "api_endpoint_azure_openai": "API_ENDPOINT_AZURE_OPENAI",
-            "api_deployment_name_azure_openai": "API_DEPLOYMENT_NAME_AZURE_OPENAI"
-
-        }
-
-        friendly_field_name = field_mapping.get(
-            field_name, field_name.replace("_", " ").title())
-
-        # Handle different error types
-        if error_type == "missing":
-            error_messages.append(
-                f"❌ {colored('Invalid:', 'red')} {friendly_field_name} is required")
-        elif error_type == "value_error":
-            error_messages.append(
-                f"❌ {colored('Invalid:', 'red')} {colored(friendly_field_name, 'light_grey', attrs=["bold"])} - {error_msg}")
-        else:
-            error_messages.append(f"❌ {friendly_field_name}: {error_msg}")
-
-    return "\n".join(error_messages)
-
-
-# Create and validate config instance
-try:
-    config = Settings()
-except ValidationError as e:
-    error_message = get_user_friendly_error_message(e)
-    print("\n" + "="*50)
-    print(colored("🚨 Configuration Error", "red", attrs=["bold"]))
-    print("="*50)
-    print(error_message)
-    print(f"\n💡 Please check your {colored('.env', 'blue')} file and ensure all required API keys are set.")
-    print("="*50)
-    sys.exit(1)
-except Exception as e:
-    print("\n" + "="*50)
-    print(colored("🚨 Unexpected Error", "red", attrs=["bold"]))
-    print("="*50)
-    print(f"An unexpected error occurred: {str(e)}")
-    print("="*50)
-    sys.exit(1)
+config = Settings()
