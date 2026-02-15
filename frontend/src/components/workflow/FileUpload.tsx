@@ -175,7 +175,7 @@ export function FileUpload({
             Drag and drop an audio file here, or click to browse
           </p>
           <p className="text-xs text-foreground-muted">
-            .mp3, .wav, .m4a, .flac, .ogg, .webm
+            .mp3, .wav, .m4a, .flac, .ogg, .webm (max 500 MB)
           </p>
           <input
             ref={inputRef}
