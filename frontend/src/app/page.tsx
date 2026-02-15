@@ -254,8 +254,7 @@ export default function Home() {
           <p className="text-destructive">Failed to load configuration</p>
           <p className="text-sm text-foreground-muted">{configError}</p>
           <p className="text-xs text-foreground-muted">
-            Make sure the backend is running on{" "}
-            {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}
+            Make sure the backend is running and reachable
           </p>
           <Button onClick={refetch}>Retry</Button>
         </div>
