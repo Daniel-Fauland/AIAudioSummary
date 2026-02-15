@@ -1,0 +1,37 @@
+services:
+  # Backend — private service (not reachable from the internet)
+  - type: pserv
+    name: aias-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install .
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 8080
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  # Frontend — public web service
+  - type: web
+    name: aias-frontend
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: AUTH_GOOGLE_ID
+        sync: false
+      - key: AUTH_GOOGLE_SECRET
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: ALLOWED_EMAILS
+        sync: false
+      - key: AUTH_TRUST_HOST
+        value: "true"
+      - key: BACKEND_INTERNAL_URL
+        fromService:
+          type: pserv
+          name: aias-backend
+          property: hostport

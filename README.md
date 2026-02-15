@@ -1,91 +1,143 @@
 # AIAudioSummary
 
-**Chapters**:
-
-- [Introduction](#introduction)
-- [Installation](#installation)
-  - [Prerequisites](#prerequisites)
-  - [Install and run backend](#install-and-run-backend)
-  - [Install and run frontend](#install-and-run-frontend)
-
 ## Introduction
 
-AIAudioSummary is a web application that enables users to upload audio files (such as meeting recordings) and automatically generate high-quality transcripts and AI-powered summaries. The app leverages state-of-the-art speech-to-text and language models to help users quickly extract key information from spoken content.
+AIAudioSummary is a web application for uploading audio files (such as meeting recordings) and automatically generating transcripts and AI-powered summaries.
 
 **How it works:**
 
-- Users upload an audio file via the web interface.
-- The backend transcribes the audio using AssemblyAI's speech-to-text API.
-- The transcript is then summarized using OpenAI's GPT models, with a customizable system prompt.
-- Both the transcript and summary are displayed side-by-side in the frontend, and are fully editable by the user.
-- The summary is streamed live to the frontend for a responsive experience.
+1. Upload an audio file via the web interface.
+2. The backend transcribes the audio using AssemblyAI's speech-to-text API.
+3. Review the transcript and optionally rename detected speakers (e.g. "Speaker A" → "John").
+4. Choose a prompt template, language, and LLM provider, then generate a summary.
+5. The summary is streamed live and rendered as formatted Markdown alongside the transcript.
 
 **Tech stack:**
 
-- **Frontend:** Streamlit (Python)
-- **Backend:** FastAPI (Python)
-- **Speech-to-text:** AssemblyAI API
-- **Summarization:** OpenAI (or Azure OpenAI)
-- **Package management:** [uv](https://github.com/astral-sh/uv)
+| Layer | Technology |
+|-------|-----------|
+| Frontend | [Next.js 15](https://nextjs.org/) (React, TypeScript, Tailwind CSS, [shadcn/ui](https://ui.shadcn.com/)) |
+| Backend | [FastAPI](https://fastapi.tiangolo.com/) (Python) |
+| Speech-to-text | [AssemblyAI](https://www.assemblyai.com/) |
+| Summarization | Multi-provider LLM — OpenAI, Anthropic, Google Gemini, or Azure OpenAI (via [pydantic-ai](https://ai.pydantic.dev/)) |
+| Package management | [uv](https://github.com/astral-sh/uv) (backend), npm (frontend) |
 
-More information about the backend can be found in [backend/README.md](./backend/README.md)
+**Bring Your Own Key (BYOK):** API keys are entered in the browser and stored in localStorage. They are sent per-request and never saved on the server.
 
-## Installation
+## Architecture
+
+```
+AIAudioSummary/
+├── backend/            # FastAPI Python backend
+│   ├── api/            #   Route handlers (assemblyai, llm, misc)
+│   ├── service/        #   Business logic & external API calls
+│   ├── models/         #   Pydantic request/response models
+│   ├── prompt_templates/ # Markdown prompt templates
+│   └── config.py       #   Settings loaded from .env
+├── frontend/           # Next.js 15 frontend
+│   └── src/
+│       ├── app/        #   Root layout + main page orchestrator
+│       ├── components/ #   UI components (layout, settings, workflow)
+│       ├── hooks/      #   Custom React hooks (useApiKeys, useConfig)
+│       └── lib/        #   TypeScript types, API client, utilities
+└── user_stories/       # Feature specifications
+```
+
+### Backend
+
+Three-layer architecture: **Router → Service → External API**
+
+- `POST /createTranscript` — Upload audio file + transcribe via AssemblyAI
+- `POST /createSummary` — Generate summary with any supported LLM provider (streaming supported)
+- `GET /getConfig` — Returns available providers, prompt templates, and languages
+- `POST /getSpeakers` — Detect speaker labels in a transcript
+- `POST /updateSpeakers` — Replace speaker labels with real names
+
+### Frontend
+
+Single-page app with a 3-step workflow:
+
+1. **Upload** — Drag-and-drop audio file upload
+2. **Transcript** — Editable transcript, speaker detection & renaming, prompt/language configuration
+3. **Summary** — Side-by-side transcript and streamed Markdown summary
+
+## Getting Started
 
 ### Prerequisites
 
-1. Make sure you have an API key for [AssemblyAI](https://www.assemblyai.com/) and (Azure) [OpenAI](https://openai.com/api/).
+- [uv](https://github.com/astral-sh/uv) — Python package manager for the backend
+- [Node.js](https://nodejs.org/) (v18+) and npm — for the frontend
+- API keys for [AssemblyAI](https://www.assemblyai.com/) and at least one LLM provider ([OpenAI](https://openai.com/api/), [Anthropic](https://console.anthropic.com/), [Google Gemini](https://ai.google.dev/), or Azure OpenAI)
 
-2. Go to `/backend` folder and create a `.env` file from the `.env.example` file.
+**Install uv:**
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+### Backend
+
+1. Create the backend environment file:
+
+   ```bash
+   cp backend/.env.example backend/.env
    ```
-   cp .env.example .env
-   ```
-3. Insert your API keys in `.env`
 
----
+2. Start the backend (automatically installs Python 3.12+ and all dependencies on first run):
 
-The python backend uses [uv](https://github.com/astral-sh/uv) as a package manager instead of pyenv / conda or sth similar.
-
-To install `uv` follow these steps:
-
-- **MacOS / Linux**:
-
-  ```
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ```
-
-- **Windows** (Use Powershell for this command):
-  ```
-  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-  ```
-
-### Install and run backend
-
-1. Open terminal and go to the `/backend` folder:
-
-   ```
+   ```bash
    cd backend
-   ```
-
-2. Start the backend (This will automatically install pyhton and all dependencies when run for the first time):
-
-   ```
    uv run main.py
    ```
 
-   The backend will be available under this address: [http://localhost:8080/](http://localhost:8080/)
+   - API: http://localhost:8080
+   - Swagger docs: http://localhost:8080/docs
 
-   Swagger Docs are avaible here: [http://localhost:8080/docs](http://localhost:8080/docs)
+### Frontend
 
-### Install and run frontend
+1. Install dependencies:
 
-1. Open terminal and go to the `/frontend` folder:
-
-   ```
+   ```bash
    cd frontend
+   npm install
    ```
 
-2. Start the frontend (This will automatically install pyhton and all dependencies when run for the first time):
+2. Create the environment file:
+
+   ```bash
+   cp .env.local.example .env.local
    ```
-   uv run main.py
+
+3. Start the dev server:
+
+   ```bash
+   npm run dev
    ```
+
+   - App: http://localhost:3000
+
+### First-time setup
+
+1. Start both the backend and frontend.
+2. Open http://localhost:3000 in your browser.
+3. The settings panel will open automatically — enter your AssemblyAI key and at least one LLM provider key.
+4. Upload an audio file and follow the workflow.
+
+## Configuration
+
+### Backend (`backend/.env`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOGGING_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
+| `PROMPT_TEMPLATE_DIRECTORY` | `./prompt_templates` | Path to prompt template Markdown files |
+
+### Frontend (`frontend/.env.local`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Backend API URL |
