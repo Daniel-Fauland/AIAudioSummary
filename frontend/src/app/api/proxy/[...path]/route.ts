@@ -3,8 +3,11 @@ import { auth } from "@/auth";
 
 function getBackendUrl(): string {
   const raw = process.env.BACKEND_INTERNAL_URL || "http://localhost:8080";
-  // Ensure protocol is present (Render may provide URL with or without it)
-  return raw.startsWith("http") ? raw : `http://${raw}`;
+  // Render's fromService property:host returns just the hostname (e.g. aias-backend.onrender.com)
+  // localhost URLs use http://, everything else uses https://
+  if (raw.startsWith("http")) return raw;
+  if (raw.startsWith("localhost") || raw.startsWith("127.0.0.1")) return `http://${raw}`;
+  return `https://${raw}`;
 }
 
 async function proxyRequest(request: NextRequest) {

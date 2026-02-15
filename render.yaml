@@ -33,12 +33,9 @@ services:
       - key: AUTH_TRUST_HOST
         value: "true"
       - key: AUTH_URL
-        fromService:
-          type: web
-          name: aias-frontend
-          envVarKey: RENDER_EXTERNAL_URL
+        sync: false
       - key: BACKEND_INTERNAL_URL
         fromService:
           type: web
           name: aias-backend
-          envVarKey: RENDER_EXTERNAL_URL
+          property: host
