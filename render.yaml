@@ -1,8 +1,9 @@
 services:
-  # Backend — private service (not reachable from the internet)
-  - type: pserv
+  # Backend — public web service (free tier)
+  - type: web
     name: aias-backend
     runtime: python
+    plan: free
     rootDir: backend
     buildCommand: pip install .
     startCommand: uvicorn main:app --host 0.0.0.0 --port 8080
@@ -12,10 +13,11 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false
 
-  # Frontend — public web service
+  # Frontend — public web service (free tier)
   - type: web
     name: aias-frontend
     runtime: node
+    plan: free
     rootDir: frontend
     buildCommand: npm ci && npm run build
     startCommand: npm start
@@ -32,6 +34,7 @@ services:
         value: "true"
       - key: BACKEND_INTERNAL_URL
         fromService:
-          type: pserv
+          type: web
           name: aias-backend
-          property: hostport
+          property: host
+          envVarKey: RENDER_EXTERNAL_URL
