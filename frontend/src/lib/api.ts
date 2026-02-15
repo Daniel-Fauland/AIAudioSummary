@@ -1,0 +1,136 @@
+import type {
+  ConfigResponse,
+  CreateSummaryRequest,
+  CreateSummaryResponse,
+  CreateTranscriptResponse,
+  GetSpeakersResponse,
+  UpdatedTranscriptResponse,
+} from "./types";
+
+const API_BASE = "/api/proxy";
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body.detail) {
+        message = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+      }
+    } catch {
+      // body wasn't JSON, use default message
+    }
+    throw new ApiError(response.status, message);
+  }
+  return response.json();
+}
+
+export async function getConfig(): Promise<ConfigResponse> {
+  const response = await fetch(`${API_BASE}/getConfig`);
+  return handleResponse<ConfigResponse>(response);
+}
+
+export async function createTranscript(
+  file: File,
+  apiKey: string,
+  langCode?: string,
+  minSpeaker?: number,
+  maxSpeaker?: number,
+): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (langCode) formData.append("lang_code", langCode);
+  if (minSpeaker !== undefined) formData.append("min_speaker", String(minSpeaker));
+  if (maxSpeaker !== undefined) formData.append("max_speaker", String(maxSpeaker));
+
+  const response = await fetch(`${API_BASE}/createTranscript`, {
+    method: "POST",
+    headers: { "X-AssemblyAI-Key": apiKey },
+    body: formData,
+  });
+
+  const data = await handleResponse<CreateTranscriptResponse>(response);
+  return data.transcript;
+}
+
+export async function getSpeakers(transcript: string): Promise<string[]> {
+  const response = await fetch(`${API_BASE}/getSpeakers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transcript }),
+  });
+  const data = await handleResponse<GetSpeakersResponse>(response);
+  return data.speakers;
+}
+
+export async function updateSpeakers(
+  transcript: string,
+  speakers: Record<string, string>,
+): Promise<string> {
+  const response = await fetch(`${API_BASE}/updateSpeakers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transcript, speakers }),
+  });
+  const data = await handleResponse<UpdatedTranscriptResponse>(response);
+  return data.transcript;
+}
+
+export async function createSummary(
+  request: CreateSummaryRequest,
+  onChunk: (chunk: string) => void,
+): Promise<string> {
+  const sanitized = {
+    ...request,
+    date: request.date || null,
+  };
+
+  const response = await fetch(`${API_BASE}/createSummary`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sanitized),
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body.detail) {
+        message = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+      }
+    } catch {
+      // body wasn't JSON
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  if (request.stream) {
+    const reader = response.body?.getReader();
+    if (!reader) throw new ApiError(0, "No response body for streaming");
+
+    const decoder = new TextDecoder();
+    let fullText = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      fullText += chunk;
+      onChunk(chunk);
+    }
+
+    return fullText;
+  }
+
+  const data = (await response.json()) as CreateSummaryResponse;
+  return data.summary;
+}
