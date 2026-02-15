@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Copy, FileText, RefreshCw, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,7 @@ export function SummaryView({
         >
           {summary ? (
             <div className="markdown-prose">
-              <ReactMarkdown>{summary}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
               {loading ? <span className="streaming-cursor">▊</span> : null}
             </div>
           ) : loading ? (
