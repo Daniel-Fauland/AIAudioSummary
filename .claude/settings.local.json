@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(wc -l backend/**/*.py frontend/**/*.py)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.pydantic.dev)",
+      "WebSearch",
+      "Bash(git ls-tree -r main)",
+      "WebFetch(domain:ai.pydantic.dev)",
+      "WebFetch(domain:docs.together.ai)",
+      "WebFetch(domain:portkey.ai)",
+      "Bash(uv run python:*)",
+      "Bash(timeout 8 uv run:*)",
+      "Bash(uv remove:*)",
+      "Bash(uv add:*)",
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(npx shadcn@latest init:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(npx --yes gtimeout 10 npm run dev)",
+      "Bash(curl:*)",
+      "Bash(__NEW_LINE_c7272ee43ac8cadd__ echo \"\")",
+      "Bash(__NEW_LINE_cfee5df1a2cb75e9__ echo \"\")",
+      "Bash(__NEW_LINE_a615aa0190484b5a__ echo \"\")",
+      "Bash(node -e:*)",
+      "Bash(find:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "WebFetch(domain:authjs.dev)",
+      "WebFetch(domain:render.com)"
+    ]
+  }
+}
