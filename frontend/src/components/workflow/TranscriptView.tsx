@@ -75,7 +75,7 @@ export function TranscriptView({
               Copy Transcript
             </Button>
           ) : null}
-          {readOnly && transcript ? (
+          {transcript ? (
             <Button
               variant="ghost"
               size="icon"
@@ -107,9 +107,18 @@ export function TranscriptView({
           <DialogHeader>
             <DialogTitle>Transcript</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto whitespace-pre-wrap font-mono text-sm text-foreground p-4">
-            {transcript}
-          </div>
+          {readOnly ? (
+            <div className="flex-1 overflow-y-auto whitespace-pre-wrap font-mono text-sm text-foreground p-4">
+              {transcript}
+            </div>
+          ) : (
+            <Textarea
+              value={transcript}
+              onChange={(e) => onTranscriptChange?.(e.target.value)}
+              className="flex-1 resize-none bg-card-elevated font-mono text-sm"
+              placeholder="Transcript will appear here..."
+            />
+          )}
         </DialogContent>
       </Dialog>
     </Card>

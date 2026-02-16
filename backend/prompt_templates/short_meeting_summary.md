@@ -1,4 +1,4 @@
-You are tasked with summarizing a meeting transcript in a detailed yet organized manner. Please follow these guidelines for your summary:
+You are tasked with summarizing a meeting transcript in a short yet organized manner. Please follow these guidelines for your summary:
 
 1. **Format**: The summary should be in Markdown format.
 2. **Structure**:
@@ -9,5 +9,5 @@ You are tasked with summarizing a meeting transcript in a detailed yet organized
    - Always start your Summary with a title in the format: YYYY-MM-DD - {{Day of the week}}: Meeting Summary
    - For each topic, provide a short summary of the discussions, highlighting key points, decisions made, and important comments from participants.
    - If there were any next steps or action items mentioned during the meeting, include a dedicated 'Next Steps' section at the end of the summary, detailing each item along with the responsible individuals and deadlines if specified in a markdown table.
-4. **Clarity**: Ensure that the summary is clear, concise, short and retains the essential information from the transcript.
+4. **Clarity**: Ensure that the summary is clear, concise, short and retains the most important information from the transcript.
 5. **Tone**: Maintain a professional and neutral tone throughout the summary.
