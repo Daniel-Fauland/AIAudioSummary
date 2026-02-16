@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { Info } from "lucide-react";
 import {
   Sheet,
@@ -40,10 +41,17 @@ export function SettingsSheet({
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
+  const [keyVersion, setKeyVersion] = useState(0);
+  const handleKeyChange = useCallback(() => {
+    setKeyVersion((v) => v + 1);
+  }, []);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[380px] overflow-y-auto border-l border-border bg-card sm:max-w-[380px]">
+      <SheetContent
+        className="w-[380px] overflow-y-auto border-l border-border bg-card sm:max-w-[380px]"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader>
           <SheetTitle>Settings</SheetTitle>
           <SheetDescription className="sr-only">
@@ -60,7 +68,7 @@ export function SettingsSheet({
         </div>
 
         <div className="space-y-6">
-          <ApiKeyManager providers={providers} />
+          <ApiKeyManager providers={providers} onKeyChange={handleKeyChange} />
 
           <Separator />
 
@@ -69,6 +77,7 @@ export function SettingsSheet({
               providers={providers}
               selectedProvider={selectedProvider}
               onProviderChange={onProviderChange}
+              keyVersion={keyVersion}
             />
 
             {selectedProvider !== "azure_openai" ? (

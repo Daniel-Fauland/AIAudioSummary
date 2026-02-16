@@ -10,14 +10,17 @@ import type { ProviderInfo, LLMProvider } from "@/lib/types";
 
 interface ApiKeyManagerProps {
   providers: ProviderInfo[];
+  onKeyChange?: () => void;
 }
 
 function KeyInput({
   label,
   provider,
+  onKeyChange,
 }: {
   label: string;
   provider: LLMProvider | "assemblyai";
+  onKeyChange?: () => void;
 }) {
   const { getKey, setKey, hasKey, clearKey } = useApiKeys();
   const [visible, setVisible] = useState(false);
@@ -28,11 +31,13 @@ function KeyInput({
   const handleChange = (newValue: string) => {
     setValue(newValue);
     setKey(provider, newValue);
+    onKeyChange?.();
   };
 
   const handleClear = () => {
     setValue("");
     clearKey(provider);
+    onKeyChange?.();
   };
 
   return (
@@ -85,14 +90,14 @@ function KeyInput({
   );
 }
 
-export function ApiKeyManager({ providers }: ApiKeyManagerProps) {
+export function ApiKeyManager({ providers, onKeyChange }: ApiKeyManagerProps) {
   return (
     <div className="space-y-5">
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground-secondary">
           Transcription
         </h3>
-        <KeyInput label="AssemblyAI API Key" provider="assemblyai" />
+        <KeyInput label="AssemblyAI API Key" provider="assemblyai" onKeyChange={onKeyChange} />
       </div>
 
       <div className="space-y-3">
@@ -104,6 +109,7 @@ export function ApiKeyManager({ providers }: ApiKeyManagerProps) {
             key={provider.id}
             label={`${provider.name} API Key`}
             provider={provider.id}
+            onKeyChange={onKeyChange}
           />
         ))}
       </div>

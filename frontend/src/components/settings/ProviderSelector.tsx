@@ -16,6 +16,7 @@ interface ProviderSelectorProps {
   providers: ProviderInfo[];
   selectedProvider: LLMProvider;
   onProviderChange: (provider: LLMProvider) => void;
+  keyVersion?: number;
 }
 
 export function ProviderSelector({
