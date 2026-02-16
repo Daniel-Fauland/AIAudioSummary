@@ -295,7 +295,7 @@ export default function Home() {
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <StepIndicator currentStep={currentStep} />
 
-        <div className="step-content space-y-6" key={currentStep}>
+        <div className="step-content space-y-6 pb-8" key={currentStep}>
           {/* Step 1: File Upload */}
           {currentStep === 1 ? (
             <FileUpload
