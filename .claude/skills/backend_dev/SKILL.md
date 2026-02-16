@@ -48,4 +48,4 @@ Notify the user of the test results — what passed, what was tested, and any is
 
 ## Step 6: Update documentation
 
-As the very last step, review `CLAUDE.md` in the project root. If your changes introduced new endpoints, architectural changes, configuration options, or anything that alters the project structure, update `CLAUDE.md` accordingly. If no documentation update is needed, explicitly state that.
+As the very last step, review [architecture.md](../../../docs/architecture.md) in the project root. If your changes introduced new endpoints, architectural changes, configuration options, or anything that alters the project structure, update [architecture.md](../../../docs/architecture.md) accordingly. If no documentation update is needed, explicitly state that.
