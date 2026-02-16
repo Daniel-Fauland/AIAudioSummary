@@ -88,6 +88,7 @@ export async function updateSpeakers(
 export async function createSummary(
   request: CreateSummaryRequest,
   onChunk: (chunk: string) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
   const sanitized = {
     ...request,
@@ -98,6 +99,7 @@ export async function createSummary(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(sanitized),
+    signal,
   });
 
   if (!response.ok) {

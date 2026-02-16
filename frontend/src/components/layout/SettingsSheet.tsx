@@ -59,7 +59,7 @@ export function SettingsSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex items-start gap-2 rounded-md bg-info-muted p-3">
+        <div className="mx-4 flex items-start gap-2 rounded-md bg-info-muted p-3">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />
           <p className="text-xs text-foreground-secondary">
             Your API keys are stored in your browser only and are never saved on
@@ -67,7 +67,7 @@ export function SettingsSheet({
           </p>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 px-4">
           <ApiKeyManager providers={providers} onKeyChange={handleKeyChange} />
 
           <Separator />

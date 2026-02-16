@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, FileText, RefreshCw, ArrowLeft, Maximize2 } from "lucide-react";
+import { Copy, FileText, RefreshCw, ArrowLeft, Maximize2, Square } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ interface SummaryViewProps {
   summary: string;
   loading?: boolean;
   onCopy?: () => void;
+  onStop?: () => void;
   onRegenerate?: () => void;
   onBack?: () => void;
 }
@@ -28,10 +29,12 @@ export function SummaryView({
   summary,
   loading,
   onCopy,
+  onStop,
   onRegenerate,
   onBack,
 }: SummaryViewProps) {
   const [fullscreen, setFullscreen] = useState(false);
+  const [badgeHovered, setBadgeHovered] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll during streaming
@@ -90,9 +93,23 @@ export function SummaryView({
           {loading ? (
             <Badge
               variant="outline"
-              className="border-primary-muted bg-primary-muted text-primary"
+              className={`border-primary-muted bg-primary-muted text-primary transition-colors ${
+                badgeHovered
+                  ? "cursor-pointer border-destructive/30 bg-destructive/10 text-destructive"
+                  : ""
+              }`}
+              onMouseEnter={() => setBadgeHovered(true)}
+              onMouseLeave={() => setBadgeHovered(false)}
+              onClick={badgeHovered ? onStop : undefined}
             >
-              Generating...
+              {badgeHovered ? (
+                <>
+                  <Square className="mr-1 h-3 w-3 fill-current" />
+                  Stop Generating
+                </>
+              ) : (
+                "Generating..."
+              )}
             </Badge>
           ) : null}
         </div>
@@ -121,13 +138,13 @@ export function SummaryView({
           )}
         </div>
 
-        {!loading && summary ? (
+        {!loading ? (
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" className="justify-start" onClick={handleCopyFormatted}>
+            <Button variant="secondary" className="justify-start" onClick={handleCopyFormatted} disabled={!summary}>
               <Copy className="mr-2 h-4 w-4" />
               Copy Summary
             </Button>
-            <Button variant="secondary" className="justify-start" onClick={handleCopyMarkdown}>
+            <Button variant="secondary" className="justify-start" onClick={handleCopyMarkdown} disabled={!summary}>
               <FileText className="mr-2 h-4 w-4" />
               Copy as Markdown
             </Button>

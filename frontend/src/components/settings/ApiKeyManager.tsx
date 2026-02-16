@@ -74,17 +74,16 @@ function KeyInput({
             )}
           </Button>
         </div>
-        {saved ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleClear}
-            className="text-foreground-muted hover:text-destructive"
-            aria-label="Clear key"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        ) : null}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleClear}
+          className={`text-foreground-muted hover:text-destructive ${!saved ? "invisible" : ""}`}
+          aria-label="Clear key"
+          disabled={!saved}
+        >
+          <X className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );

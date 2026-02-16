@@ -1,6 +1,7 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Make sure you always know the codebase if a user asks you a code or feature related question. In this case read [architecture.md](./docs/architecture.md) file.
 
 ## Skills
 
@@ -77,9 +78,11 @@ Single-page app (SPA) with App Router. Dark-mode only. 3-step workflow: Upload �
 ## Configuration
 
 Backend `.env` (copy from `.env.example`):
+
 - `PROMPT_TEMPLATE_DIRECTORY` — path to prompt templates (default: `"./prompt_templates"`)
 
 Frontend `.env.local` (copy from `.env.local.example`):
+
 - `NEXT_PUBLIC_API_URL` — Backend API URL (default: `http://localhost:8080`)
 
 API keys are provided per-request from the frontend UI (stored in browser localStorage), not in backend config.

@@ -161,13 +161,13 @@ Locally, the same proxy route forwards `localhost:3000/api/proxy/*` to `localhos
 
 Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 
-| File | Purpose |
-|---|---|
-| `src/auth.ts` | Auth.js config: Google provider, email allowlist from `ALLOWED_EMAILS` env var, custom `/login` page |
-| `src/app/api/auth/[...nextauth]/route.ts` | Auth.js route handler (GET/POST for OAuth callbacks) |
-| `src/app/login/page.tsx` | Server Component login page with "Sign in with Google" button |
-| `src/components/auth/SessionWrapper.tsx` | Client `<SessionProvider>` wrapper (needed because `layout.tsx` is a Server Component) |
-| `src/components/auth/UserMenu.tsx` | Client component showing user email, avatar, and sign-out button |
+| File                                      | Purpose                                                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/auth.ts`                             | Auth.js config: Google provider, email allowlist from `ALLOWED_EMAILS` env var, custom `/login` page |
+| `src/app/api/auth/[...nextauth]/route.ts` | Auth.js route handler (GET/POST for OAuth callbacks)                                                 |
+| `src/app/login/page.tsx`                  | Server Component login page with "Sign in with Google" button                                        |
+| `src/components/auth/SessionWrapper.tsx`  | Client `<SessionProvider>` wrapper (needed because `layout.tsx` is a Server Component)               |
+| `src/components/auth/UserMenu.tsx`        | Client component showing user email, avatar, and sign-out button                                     |
 
 **Email allowlist**: The `ALLOWED_EMAILS` env var is a comma-separated list of emails. If empty, all authenticated Google users are allowed. The check happens in the `signIn` callback in `auth.ts`.
 
@@ -190,16 +190,16 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 
 ### Environment Variables
 
-| Variable | Service | Default | Description |
-|---|---|---|---|
+| Variable               | Service  | Default                 | Description                                                  |
+| ---------------------- | -------- | ----------------------- | ------------------------------------------------------------ |
 | `BACKEND_INTERNAL_URL` | Frontend | `http://localhost:8080` | Backend URL (auto-populated on Render via service discovery) |
-| `AUTH_GOOGLE_ID` | Frontend | — | Google OAuth client ID |
-| `AUTH_GOOGLE_SECRET` | Frontend | — | Google OAuth client secret |
-| `AUTH_SECRET` | Frontend | — | Random secret for session encryption |
-| `ALLOWED_EMAILS` | Frontend | (empty = allow all) | Comma-separated email allowlist |
-| `AUTH_TRUST_HOST` | Frontend | — | Set to `"true"` for non-Vercel deployments |
-| `ENVIRONMENT` | Backend | `development` | `development` (enables reload) or `production` |
-| `ALLOWED_ORIGINS` | Backend | `http://localhost:3000` | Comma-separated CORS origins |
+| `AUTH_GOOGLE_ID`       | Frontend | —                       | Google OAuth client ID                                       |
+| `AUTH_GOOGLE_SECRET`   | Frontend | —                       | Google OAuth client secret                                   |
+| `AUTH_SECRET`          | Frontend | —                       | Random secret for session encryption                         |
+| `ALLOWED_EMAILS`       | Frontend | (empty = allow all)     | Comma-separated email allowlist                              |
+| `AUTH_TRUST_HOST`      | Frontend | —                       | Set to `"true"` for non-Vercel deployments                   |
+| `ENVIRONMENT`          | Backend  | `development`           | `development` (enables reload) or `production`               |
+| `ALLOWED_ORIGINS`      | Backend  | `http://localhost:3000` | Comma-separated CORS origins                                 |
 
 ---
 
@@ -337,13 +337,13 @@ config = Settings()  # Singleton, imported throughout
 
 Environment variables (`.env`):
 
-| Variable                    | Default                | Description                           |
-| --------------------------- | ---------------------- | ------------------------------------- |
-| `LOGGING_LEVEL`             | `INFO`                 | DEBUG, INFO, WARNING, ERROR, CRITICAL |
-| `FASTAPI_WELCOME_MSG`       | (swagger docs message) | Root endpoint message                 |
-| `PROMPT_TEMPLATE_DIRECTORY` | `./prompt_templates`   | Path to prompt markdown files         |
-| `ENVIRONMENT`               | `development`          | `development` (hot-reload) or `production` |
-| `ALLOWED_ORIGINS`           | `http://localhost:3000`| Comma-separated CORS origins          |
+| Variable                    | Default                 | Description                                |
+| --------------------------- | ----------------------- | ------------------------------------------ |
+| `LOGGING_LEVEL`             | `INFO`                  | DEBUG, INFO, WARNING, ERROR, CRITICAL      |
+| `FASTAPI_WELCOME_MSG`       | (swagger docs message)  | Root endpoint message                      |
+| `PROMPT_TEMPLATE_DIRECTORY` | `./prompt_templates`    | Path to prompt markdown files              |
+| `ENVIRONMENT`               | `development`           | `development` (hot-reload) or `production` |
+| `ALLOWED_ORIGINS`           | `http://localhost:3000` | Comma-separated CORS origins               |
 
 To add a new setting: add a field to `Settings` in `config.py`, add the corresponding variable to `.env` and `.env.example`.
 
@@ -451,7 +451,7 @@ Format: `timestamp | level | filename:line | function | message`
 - **Authentication**: Google OAuth via Auth.js v5. `layout.tsx` wraps all children in `<SessionWrapper>` for client-side session access. `proxy.ts` redirects unauthenticated users to `/login`.
 - **API proxy**: All API calls go through `/api/proxy/*` which forwards to the backend. The frontend never calls the backend directly.
 - **Toast notifications**: Sonner, positioned bottom-right
-- **Style Guide**: Always follow [UX_SPECIFICATION.md](../user_stories/UX_SPECIFICATION.md) when implementing any frontend feature.
+- **Style Guide**: Always follow [UX_SPECIFICATION.md](../user_stories/UX_SPECIFICATION.md) when implementing any frontend feature!
 
 ### 3-Step Workflow
 
@@ -951,6 +951,7 @@ Make sure the repository (with `render.yaml` at the root) is pushed to GitHub.
 After the Blueprint creates the services, some env vars need manual values:
 
 **Frontend service (`aias-frontend`)**:
+
 1. Go to the frontend service → **Environment**
 2. Set these variables:
    - `AUTH_GOOGLE_ID` — your Google OAuth Client ID
@@ -961,6 +962,7 @@ After the Blueprint creates the services, some env vars need manual values:
 5. `BACKEND_INTERNAL_URL` is auto-populated from the backend service's external URL
 
 **Backend service (`aias-backend`)**:
+
 1. Go to the backend service → **Environment**
 2. Set:
    - `ALLOWED_ORIGINS` — your frontend's public URL, e.g., `https://aias-frontend.onrender.com`
@@ -993,10 +995,10 @@ After setting all env vars and updating GCP, trigger a manual deploy for both se
 
 ### Troubleshooting
 
-| Issue | Solution |
-|---|---|
-| "redirect_uri_mismatch" error | Ensure the redirect URI in GCP exactly matches `https://<your-domain>/api/auth/callback/google` |
-| 401 errors on API calls | Check that `BACKEND_INTERNAL_URL` is set correctly on the frontend service |
-| Backend unreachable | Verify the backend is running (check Render logs). Check that `BACKEND_INTERNAL_URL` on the frontend service points to the backend's URL |
-| "Access denied" on sign-in | Check `ALLOWED_EMAILS` — the signing-in user's email must be in the list (or the list must be empty) |
-| OAuth consent screen errors | Make sure the consent screen is published if using External user type in production |
+| Issue                         | Solution                                                                                                                                 |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| "redirect_uri_mismatch" error | Ensure the redirect URI in GCP exactly matches `https://<your-domain>/api/auth/callback/google`                                          |
+| 401 errors on API calls       | Check that `BACKEND_INTERNAL_URL` is set correctly on the frontend service                                                               |
+| Backend unreachable           | Verify the backend is running (check Render logs). Check that `BACKEND_INTERNAL_URL` on the frontend service points to the backend's URL |
+| "Access denied" on sign-in    | Check `ALLOWED_EMAILS` — the signing-in user's email must be in the list (or the list must be empty)                                     |
+| OAuth consent screen errors   | Make sure the consent screen is published if using External user type in production                                                      |

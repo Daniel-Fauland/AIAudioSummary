@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -71,6 +71,7 @@ export default function Home() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [summary, setSummary] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Prompt settings
   const [selectedPrompt, setSelectedPrompt] = useState("");
@@ -166,6 +167,9 @@ export default function Home() {
     setIsGenerating(true);
     setSummary("");
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       await createSummary(
         {
@@ -184,12 +188,18 @@ export default function Home() {
         (chunk) => {
           setSummary((prev) => prev + chunk);
         },
+        controller.signal,
       );
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Summary generation failed",
-      );
+      if (e instanceof DOMException && e.name === "AbortError") {
+        // User stopped generation — not an error
+      } else {
+        toast.error(
+          e instanceof Error ? e.message : "Summary generation failed",
+        );
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsGenerating(false);
     }
   }, [
@@ -203,6 +213,10 @@ export default function Home() {
     informalGerman,
     meetingDate,
   ]);
+
+  const handleStopGenerating = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
 
   const handleRegenerate = useCallback(() => {
     handleGenerate();
@@ -351,6 +365,7 @@ export default function Home() {
                 <SummaryView
                   summary={summary}
                   loading={isGenerating}
+                  onStop={handleStopGenerating}
                   onRegenerate={handleRegenerate}
                   onBack={handleBackToTranscript}
                 />

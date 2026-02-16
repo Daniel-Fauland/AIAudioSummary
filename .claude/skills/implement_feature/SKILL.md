@@ -29,4 +29,5 @@ Always pass clear, specific instructions to each skill describing exactly what i
 
 ## Step 3: Verify integration
 
-If both skills were invoked (full-stack feature), verify that the frontend correctly integrates with the new/modified backend endpoints. Confirm request/response models match and the end-to-end flow works.
+- If both skills were invoked (full-stack feature), verify that the frontend correctly integrates with the new/modified backend endpoints. Confirm request/response models match and the end-to-end flow works.
+- Always update the [architecture.md](../../../docs/architecture.md) file if you make any structural changes to the codebase.
