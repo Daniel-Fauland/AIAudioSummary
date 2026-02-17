@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Info } from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -10,6 +10,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
 import { ProviderSelector } from "@/components/settings/ProviderSelector";
 import { ModelSelector } from "@/components/settings/ModelSelector";
@@ -26,6 +33,17 @@ interface SettingsSheetProps {
   onModelChange: (model: string) => void;
   azureConfig: AzureConfig | null;
   onAzureConfigChange: (config: AzureConfig) => void;
+  autoKeyPointsEnabled: boolean;
+  onAutoKeyPointsChange: (enabled: boolean) => void;
+}
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <CollapsibleTrigger className="flex w-full items-center justify-between group">
+      <h3 className="text-sm font-medium text-foreground-secondary">{children}</h3>
+      <ChevronDown className="h-4 w-4 text-foreground-muted transition-transform group-data-[state=closed]:-rotate-90" />
+    </CollapsibleTrigger>
+  );
 }
 
 export function SettingsSheet({
@@ -38,6 +56,8 @@ export function SettingsSheet({
   onModelChange,
   azureConfig,
   onAzureConfigChange,
+  autoKeyPointsEnabled,
+  onAutoKeyPointsChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -67,37 +87,74 @@ export function SettingsSheet({
           </p>
         </div>
 
-        <div className="space-y-6 px-4">
-          <ApiKeyManager providers={providers} onKeyChange={handleKeyChange} />
+        <div className="space-y-6 px-4 pb-6">
+          <Collapsible defaultOpen>
+            <SectionHeader>API Keys</SectionHeader>
+            <CollapsibleContent>
+              <div className="pt-3">
+                <ApiKeyManager providers={providers} onKeyChange={handleKeyChange} />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           <Separator />
 
-          <div className="space-y-4">
-            <ProviderSelector
-              providers={providers}
-              selectedProvider={selectedProvider}
-              onProviderChange={onProviderChange}
-              keyVersion={keyVersion}
-            />
-
-            {selectedProvider !== "azure_openai" ? (
-              <ModelSelector
-                models={currentProvider?.models ?? []}
-                selectedModel={selectedModel}
-                onModelChange={onModelChange}
-              />
-            ) : null}
-
-            {selectedProvider === "azure_openai" ? (
-              <>
-                <Separator />
-                <AzureConfigForm
-                  config={azureConfig}
-                  onConfigChange={onAzureConfigChange}
+          <Collapsible defaultOpen>
+            <SectionHeader>AI Model</SectionHeader>
+            <CollapsibleContent>
+              <div className="space-y-4 pt-3">
+                <ProviderSelector
+                  providers={providers}
+                  selectedProvider={selectedProvider}
+                  onProviderChange={onProviderChange}
+                  keyVersion={keyVersion}
                 />
-              </>
-            ) : null}
-          </div>
+
+                {selectedProvider !== "azure_openai" ? (
+                  <ModelSelector
+                    models={currentProvider?.models ?? []}
+                    selectedModel={selectedModel}
+                    onModelChange={onModelChange}
+                  />
+                ) : null}
+
+                {selectedProvider === "azure_openai" ? (
+                  <>
+                    <Separator />
+                    <AzureConfigForm
+                      config={azureConfig}
+                      onConfigChange={onAzureConfigChange}
+                    />
+                  </>
+                ) : null}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Separator />
+
+          <Collapsible defaultOpen>
+            <SectionHeader>Features</SectionHeader>
+            <CollapsibleContent>
+              <div className="pt-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto-key-points" className="text-sm">
+                      Speaker Key Points
+                    </Label>
+                    <p className="text-xs text-foreground-muted">
+                      Auto-extract key point summaries per speaker after transcription
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-key-points"
+                    checked={autoKeyPointsEnabled}
+                    onCheckedChange={onAutoKeyPointsChange}
+                  />
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       </SheetContent>
     </Sheet>

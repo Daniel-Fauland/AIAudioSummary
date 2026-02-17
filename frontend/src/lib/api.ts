@@ -3,6 +3,8 @@ import type {
   CreateSummaryRequest,
   CreateSummaryResponse,
   CreateTranscriptResponse,
+  ExtractKeyPointsRequest,
+  ExtractKeyPointsResponse,
   GetSpeakersResponse,
   UpdatedTranscriptResponse,
 } from "./types";
@@ -83,6 +85,17 @@ export async function updateSpeakers(
   });
   const data = await handleResponse<UpdatedTranscriptResponse>(response);
   return data.transcript;
+}
+
+export async function extractKeyPoints(
+  request: ExtractKeyPointsRequest,
+): Promise<ExtractKeyPointsResponse> {
+  const response = await fetch(`${API_BASE}/extractKeyPoints`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<ExtractKeyPointsResponse>(response);
 }
 
 export async function createSummary(

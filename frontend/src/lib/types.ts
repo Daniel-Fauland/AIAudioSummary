@@ -60,6 +60,21 @@ export interface CreateSummaryResponse {
   summary: string;
 }
 
+// === Key Points types ===
+
+export interface ExtractKeyPointsRequest {
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  azure_config: AzureConfig | null;
+  transcript: string;
+  speakers: string[];
+}
+
+export interface ExtractKeyPointsResponse {
+  key_points: Record<string, string>;
+}
+
 // === Speaker types ===
 
 export interface GetSpeakersResponse {

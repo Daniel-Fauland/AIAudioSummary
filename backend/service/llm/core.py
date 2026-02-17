@@ -11,7 +11,7 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
-from models.llm import LLMProvider, AzureConfig, CreateSummaryRequest
+from models.llm import LLMProvider, AzureConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse
 from service.misc.core import MiscService
 
 helper = MiscService()
@@ -126,6 +126,42 @@ class LLMService:
         else:
             result = await agent.run(user_prompt)
             return result.output
+
+    async def extract_key_points(self, request: ExtractKeyPointsRequest) -> ExtractKeyPointsResponse:
+        """Extract 1-3 sentence key point summaries per speaker from a transcript."""
+        model_name = request.model
+        if request.provider == LLMProvider.AZURE_OPENAI and request.azure_config:
+            model_name = request.azure_config.deployment_name
+
+        model = self._create_model(
+            provider=request.provider,
+            model_name=model_name,
+            api_key=request.api_key,
+            azure_config=request.azure_config
+        )
+
+        speakers_list = ", ".join(request.speakers)
+        system_prompt = (
+            "You are an assistant that analyzes meeting transcripts. "
+            "Given a transcript and a list of speaker labels, produce a JSON object mapping each speaker label "
+            "to a 1-3 sentence summary of their key points and contributions in the meeting. "
+            "Focus on what each speaker talked about, their main arguments, and any decisions they made. "
+            "Return ONLY the JSON object with speaker labels as keys and summary strings as values."
+        )
+        user_prompt = (
+            f"Speakers: {speakers_list}\n\n"
+            f"Transcript:\n{request.transcript}"
+        )
+
+        agent = Agent(
+            model,
+            system_prompt=system_prompt,
+            output_type=ExtractKeyPointsResponse,
+            model_settings=ModelSettings(temperature=0.3)
+        )
+
+        result = await agent.run(user_prompt)
+        return result.output
 
     async def _stream_response(self, agent: Agent, user_prompt: str) -> AsyncGenerator[str, None]:
         """Stream response chunks from the LLM agent."""

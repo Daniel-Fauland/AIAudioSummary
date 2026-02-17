@@ -1,10 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ArrowRight, Loader2, User } from "lucide-react";
+import { ArrowRight, Info, Loader2, RefreshCw, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { getSpeakers, updateSpeakers } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -13,6 +20,11 @@ interface SpeakerMapperProps {
   onTranscriptUpdate: (updatedTranscript: string) => void;
   authorSpeaker: string | null;
   onAuthorSpeakerChange: (speaker: string | null) => void;
+  keyPoints: Record<string, string>;
+  isExtractingKeyPoints: boolean;
+  onAutoExtractKeyPoints: (transcript: string, speakers: string[]) => void;
+  onManualExtractKeyPoints: (transcript: string, speakers: string[]) => void;
+  onKeyPointsRemap: (mappings: Record<string, string>) => void;
 }
 
 export function SpeakerMapper({
@@ -20,13 +32,21 @@ export function SpeakerMapper({
   onTranscriptUpdate,
   authorSpeaker,
   onAuthorSpeakerChange,
+  keyPoints,
+  isExtractingKeyPoints,
+  onAutoExtractKeyPoints,
+  onManualExtractKeyPoints,
+  onKeyPointsRemap,
 }: SpeakerMapperProps) {
   const [speakers, setSpeakers] = useState<string[]>([]);
   const [replacements, setReplacements] = useState<Record<string, string>>({});
   const [detecting, setDetecting] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const lastDetectedTranscript = useRef("");
+  const onAutoExtractKeyPointsRef = useRef(onAutoExtractKeyPoints);
+  onAutoExtractKeyPointsRef.current = onAutoExtractKeyPoints;
 
   // Auto-detect speakers whenever the transcript changes (debounced 500ms)
   useEffect(() => {
@@ -45,6 +65,11 @@ export function SpeakerMapper({
           setSpeakers(result);
           setReplacements({});
           onAuthorSpeakerChange(null);
+
+          // Auto-extract key points after speakers are detected
+          if (result.length > 0) {
+            onAutoExtractKeyPointsRef.current(transcript, result);
+          }
         }
       } catch (e) {
         if (!cancelled) {
@@ -89,8 +114,10 @@ export function SpeakerMapper({
         onAuthorSpeakerChange(mappings[authorSpeaker]);
       }
 
+      // Remap key points to use new speaker names
+      onKeyPointsRemap(mappings);
+
       toast.success("Speaker names updated.");
-      // Don't clear speakers — the transcript change will trigger re-detection
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Failed to update speakers",
@@ -101,7 +128,6 @@ export function SpeakerMapper({
   };
 
   const handleAuthorToggle = (speaker: string) => {
-    // Get the display name: use replacement if set, otherwise the original speaker label
     const displayName = replacements[speaker]?.trim() || speaker;
     if (authorSpeaker === displayName) {
       onAuthorSpeakerChange(null);
@@ -118,73 +144,166 @@ export function SpeakerMapper({
     (s) => (replacements[s]?.trim() ?? "").length > 0,
   );
 
-  return (
-    <Card className="border-border">
-      <CardHeader>
-        <CardTitle className="text-lg">Speaker Mapping</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {detecting ? (
-          <div className="flex items-center gap-2 text-sm text-foreground-secondary">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Detecting speakers...
+  const handleRefreshKeyPoints = () => {
+    if (speakers.length > 0) {
+      onManualExtractKeyPoints(transcript, speakers);
+    }
+  };
+
+  const renderSpeakerRow = (speaker: string, showKeyPoints: boolean) => {
+    const displayName = getDisplayName(speaker);
+    const isAuthor = authorSpeaker === displayName;
+
+    return (
+      <div key={speaker} className="space-y-1">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleAuthorToggle(speaker)}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors ${
+              isAuthor
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card-elevated text-foreground-muted hover:border-border-hover hover:text-foreground-secondary"
+            }`}
+            title={
+              isAuthor
+                ? "Remove as author/POV"
+                : "Set as author/POV"
+            }
+          >
+            <User className="h-4 w-4" />
+          </button>
+          <span className="min-w-[100px] text-sm font-medium text-foreground-secondary">
+            {speaker}
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-foreground-muted" />
+          <Input
+            value={replacements[speaker] ?? ""}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              setReplacements((prev) => ({
+                ...prev,
+                [speaker]: newValue,
+              }));
+              if (isAuthor) {
+                const trimmed = newValue.trim();
+                onAuthorSpeakerChange(trimmed || speaker);
+              }
+            }}
+            placeholder="Enter name"
+            className="bg-card-elevated"
+          />
+        </div>
+        {showKeyPoints ? (
+          <div className="ml-10 pl-0.5">
+            {isExtractingKeyPoints && !keyPoints[speaker] ? (
+              <div className="h-3 w-3/4 animate-pulse rounded bg-card-elevated" />
+            ) : keyPoints[speaker] ? (
+              <p className="text-xs text-foreground-muted">
+                {keyPoints[speaker]}
+              </p>
+            ) : null}
           </div>
         ) : null}
+      </div>
+    );
+  };
 
-        {!detecting && speakers.length === 0 && transcript ? (
-          <p className="text-sm text-foreground-muted">
-            No speakers detected in the transcript.
-          </p>
-        ) : null}
+  return (
+    <>
+      <Card className="border-border">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Speaker Mapping</CardTitle>
+            <div className="flex items-center gap-2">
+              {isExtractingKeyPoints ? (
+                <Badge variant="outline" className="gap-1.5 text-xs border-primary text-primary">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Extracting key points...
+                </Badge>
+              ) : null}
+              {speakers.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setFullscreen(true)}
+                  className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card-elevated text-foreground-muted transition-colors hover:border-border-hover hover:text-foreground-secondary"
+                  title="Speaker details"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {detecting ? (
+            <div className="flex items-center gap-2 text-sm text-foreground-secondary">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Detecting speakers...
+            </div>
+          ) : null}
 
-        {speakers.length > 0 ? (
-          <div className="space-y-3">
-            {speakers.map((speaker) => {
-              const displayName = getDisplayName(speaker);
-              const isAuthor = authorSpeaker === displayName;
+          {!detecting && speakers.length === 0 && transcript ? (
+            <p className="text-sm text-foreground-muted">
+              No speakers detected in the transcript.
+            </p>
+          ) : null}
 
-              return (
-                <div key={speaker} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleAuthorToggle(speaker)}
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                      isAuthor
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-card-elevated text-foreground-muted hover:border-border-hover hover:text-foreground-secondary"
-                    }`}
-                    title={
-                      isAuthor
-                        ? "Remove as author/POV"
-                        : "Set as author/POV"
-                    }
-                  >
-                    <User className="h-4 w-4" />
-                  </button>
-                  <span className="min-w-[100px] text-sm font-medium text-foreground-secondary">
-                    {speaker}
-                  </span>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-foreground-muted" />
-                  <Input
-                    value={replacements[speaker] ?? ""}
-                    onChange={(e) => {
-                      const newValue = e.target.value;
-                      setReplacements((prev) => ({
-                        ...prev,
-                        [speaker]: newValue,
-                      }));
-                      // Update author name live if this speaker is the author
-                      if (isAuthor) {
-                        const trimmed = newValue.trim();
-                        onAuthorSpeakerChange(trimmed || speaker);
-                      }
-                    }}
-                    placeholder="Enter name"
-                    className="bg-card-elevated"
-                  />
-                </div>
-              );
-            })}
+          {speakers.length > 0 ? (
+            <div className="space-y-3">
+              {speakers.map((speaker) => renderSpeakerRow(speaker, false))}
+
+              {authorSpeaker ? (
+                <p className="text-xs text-foreground-muted">
+                  <User className="mr-1 inline h-3 w-3" />
+                  <span className="font-medium text-foreground-secondary">
+                    {authorSpeaker}
+                  </span>{" "}
+                  is set as author/POV for the summary.
+                </p>
+              ) : null}
+
+              <Button
+                onClick={handleApply}
+                disabled={applying || !hasAnyReplacement}
+                className="hover:bg-primary/75"
+              >
+                {applying ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Apply Names
+              </Button>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
+        <DialogContent className="sm:max-w-[95vw] h-[90vh] flex flex-col">
+          <DialogHeader>
+            <div className="flex items-center justify-between pr-8">
+              <DialogTitle>Speaker Mapping</DialogTitle>
+              <div className="flex items-center gap-2">
+                {isExtractingKeyPoints ? (
+                  <Badge variant="secondary" className="gap-1.5 text-xs">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Extracting key points
+                  </Badge>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={handleRefreshKeyPoints}
+                  disabled={isExtractingKeyPoints || speakers.length === 0}
+                  className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card-elevated text-foreground-muted transition-colors hover:border-border-hover hover:text-foreground-secondary disabled:opacity-50 disabled:pointer-events-none"
+                  title="Refresh key points"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-4">
+            {speakers.map((speaker) => renderSpeakerRow(speaker, true))}
 
             {authorSpeaker ? (
               <p className="text-xs text-foreground-muted">
@@ -195,7 +314,8 @@ export function SpeakerMapper({
                 is set as author/POV for the summary.
               </p>
             ) : null}
-
+          </div>
+          <div className="pt-4 border-t border-border">
             <Button
               onClick={handleApply}
               disabled={applying || !hasAnyReplacement}
@@ -207,8 +327,8 @@ export function SpeakerMapper({
               Apply Names
             </Button>
           </div>
-        ) : null}
-      </CardContent>
-    </Card>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

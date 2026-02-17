@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import StreamingResponse
 from service.llm.core import LLMService
-from models.llm import CreateSummaryRequest, CreateSummaryResponse
+from models.llm import CreateSummaryRequest, CreateSummaryResponse, ExtractKeyPointsRequest, ExtractKeyPointsResponse
 from utils.logging import logger
 
 llm_router = APIRouter()
@@ -44,6 +44,42 @@ async def create_summary(
             )
 
         # All other errors
+        logger.error(f"LLM provider error ({provider_name}): {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"LLM provider error ({provider_name}): {str(e)}"
+        )
+
+
+@llm_router.post(
+    "/extractKeyPoints",
+    status_code=200,
+    response_model=ExtractKeyPointsResponse
+)
+async def extract_key_points(
+    request: ExtractKeyPointsRequest = Body(...)
+):
+    """Extract key point summaries per speaker from a transcript using the specified LLM."""
+    try:
+        result = await service.extract_key_points(request)
+        return result
+
+    except Exception as e:
+        error_msg = str(e).lower()
+        provider_name = request.provider.value
+
+        if "auth" in error_msg or "api key" in error_msg or "unauthorized" in error_msg or "invalid x-api-key" in error_msg or "invalid api key" in error_msg:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid API key for {provider_name}"
+            )
+
+        if "model" in error_msg and ("not found" in error_msg or "does not exist" in error_msg or "not exist" in error_msg):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model '{request.model}' not found for provider {provider_name}"
+            )
+
         logger.error(f"LLM provider error ({provider_name}): {e}")
         raise HTTPException(
             status_code=502,

@@ -38,3 +38,22 @@ class CreateSummaryRequest(BaseModel):
 
 class CreateSummaryResponse(BaseModel):
     summary: str = Field(..., description="The AI summary of the transcription")
+
+
+class ExtractKeyPointsRequest(BaseModel):
+    provider: LLMProvider = Field(..., description="Which LLM provider to use")
+    api_key: str = Field(..., min_length=1, description="Provider API key (sent per-request)")
+    model: str = Field(..., min_length=1, description="Model identifier")
+    azure_config: AzureConfig | None = Field(None, description="Required only when provider is 'azure_openai'")
+    transcript: str = Field(..., min_length=1, description="The transcript text to extract key points from")
+    speakers: list[str] = Field(..., min_length=1, description="List of speaker labels found in the transcript")
+
+    @model_validator(mode="after")
+    def validate_azure_config(self):
+        if self.provider == LLMProvider.AZURE_OPENAI and self.azure_config is None:
+            raise ValueError("azure_config is required when provider is 'azure_openai'")
+        return self
+
+
+class ExtractKeyPointsResponse(BaseModel):
+    key_points: dict[str, str] = Field(..., description="Mapping of speaker label to 1-3 sentence key point summary")

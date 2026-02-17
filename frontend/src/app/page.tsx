@@ -16,11 +16,12 @@ import { Button } from "@/components/ui/button";
 import { useConfig } from "@/hooks/useConfig";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { useCustomTemplates } from "@/hooks/useCustomTemplates";
-import { createTranscript, createSummary } from "@/lib/api";
+import { createTranscript, createSummary, extractKeyPoints } from "@/lib/api";
 import type { AzureConfig, LLMProvider } from "@/lib/types";
 
 const PROVIDER_KEY = "aias:v1:selected_provider";
 const MODEL_KEY_PREFIX = "aias:v1:model:";
+const AUTO_KEY_POINTS_KEY = "aias:v1:auto_key_points";
 
 function safeGet(key: string, fallback: string): string {
   try {
@@ -83,6 +84,15 @@ export default function Home() {
   });
   const [authorSpeaker, setAuthorSpeaker] = useState<string | null>(null);
 
+  // Speaker key points
+  const [speakerKeyPoints, setSpeakerKeyPoints] = useState<Record<string, string>>({});
+  const [isExtractingKeyPoints, setIsExtractingKeyPoints] = useState(false);
+  const [autoKeyPointsEnabled, setAutoKeyPointsEnabled] = useState(() =>
+    safeGet(AUTO_KEY_POINTS_KEY, "true") !== "false",
+  );
+  const hasAutoExtractedKeyPointsRef = useRef(false);
+  // Accumulated speaker renames: original label → new name
+  const speakerRenamesRef = useRef<Record<string, string>>({});
 
   // Set default prompt from first template
   useEffect(() => {
@@ -114,6 +124,92 @@ export default function Home() {
     [selectedProvider],
   );
 
+  const handleAutoKeyPointsChange = useCallback((enabled: boolean) => {
+    setAutoKeyPointsEnabled(enabled);
+    safeSet(AUTO_KEY_POINTS_KEY, enabled ? "true" : "false");
+  }, []);
+
+  const applyRenames = useCallback((keyPoints: Record<string, string>): Record<string, string> => {
+    const renames = speakerRenamesRef.current;
+    if (Object.keys(renames).length === 0) return keyPoints;
+    const remapped: Record<string, string> = {};
+    for (const [key, value] of Object.entries(keyPoints)) {
+      remapped[renames[key] ?? key] = value;
+    }
+    return remapped;
+  }, []);
+
+  const doExtractKeyPoints = useCallback(
+    async (transcriptText: string, speakers: string[]) => {
+      const llmKey = getKey(selectedProvider);
+      if (!llmKey) return;
+
+      setIsExtractingKeyPoints(true);
+      try {
+        const result = await extractKeyPoints({
+          provider: selectedProvider,
+          api_key: llmKey,
+          model: selectedModel,
+          azure_config:
+            selectedProvider === "azure_openai" ? azureConfig : null,
+          transcript: transcriptText,
+          speakers,
+        });
+        setSpeakerKeyPoints(applyRenames(result.key_points));
+      } catch {
+        // Convenience feature — fail silently
+      } finally {
+        setIsExtractingKeyPoints(false);
+      }
+    },
+    [getKey, selectedProvider, selectedModel, azureConfig, applyRenames],
+  );
+
+  const handleAutoExtractKeyPoints = useCallback(
+    (transcriptText: string, speakers: string[]) => {
+      if (!autoKeyPointsEnabled) return;
+      if (hasAutoExtractedKeyPointsRef.current) return;
+      hasAutoExtractedKeyPointsRef.current = true;
+      doExtractKeyPoints(transcriptText, speakers);
+    },
+    [autoKeyPointsEnabled, doExtractKeyPoints],
+  );
+
+  const handleManualExtractKeyPoints = useCallback(
+    (transcriptText: string, speakers: string[]) => {
+      speakerRenamesRef.current = {};
+      doExtractKeyPoints(transcriptText, speakers);
+    },
+    [doExtractKeyPoints],
+  );
+
+  const handleKeyPointsRemap = useCallback((mappings: Record<string, string>) => {
+    // Store renames so in-flight API responses can be remapped on arrival
+    const existing = speakerRenamesRef.current;
+    const merged: Record<string, string> = {};
+    // Update existing renames: if "Speaker A" → "Daniel" was stored, keep the original key
+    for (const [origKey, curName] of Object.entries(existing)) {
+      merged[origKey] = mappings[curName] ?? curName;
+    }
+    // Add new renames that aren't already tracked
+    for (const [from, to] of Object.entries(mappings)) {
+      const alreadyTracked = Object.values(existing).includes(from);
+      if (!alreadyTracked && !existing[from]) {
+        merged[from] = to;
+      }
+    }
+    speakerRenamesRef.current = merged;
+
+    // Also remap any already-loaded key points
+    setSpeakerKeyPoints((prev) => {
+      const remapped: Record<string, string> = {};
+      for (const [key, value] of Object.entries(prev)) {
+        remapped[mappings[key] ?? key] = value;
+      }
+      return remapped;
+    });
+  }, []);
+
   // Step 1 → 2: file selected, start transcription
   const handleFileSelected = useCallback(
     async (file: File) => {
@@ -127,6 +223,9 @@ export default function Home() {
       setIsUploading(true);
       setCurrentStep(2);
       setIsTranscribing(true);
+      hasAutoExtractedKeyPointsRef.current = false;
+      speakerRenamesRef.current = {};
+      setSpeakerKeyPoints({});
 
       try {
         const result = await createTranscript(file, assemblyAiKey);
@@ -234,6 +333,9 @@ export default function Home() {
     setSelectedFile(null);
     setTranscript("");
     setSummary("");
+    setSpeakerKeyPoints({});
+    hasAutoExtractedKeyPointsRef.current = false;
+    speakerRenamesRef.current = {};
     setIsGenerating(false);
     setIsTranscribing(false);
     setAuthorSpeaker(null);
@@ -294,6 +396,8 @@ export default function Home() {
         onModelChange={handleModelChange}
         azureConfig={azureConfig}
         onAzureConfigChange={setAzureConfig}
+        autoKeyPointsEnabled={autoKeyPointsEnabled}
+        onAutoKeyPointsChange={handleAutoKeyPointsChange}
       />
 
       <div className="mx-auto max-w-6xl px-4 md:px-6">
@@ -328,6 +432,11 @@ export default function Home() {
                     onTranscriptUpdate={setTranscript}
                     authorSpeaker={authorSpeaker}
                     onAuthorSpeakerChange={setAuthorSpeaker}
+                    keyPoints={speakerKeyPoints}
+                    isExtractingKeyPoints={isExtractingKeyPoints}
+                    onAutoExtractKeyPoints={handleAutoExtractKeyPoints}
+                    onManualExtractKeyPoints={handleManualExtractKeyPoints}
+                    onKeyPointsRemap={handleKeyPointsRemap}
                   />
                   <PromptEditor
                     templates={config?.prompt_templates ?? []}
