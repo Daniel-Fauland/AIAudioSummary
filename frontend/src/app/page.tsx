@@ -95,15 +95,27 @@ export default function Home() {
   const speakerRenamesRef = useRef<Record<string, string>>({});
 
   // Global keyboard shortcut: Alt/Option + S to toggle settings
+  const settingsOpenRef = useRef(settingsOpen);
+  settingsOpenRef.current = settingsOpen;
+
   useEffect(() => {
+    let closeTimeout: ReturnType<typeof setTimeout>;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.code === "KeyS") {
         e.preventDefault();
-        setSettingsOpen((prev) => !prev);
+        if (settingsOpenRef.current) {
+          // Delay close so the S key highlight is visible
+          closeTimeout = setTimeout(() => setSettingsOpen(false), 200);
+        } else {
+          setSettingsOpen(true);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      clearTimeout(closeTimeout);
+    };
   }, []);
 
   // Set default prompt from first template

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import {
   Sheet,
@@ -66,6 +66,39 @@ export function SettingsSheet({
     setKeyVersion((v) => v + 1);
   }, []);
 
+  const [altPressed, setAltPressed] = useState(false);
+  const [sPressed, setSPressed] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Alt") setAltPressed(true);
+      if (e.code === "KeyS") setSPressed(true);
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Alt") setAltPressed(false);
+      if (e.code === "KeyS") setSPressed(false);
+    };
+    const handleBlur = () => {
+      setAltPressed(false);
+      setSPressed(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [open]);
+
+  const kbdBase = "flex h-6 min-w-6 items-center justify-center rounded border px-1.5 text-[11px] font-semibold transition-colors";
+  const kbdDefault = "border-border bg-card-elevated text-foreground-secondary";
+  const kbdActive = "border-foreground/30 bg-foreground/10 text-foreground";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -76,10 +109,10 @@ export function SettingsSheet({
           <div className="flex items-center gap-2">
             <SheetTitle>Settings</SheetTitle>
             <div className="flex items-center gap-1">
-              <kbd className="flex h-6 min-w-6 items-center justify-center rounded border border-border bg-card-elevated px-1.5 text-[11px] font-semibold text-foreground-secondary">
+              <kbd className={`${kbdBase} ${altPressed ? kbdActive : kbdDefault}`}>
                 {typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? <span className="text-xs leading-none">⌥</span> : "Alt"}
               </kbd>
-              <kbd className="flex h-6 min-w-6 items-center justify-center rounded border border-border bg-card-elevated px-1.5 text-[11px] font-semibold text-foreground-secondary">
+              <kbd className={`${kbdBase} ${sPressed ? kbdActive : kbdDefault}`}>
                 S
               </kbd>
             </div>
