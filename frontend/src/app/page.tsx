@@ -81,6 +81,7 @@ export default function Home() {
     const d = new Date();
     return d.toISOString().split("T")[0];
   });
+  const [authorSpeaker, setAuthorSpeaker] = useState<string | null>(null);
 
 
   // Set default prompt from first template
@@ -184,6 +185,7 @@ export default function Home() {
           target_language: selectedLanguage,
           informal_german: informalGerman,
           date: meetingDate,
+          author: authorSpeaker,
         },
         (chunk) => {
           setSummary((prev) => prev + chunk);
@@ -212,6 +214,7 @@ export default function Home() {
     selectedLanguage,
     informalGerman,
     meetingDate,
+    authorSpeaker,
   ]);
 
   const handleStopGenerating = useCallback(() => {
@@ -233,6 +236,7 @@ export default function Home() {
     setSummary("");
     setIsGenerating(false);
     setIsTranscribing(false);
+    setAuthorSpeaker(null);
   }, []);
 
   const hasLlmKey = hasKey(selectedProvider);
@@ -322,6 +326,8 @@ export default function Home() {
                   <SpeakerMapper
                     transcript={transcript}
                     onTranscriptUpdate={setTranscript}
+                    authorSpeaker={authorSpeaker}
+                    onAuthorSpeakerChange={setAuthorSpeaker}
                   />
                   <PromptEditor
                     templates={config?.prompt_templates ?? []}

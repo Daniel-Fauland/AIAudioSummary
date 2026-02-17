@@ -13,7 +13,6 @@ from pydantic_ai.providers.google import GoogleProvider
 
 from models.llm import LLMProvider, AzureConfig, CreateSummaryRequest
 from service.misc.core import MiscService
-from utils.logging import logger
 
 helper = MiscService()
 
@@ -55,7 +54,8 @@ class LLMService:
         user_prompt: str,
         target_language: str,
         informal_german: bool = True,
-        date: datetime.date | None = None
+        date: datetime.date | None = None,
+        author: str | None = None
     ) -> tuple[str, str]:
         """Build the system and user prompts for the LLM."""
         date = date or datetime.date.today()
@@ -64,13 +64,20 @@ class LLMService:
 
         if target_language_lower == "german":
             tone = (
-                "Use informal German 'du' & 'ihr' instead of 'sie'."
+                "Use informal German 'du' & 'ihr' instead of 'Sie'."
                 if informal_german
-                else "Use formal German 'sie' instead of 'du' or 'ihr'."
+                else "Use formal German 'Sie' instead of 'du' or 'ihr'."
             )
             system_prompt = f"{system_prompt}\nYour Summary must be in German. {tone}"
         else:
             system_prompt = f"{system_prompt}\nYour Summary must be in {target_language}"
+
+        if author:
+            system_prompt = (
+                f"{system_prompt}\n"
+                f"Author/POV: {author}. Write from this person's perspective. "
+                f"If the output includes an email or letter, sign off with this name."
+            )
 
         user_prompt = (
             f"Please summarize the following transcription:\n\n"
@@ -104,7 +111,8 @@ class LLMService:
             user_prompt=request.text,
             target_language=request.target_language,
             informal_german=request.informal_german,
-            date=request.date
+            date=request.date,
+            author=request.author
         )
 
         agent = Agent(

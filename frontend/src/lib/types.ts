@@ -53,6 +53,7 @@ export interface CreateSummaryRequest {
   target_language: string;
   informal_german: boolean;
   date: string | null;
+  author: string | null;
 }
 
 export interface CreateSummaryResponse {

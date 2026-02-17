@@ -27,6 +27,7 @@ class CreateSummaryRequest(BaseModel):
     target_language: str = Field("English", description="Output language", examples=["English", "German", "French", "Spanish"])
     informal_german: bool = Field(True, description="Use informal German pronouns (du/ihr instead of Sie)")
     date: datetime.date | None = Field(None, description="Meeting date for date formatting in prompt")
+    author: str | None = Field(None, description="Speaker selected as author/POV for the summary")
 
     @model_validator(mode="after")
     def validate_azure_config(self):
