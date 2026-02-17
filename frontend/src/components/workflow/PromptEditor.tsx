@@ -1,13 +1,20 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
+import { format, parse } from "date-fns";
+import { CalendarIcon, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +54,88 @@ interface PromptEditorProps {
   generating?: boolean;
   hasLlmKey?: boolean;
   onOpenSettings?: () => void;
+}
+
+function DatePicker({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (date: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const dateValue = useMemo(() => {
+    if (!value) return undefined;
+    return parse(value, "yyyy-MM-dd", new Date());
+  }, [value]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="relative">
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={`w-full justify-start text-left font-normal bg-card-elevated ${
+              !value ? "text-foreground-muted" : ""
+            }`}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {dateValue ? format(dateValue, "dd.MM.yyyy") : "Pick a date"}
+          </Button>
+        </PopoverTrigger>
+        {value ? (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-foreground-muted hover:text-foreground-secondary"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+      </div>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={dateValue}
+          onSelect={(day) => {
+            if (day) {
+              onChange(format(day, "yyyy-MM-dd"));
+            } else {
+              onChange(null);
+            }
+            setOpen(false);
+          }}
+          defaultMonth={dateValue}
+          weekStartsOn={1}
+          footer={
+            <div className="flex justify-between px-3 pb-3 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onChange(null);
+                  setOpen(false);
+                }}
+              >
+                Clear
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onChange(format(new Date(), "yyyy-MM-dd"));
+                  setOpen(false);
+                }}
+              >
+                Today
+              </Button>
+            </div>
+          }
+        />
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function PromptEditor({
@@ -278,14 +367,7 @@ export function PromptEditor({
             <Label className="text-sm font-medium text-foreground-secondary">
               Meeting Date (optional)
             </Label>
-            <Input
-              type="date"
-              value={meetingDate ?? ""}
-              onChange={(e) =>
-                onMeetingDateChange(e.target.value || null)
-              }
-              className="bg-card-elevated"
-            />
+            <DatePicker value={meetingDate} onChange={onMeetingDateChange} />
           </div>
 
           {/* Generate button */}
