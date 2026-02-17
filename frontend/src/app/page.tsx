@@ -94,6 +94,18 @@ export default function Home() {
   // Accumulated speaker renames: original label → new name
   const speakerRenamesRef = useRef<Record<string, string>>({});
 
+  // Global keyboard shortcut: Alt/Option + S to toggle settings
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.code === "KeyS") {
+        e.preventDefault();
+        setSettingsOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // Set default prompt from first template
   useEffect(() => {
     if (config && config.prompt_templates.length > 0 && !selectedPrompt) {

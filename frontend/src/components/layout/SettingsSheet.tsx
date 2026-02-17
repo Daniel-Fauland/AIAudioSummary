@@ -73,7 +73,17 @@ export function SettingsSheet({
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <SheetHeader>
-          <SheetTitle>Settings</SheetTitle>
+          <div className="flex items-center gap-2">
+            <SheetTitle>Settings</SheetTitle>
+            <div className="flex items-center gap-1">
+              <kbd className="flex h-6 min-w-6 items-center justify-center rounded border border-border bg-card-elevated px-1.5 text-[11px] font-semibold text-foreground-secondary">
+                {typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? <span className="text-xs leading-none">⌥</span> : "Alt"}
+              </kbd>
+              <kbd className="flex h-6 min-w-6 items-center justify-center rounded border border-border bg-card-elevated px-1.5 text-[11px] font-semibold text-foreground-secondary">
+                S
+              </kbd>
+            </div>
+          </div>
           <SheetDescription className="sr-only">
             Configure your API keys and provider settings
           </SheetDescription>
