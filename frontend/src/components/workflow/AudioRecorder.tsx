@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { AudioPlayer } from "@/components/ui/audio-player";
 
 interface AudioRecorderProps {
   onFileSelected: (file: File) => void;
@@ -487,10 +488,7 @@ export function AudioRecorder({
               className="w-full max-w-[320px]"
             />
 
-            {audioUrl && (
-              // eslint-disable-next-line jsx-a11y/media-has-caption
-              <audio controls src={audioUrl} className="w-full max-w-[320px]" />
-            )}
+            {audioUrl && <AudioPlayer src={audioUrl} />}
 
             <div className="flex flex-wrap justify-center gap-2">
               <Button
