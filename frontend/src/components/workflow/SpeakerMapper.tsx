@@ -190,7 +190,7 @@ export function SpeakerMapper({
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors ${
               isAuthor
                 ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card-elevated text-foreground-muted hover:border-border-hover hover:text-foreground-secondary"
+                : "border-border bg-card-elevated text-foreground-muted hover:border-border-hover hover:text-foreground"
             }`}
             title={
               isAuthor
@@ -250,14 +250,15 @@ export function SpeakerMapper({
                 </Badge>
               ) : null}
               {speakers.length > 0 ? (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setFullscreen(true)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card-elevated text-foreground-muted transition-colors hover:border-border-hover hover:text-foreground-secondary"
+                  className={`transition-colors hover:text-primary ${Object.keys(keyPoints).length > 0 ? "text-foreground" : "text-foreground-muted"}`}
                   title="Speaker details"
                 >
                   <Info className="h-4 w-4" />
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>
@@ -317,15 +318,16 @@ export function SpeakerMapper({
                     Extracting key points
                   </Badge>
                 ) : null}
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={handleRefreshKeyPoints}
                   disabled={isExtractingKeyPoints || speakers.length === 0}
-                  className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card-elevated text-foreground-muted transition-colors hover:border-border-hover hover:text-foreground-secondary disabled:opacity-50 disabled:pointer-events-none"
+                  className="text-foreground transition-colors hover:text-primary"
                   title="Refresh key points"
                 >
                   <RefreshCw className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
             </div>
           </DialogHeader>

@@ -322,14 +322,14 @@ export function AudioRecorder({
 
   // The mic selector — only shown in idle state when multiple devices exist
   const micSelector = micDevices.length > 1 && (
-    <div className="flex w-full max-w-xs items-center gap-2">
+    <div className="flex items-center gap-2">
       <Mic className="h-4 w-4 shrink-0 text-foreground-muted" />
       <Select
         value={selectedDeviceId || micDevices[0]?.deviceId || ""}
         onValueChange={setSelectedDeviceId}
         disabled={isDisabled}
       >
-        <SelectTrigger className="h-9 text-sm">
+        <SelectTrigger className="h-9 w-52 text-sm">
           <SelectValue placeholder="Select microphone" />
         </SelectTrigger>
         <SelectContent>
