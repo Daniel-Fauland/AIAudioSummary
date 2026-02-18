@@ -25,27 +25,34 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
           <div key={step.label} className="flex items-start">
             <div className="flex flex-col items-center gap-2">
               <div
-                className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-150 ${
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300 ${
                   isCompleted
                     ? "bg-primary text-white"
                     : isActive
-                      ? "bg-primary text-white shadow-[0_0_0_4px_rgba(252,82,11,0.2)]"
+                      ? "scale-110 bg-primary text-white shadow-[0_0_14px_2px_rgba(252,82,11,0.18)]"
                       : "border border-border bg-card-elevated text-foreground-muted"
                 }`}
               >
                 <Icon className="h-5 w-5" />
               </div>
-              <span
-                className={`text-xs font-medium hidden md:block ${
-                  isCompleted
-                    ? "text-foreground-secondary"
-                    : isActive
-                      ? "font-bold text-foreground"
-                      : "text-foreground-muted"
-                }`}
-              >
-                {step.label}
-              </span>
+              <div className="hidden md:flex flex-col items-center gap-1">
+                <span
+                  className={`text-xs font-medium ${
+                    isCompleted
+                      ? "text-foreground-secondary"
+                      : isActive
+                        ? "font-bold text-foreground"
+                        : "text-foreground-muted"
+                  }`}
+                >
+                  {step.label}
+                </span>
+                {isActive ? (
+                  <span className="h-1 w-1 rounded-full bg-primary" />
+                ) : (
+                  <span className="h-1 w-1" />
+                )}
+              </div>
             </div>
             {index < steps.length - 1 ? (
               <div
