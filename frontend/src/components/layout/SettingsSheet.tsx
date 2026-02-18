@@ -108,7 +108,7 @@ export function SettingsSheet({
         <SheetHeader>
           <div className="flex items-center gap-2">
             <SheetTitle>Settings</SheetTitle>
-            <div className="flex items-center gap-1">
+            <div className="hidden md:flex items-center gap-1">
               <kbd className={`${kbdBase} ${altPressed ? kbdActive : kbdDefault}`}>
                 {typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? <span className="text-xs leading-none">⌥</span> : "Alt"}
               </kbd>
