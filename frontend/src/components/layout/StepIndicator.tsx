@@ -29,7 +29,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
                   isCompleted
                     ? "bg-primary text-white"
                     : isActive
-                      ? "scale-110 bg-primary text-white shadow-[0_0_14px_2px_rgba(252,82,11,0.18)]"
+                      ? "scale-110 bg-primary text-white shadow-[0_0_12px_2px_rgba(252,82,11,0.14)]"
                       : "border border-border bg-card-elevated text-foreground-muted"
                 }`}
               >
