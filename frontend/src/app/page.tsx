@@ -55,15 +55,13 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Provider / model (persisted in localStorage)
-  const [selectedProvider, setSelectedProvider] = useState<LLMProvider>(() =>
-    safeGet(PROVIDER_KEY, "openai") as LLMProvider,
+  const [selectedProvider, setSelectedProvider] = useState<LLMProvider>(
+    () => safeGet(PROVIDER_KEY, "openai") as LLMProvider,
   );
   const [selectedModel, setSelectedModel] = useState<string>(() =>
     safeGet(`${MODEL_KEY_PREFIX}${safeGet(PROVIDER_KEY, "openai")}`, "gpt-5.2"),
   );
-  const [azureConfig, setAzureConfig] = useState<AzureConfig | null>(() =>
-    getAzureConfig(),
-  );
+  const [azureConfig, setAzureConfig] = useState<AzureConfig | null>(() => getAzureConfig());
 
   // Workflow state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -89,8 +87,8 @@ export default function Home() {
   // Speaker key points
   const [speakerKeyPoints, setSpeakerKeyPoints] = useState<Record<string, string>>({});
   const [isExtractingKeyPoints, setIsExtractingKeyPoints] = useState(false);
-  const [autoKeyPointsEnabled, setAutoKeyPointsEnabled] = useState(() =>
-    safeGet(AUTO_KEY_POINTS_KEY, "true") !== "false",
+  const [autoKeyPointsEnabled, setAutoKeyPointsEnabled] = useState(
+    () => safeGet(AUTO_KEY_POINTS_KEY, "true") !== "false",
   );
   const hasAutoExtractedKeyPointsRef = useRef(false);
   // Accumulated speaker renames: original label → new name
@@ -133,10 +131,7 @@ export default function Home() {
       setSelectedProvider(provider);
       safeSet(PROVIDER_KEY, provider);
       const providerInfo = config?.providers.find((p) => p.id === provider);
-      const defaultModel =
-        safeGet(`${MODEL_KEY_PREFIX}${provider}`, "") ||
-        providerInfo?.models[0] ||
-        "";
+      const defaultModel = safeGet(`${MODEL_KEY_PREFIX}${provider}`, "") || providerInfo?.models[0] || "";
       setSelectedModel(defaultModel);
     },
     [config],
@@ -176,8 +171,7 @@ export default function Home() {
           provider: selectedProvider,
           api_key: llmKey,
           model: selectedModel,
-          azure_config:
-            selectedProvider === "azure_openai" ? azureConfig : null,
+          azure_config: selectedProvider === "azure_openai" ? azureConfig : null,
           transcript: transcriptText,
           speakers,
         });
@@ -273,9 +267,7 @@ export default function Home() {
         setTranscript(result);
         toast.success("Transcription complete!");
       } catch (e) {
-        toast.error(
-          e instanceof Error ? e.message : "Transcription failed",
-        );
+        toast.error(e instanceof Error ? e.message : "Transcription failed");
         setCurrentStep(1);
         setSelectedFile(null);
       } finally {
@@ -297,9 +289,7 @@ export default function Home() {
   const handleGenerate = useCallback(async () => {
     const llmKey = getKey(selectedProvider);
     if (!llmKey) {
-      toast.error(
-        `Please add your ${selectedProvider} API key in Settings.`,
-      );
+      toast.error(`Please add your ${selectedProvider} API key in Settings.`);
       setSettingsOpen(true);
       return;
     }
@@ -317,8 +307,7 @@ export default function Home() {
           provider: selectedProvider,
           api_key: llmKey,
           model: selectedModel,
-          azure_config:
-            selectedProvider === "azure_openai" ? azureConfig : null,
+          azure_config: selectedProvider === "azure_openai" ? azureConfig : null,
           stream: true,
           system_prompt: selectedPrompt,
           text: transcript,
@@ -336,9 +325,7 @@ export default function Home() {
       if (e instanceof DOMException && e.name === "AbortError") {
         // User stopped generation — not an error
       } else {
-        toast.error(
-          e instanceof Error ? e.message : "Summary generation failed",
-        );
+        toast.error(e instanceof Error ? e.message : "Summary generation failed");
       }
     } finally {
       abortControllerRef.current = null;
@@ -395,10 +382,7 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
           <div className="flex justify-center gap-4 py-6">
             {Array.from({ length: 3 }, (_, i) => (
-              <div
-                key={i}
-                className="h-10 w-10 animate-pulse rounded-full bg-card-elevated"
-              />
+              <div key={i} className="h-10 w-10 animate-pulse rounded-full bg-card-elevated" />
             ))}
           </div>
           <div className="h-60 animate-pulse rounded-lg bg-card-elevated" />
@@ -414,9 +398,7 @@ export default function Home() {
         <div className="space-y-4 text-center">
           <p className="text-destructive">Failed to load configuration</p>
           <p className="text-sm text-foreground-muted">{configError}</p>
-          <p className="text-xs text-foreground-muted">
-            Make sure the backend is running and reachable
-          </p>
+          <p className="text-xs text-foreground-muted">Make sure the backend is running and reachable</p>
           <Button onClick={refetch}>Retry</Button>
         </div>
       </div>
@@ -541,7 +523,7 @@ export default function Home() {
                   />
                   <div className="flex gap-2">
                     <Button variant="ghost" onClick={handleStartOver}>
-                      Upload New File
+                      Start Over
                     </Button>
                   </div>
                 </>
@@ -553,11 +535,7 @@ export default function Home() {
           {currentStep === 3 ? (
             <>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <TranscriptView
-                  transcript={transcript}
-                  onTranscriptChange={setTranscript}
-                  readOnly
-                />
+                <TranscriptView transcript={transcript} onTranscriptChange={setTranscript} readOnly />
                 <SummaryView
                   summary={summary}
                   loading={isGenerating}
