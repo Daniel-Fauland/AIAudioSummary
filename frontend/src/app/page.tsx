@@ -23,6 +23,8 @@ import type { AzureConfig, LLMProvider } from "@/lib/types";
 const PROVIDER_KEY = "aias:v1:selected_provider";
 const MODEL_KEY_PREFIX = "aias:v1:model:";
 const AUTO_KEY_POINTS_KEY = "aias:v1:auto_key_points";
+const MIN_SPEAKERS_KEY = "aias:v1:min_speakers";
+const MAX_SPEAKERS_KEY = "aias:v1:max_speakers";
 
 function safeGet(key: string, fallback: string): string {
   try {
@@ -90,6 +92,12 @@ export default function Home() {
   const [autoKeyPointsEnabled, setAutoKeyPointsEnabled] = useState(
     () => safeGet(AUTO_KEY_POINTS_KEY, "true") !== "false",
   );
+  const [minSpeakers, setMinSpeakers] = useState<number>(
+    () => parseInt(safeGet(MIN_SPEAKERS_KEY, "1")) || 1,
+  );
+  const [maxSpeakers, setMaxSpeakers] = useState<number>(
+    () => parseInt(safeGet(MAX_SPEAKERS_KEY, "10")) || 10,
+  );
   const hasAutoExtractedKeyPointsRef = useRef(false);
   // Accumulated speaker renames: original label → new name
   const speakerRenamesRef = useRef<Record<string, string>>({});
@@ -148,6 +156,16 @@ export default function Home() {
   const handleAutoKeyPointsChange = useCallback((enabled: boolean) => {
     setAutoKeyPointsEnabled(enabled);
     safeSet(AUTO_KEY_POINTS_KEY, enabled ? "true" : "false");
+  }, []);
+
+  const handleMinSpeakersChange = useCallback((value: number) => {
+    setMinSpeakers(value);
+    safeSet(MIN_SPEAKERS_KEY, String(value));
+  }, []);
+
+  const handleMaxSpeakersChange = useCallback((value: number) => {
+    setMaxSpeakers(value);
+    safeSet(MAX_SPEAKERS_KEY, String(value));
   }, []);
 
   const applyRenames = useCallback((keyPoints: Record<string, string>): Record<string, string> => {
@@ -263,7 +281,7 @@ export default function Home() {
       setSpeakerKeyPoints({});
 
       try {
-        const result = await createTranscript(file, assemblyAiKey);
+        const result = await createTranscript(file, assemblyAiKey, undefined, minSpeakers, maxSpeakers);
         setTranscript(result);
         toast.success("Transcription complete!");
       } catch (e) {
@@ -275,7 +293,7 @@ export default function Home() {
         setIsTranscribing(false);
       }
     },
-    [getKey],
+    [getKey, minSpeakers, maxSpeakers],
   );
 
   // Skip upload: go directly to step 2 with empty transcript
@@ -421,6 +439,10 @@ export default function Home() {
         onAzureConfigChange={setAzureConfig}
         autoKeyPointsEnabled={autoKeyPointsEnabled}
         onAutoKeyPointsChange={handleAutoKeyPointsChange}
+        minSpeakers={minSpeakers}
+        onMinSpeakersChange={handleMinSpeakersChange}
+        maxSpeakers={maxSpeakers}
+        onMaxSpeakersChange={handleMaxSpeakersChange}
       />
 
       <div className="mx-auto max-w-6xl px-4 md:px-6">

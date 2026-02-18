@@ -10,6 +10,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -35,6 +36,10 @@ interface SettingsSheetProps {
   onAzureConfigChange: (config: AzureConfig) => void;
   autoKeyPointsEnabled: boolean;
   onAutoKeyPointsChange: (enabled: boolean) => void;
+  minSpeakers: number;
+  onMinSpeakersChange: (value: number) => void;
+  maxSpeakers: number;
+  onMaxSpeakersChange: (value: number) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -75,6 +80,10 @@ export function SettingsSheet({
   onAzureConfigChange,
   autoKeyPointsEnabled,
   onAutoKeyPointsChange,
+  minSpeakers,
+  onMinSpeakersChange,
+  maxSpeakers,
+  onMaxSpeakersChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -219,7 +228,7 @@ export function SettingsSheet({
           <Collapsible open={featuresOpen} onOpenChange={handleFeaturesOpen}>
             <SectionHeader>Features</SectionHeader>
             <CollapsibleContent>
-              <div className="pt-3">
+              <div className="space-y-4 pt-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="space-y-0.5">
                     <Label htmlFor="auto-key-points" className="text-sm">
@@ -234,6 +243,44 @@ export function SettingsSheet({
                     checked={autoKeyPointsEnabled}
                     onCheckedChange={onAutoKeyPointsChange}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm">Speaker Count Range</Label>
+                  <p className="text-xs text-foreground-muted">
+                    Expected number of speakers in the recording
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-foreground-muted">Min</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={maxSpeakers}
+                        value={minSpeakers}
+                        onChange={(e) => {
+                          const v = Math.max(1, Math.min(parseInt(e.target.value) || 1, maxSpeakers));
+                          onMinSpeakersChange(v);
+                        }}
+                        className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                    </div>
+                    <span className="mt-5 text-foreground-muted">–</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-foreground-muted">Max</span>
+                      <Input
+                        type="number"
+                        min={minSpeakers}
+                        max={20}
+                        value={maxSpeakers}
+                        onChange={(e) => {
+                          const v = Math.max(minSpeakers, Math.min(parseInt(e.target.value) || minSpeakers, 20));
+                          onMaxSpeakersChange(v);
+                        }}
+                        className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </CollapsibleContent>
