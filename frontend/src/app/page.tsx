@@ -209,6 +209,21 @@ export default function Home() {
     [doExtractKeyPoints],
   );
 
+  // Called when the speaker count changes, indicating the transcript was replaced
+  // rather than edited in-place. Re-triggers auto key point extraction if enabled.
+  const handleTranscriptReplaced = useCallback(
+    (transcriptText: string, speakers: string[]) => {
+      if (!autoKeyPointsEnabled) return;
+      // Clear stale state from the previous transcript
+      speakerRenamesRef.current = {};
+      setSpeakerKeyPoints({});
+      // Mark as auto-extracted so onAutoExtractKeyPoints won't fire a second time
+      hasAutoExtractedKeyPointsRef.current = true;
+      doExtractKeyPoints(transcriptText, speakers);
+    },
+    [autoKeyPointsEnabled, doExtractKeyPoints],
+  );
+
   const handleKeyPointsRemap = useCallback((mappings: Record<string, string>) => {
     // Store renames so in-flight API responses can be remapped on arrival
     const existing = speakerRenamesRef.current;
@@ -502,6 +517,7 @@ export default function Home() {
                     onAutoExtractKeyPoints={handleAutoExtractKeyPoints}
                     onManualExtractKeyPoints={handleManualExtractKeyPoints}
                     onKeyPointsRemap={handleKeyPointsRemap}
+                    onTranscriptReplaced={handleTranscriptReplaced}
                   />
                   <PromptEditor
                     templates={config?.prompt_templates ?? []}

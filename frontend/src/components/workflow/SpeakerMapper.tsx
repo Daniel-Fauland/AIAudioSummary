@@ -25,6 +25,7 @@ interface SpeakerMapperProps {
   onAutoExtractKeyPoints: (transcript: string, speakers: string[]) => void;
   onManualExtractKeyPoints: (transcript: string, speakers: string[]) => void;
   onKeyPointsRemap: (mappings: Record<string, string>) => void;
+  onTranscriptReplaced: (transcript: string, speakers: string[]) => void;
 }
 
 export function SpeakerMapper({
@@ -37,6 +38,7 @@ export function SpeakerMapper({
   onAutoExtractKeyPoints,
   onManualExtractKeyPoints,
   onKeyPointsRemap,
+  onTranscriptReplaced,
 }: SpeakerMapperProps) {
   const [speakers, setSpeakers] = useState<string[]>([]);
   const [replacements, setReplacements] = useState<Record<string, string>>({});
@@ -47,6 +49,13 @@ export function SpeakerMapper({
   const lastDetectedTranscript = useRef("");
   const onAutoExtractKeyPointsRef = useRef(onAutoExtractKeyPoints);
   onAutoExtractKeyPointsRef.current = onAutoExtractKeyPoints;
+  const onTranscriptReplacedRef = useRef(onTranscriptReplaced);
+  onTranscriptReplacedRef.current = onTranscriptReplaced;
+
+  // Tracks the last known speaker count to detect transcript replacements
+  const previousSpeakerCountRef = useRef<number | null>(null);
+  // Set to true in handleApply so the useEffect knows to skip auto-extract
+  const applyingNamesRef = useRef(false);
 
   // Auto-detect speakers whenever the transcript changes (debounced 500ms)
   useEffect(() => {
@@ -61,15 +70,30 @@ export function SpeakerMapper({
       try {
         const result = await getSpeakers(transcript);
         if (!cancelled) {
+          const prevCount = previousSpeakerCountRef.current;
+          previousSpeakerCountRef.current = result.length;
           lastDetectedTranscript.current = transcript;
           setSpeakers(result);
           setReplacements({});
           onAuthorSpeakerChange(null);
 
-          // Auto-extract key points after speakers are detected
-          if (result.length > 0) {
-            onAutoExtractKeyPointsRef.current(transcript, result);
+          if (applyingNamesRef.current) {
+            // Transcript changed because "Apply Names" was clicked — do not
+            // re-trigger key point extraction, just clear the flag.
+            applyingNamesRef.current = false;
+          } else if (prevCount === null) {
+            // First detection for this component instance (fresh transcript).
+            if (result.length > 0) {
+              onAutoExtractKeyPointsRef.current(transcript, result);
+            }
+          } else if (result.length !== prevCount) {
+            // Speaker count changed → treat as a replaced transcript.
+            if (result.length > 0) {
+              onTranscriptReplacedRef.current(transcript, result);
+            }
           }
+          // else: same count, not Apply Names → transcript was edited in-place;
+          // do not re-trigger auto-extraction.
         }
       } catch (e) {
         if (!cancelled) {
@@ -107,6 +131,9 @@ export function SpeakerMapper({
     setApplying(true);
     try {
       const updated = await updateSpeakers(transcript, mappings);
+      // Signal the useEffect that the upcoming transcript change is only a
+      // label rename, not a new transcript — key point extraction must not fire.
+      applyingNamesRef.current = true;
       onTranscriptUpdate(updated);
 
       // Update author if the selected author's speaker label was renamed
