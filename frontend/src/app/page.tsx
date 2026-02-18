@@ -8,6 +8,7 @@ import { Header } from "@/components/layout/Header";
 import { StepIndicator } from "@/components/layout/StepIndicator";
 import { SettingsSheet } from "@/components/layout/SettingsSheet";
 import { FileUpload } from "@/components/workflow/FileUpload";
+import { AudioRecorder } from "@/components/workflow/AudioRecorder";
 import { TranscriptView } from "@/components/workflow/TranscriptView";
 import { SpeakerMapper } from "@/components/workflow/SpeakerMapper";
 import { PromptEditor } from "@/components/workflow/PromptEditor";
@@ -66,6 +67,7 @@ export default function Home() {
 
   // Workflow state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [step1Mode, setStep1Mode] = useState<"upload" | "record">("upload");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -428,16 +430,55 @@ export default function Home() {
         <StepIndicator currentStep={currentStep} />
 
         <div className="step-content space-y-6 pb-8" key={currentStep}>
-          {/* Step 1: File Upload */}
+          {/* Step 1: Upload or Record */}
           {currentStep === 1 ? (
-            <FileUpload
-              onFileSelected={handleFileSelected}
-              onSkipUpload={handleSkipUpload}
-              onOpenSettings={() => setSettingsOpen(true)}
-              disabled={isUploading}
-              uploading={isUploading}
-              hasAssemblyAiKey={hasAssemblyAiKey}
-            />
+            <div className="space-y-4">
+              {/* Mode toggle */}
+              <div className="flex border-b border-border">
+                <button
+                  type="button"
+                  onClick={() => setStep1Mode("upload")}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    step1Mode === "upload"
+                      ? "border-b-2 border-primary text-foreground -mb-px"
+                      : "text-foreground-muted hover:text-foreground-secondary"
+                  }`}
+                >
+                  Upload File
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep1Mode("record")}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    step1Mode === "record"
+                      ? "border-b-2 border-primary text-foreground -mb-px"
+                      : "text-foreground-muted hover:text-foreground-secondary"
+                  }`}
+                >
+                  Record Audio
+                </button>
+              </div>
+
+              {step1Mode === "upload" ? (
+                <FileUpload
+                  onFileSelected={handleFileSelected}
+                  onSkipUpload={handleSkipUpload}
+                  onOpenSettings={() => setSettingsOpen(true)}
+                  disabled={isUploading}
+                  uploading={isUploading}
+                  hasAssemblyAiKey={hasAssemblyAiKey}
+                />
+              ) : (
+                <AudioRecorder
+                  onFileSelected={handleFileSelected}
+                  onSkipUpload={handleSkipUpload}
+                  onOpenSettings={() => setSettingsOpen(true)}
+                  disabled={isUploading}
+                  uploading={isUploading}
+                  hasAssemblyAiKey={hasAssemblyAiKey}
+                />
+              )}
+            </div>
           ) : null}
 
           {/* Step 2: Transcript + Speakers + Prompt */}
