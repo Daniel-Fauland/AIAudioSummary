@@ -46,6 +46,23 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
+function readSection(key: string, fallback: boolean): boolean {
+  try {
+    const val = localStorage.getItem(key);
+    return val === null ? fallback : val === "true";
+  } catch {
+    return fallback;
+  }
+}
+
+function writeSection(key: string, value: boolean): void {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {
+    // ignore
+  }
+}
+
 export function SettingsSheet({
   open,
   onOpenChange,
@@ -65,6 +82,29 @@ export function SettingsSheet({
   const handleKeyChange = useCallback(() => {
     setKeyVersion((v) => v + 1);
   }, []);
+
+  const [apiKeysOpen, setApiKeysOpen] = useState(() =>
+    readSection("aias:v1:settings:section:apiKeys", true)
+  );
+  const [aiModelOpen, setAiModelOpen] = useState(() =>
+    readSection("aias:v1:settings:section:aiModel", true)
+  );
+  const [featuresOpen, setFeaturesOpen] = useState(() =>
+    readSection("aias:v1:settings:section:features", true)
+  );
+
+  const handleApiKeysOpen = (value: boolean) => {
+    setApiKeysOpen(value);
+    writeSection("aias:v1:settings:section:apiKeys", value);
+  };
+  const handleAiModelOpen = (value: boolean) => {
+    setAiModelOpen(value);
+    writeSection("aias:v1:settings:section:aiModel", value);
+  };
+  const handleFeaturesOpen = (value: boolean) => {
+    setFeaturesOpen(value);
+    writeSection("aias:v1:settings:section:features", value);
+  };
 
   const [altPressed, setAltPressed] = useState(false);
   const [sPressed, setSPressed] = useState(false);
@@ -131,7 +171,7 @@ export function SettingsSheet({
         </div>
 
         <div className="space-y-6 px-4 pb-6">
-          <Collapsible defaultOpen>
+          <Collapsible open={apiKeysOpen} onOpenChange={handleApiKeysOpen}>
             <SectionHeader>API Keys</SectionHeader>
             <CollapsibleContent>
               <div className="pt-3">
@@ -142,7 +182,7 @@ export function SettingsSheet({
 
           <Separator />
 
-          <Collapsible defaultOpen>
+          <Collapsible open={aiModelOpen} onOpenChange={handleAiModelOpen}>
             <SectionHeader>AI Model</SectionHeader>
             <CollapsibleContent>
               <div className="space-y-4 pt-3">
@@ -176,7 +216,7 @@ export function SettingsSheet({
 
           <Separator />
 
-          <Collapsible defaultOpen>
+          <Collapsible open={featuresOpen} onOpenChange={handleFeaturesOpen}>
             <SectionHeader>Features</SectionHeader>
             <CollapsibleContent>
               <div className="pt-3">
