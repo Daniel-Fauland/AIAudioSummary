@@ -58,7 +58,7 @@ export function SummaryView({
       } else {
         await navigator.clipboard.writeText(summary);
       }
-      toast.success("Summary copied to clipboard");
+      toast.success("Summary copied to clipboard", { position: "bottom-center" });
       onCopy?.();
     } catch {
       toast.error("Failed to copy to clipboard");
@@ -68,7 +68,7 @@ export function SummaryView({
   const handleCopyMarkdown = async () => {
     try {
       await navigator.clipboard.writeText(summary);
-      toast.success("Markdown copied to clipboard");
+      toast.success("Markdown copied to clipboard", { position: "bottom-center" });
       onCopy?.();
     } catch {
       toast.error("Failed to copy to clipboard");

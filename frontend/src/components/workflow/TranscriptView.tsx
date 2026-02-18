@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Copy, Maximize2 } from "lucide-react";
+import { Loader2, Copy, Maximize2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface TranscriptViewProps {
@@ -27,11 +37,12 @@ export function TranscriptView({
   readOnly,
 }: TranscriptViewProps) {
   const [fullscreen, setFullscreen] = useState(false);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(transcript);
-      toast.success("Transcript copied to clipboard");
+      toast.success("Transcript copied to clipboard", { position: "bottom-center" });
     } catch {
       toast.error("Failed to copy to clipboard");
     }
@@ -69,10 +80,20 @@ export function TranscriptView({
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Transcript</CardTitle>
         <div className="flex items-center gap-2">
+          {transcript && !readOnly ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setClearDialogOpen(true)}
+              title="Clear transcript"
+              className="hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          ) : null}
           {transcript ? (
-            <Button variant="secondary" size="sm" onClick={handleCopy}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copy Transcript
+            <Button variant="ghost" size="icon" onClick={handleCopy} title="Copy transcript">
+              <Copy className="h-4 w-4" />
             </Button>
           ) : null}
           {transcript ? (
@@ -101,6 +122,27 @@ export function TranscriptView({
           />
         )}
       </CardContent>
+
+      <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear transcript?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the transcript content. This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => onTranscriptChange?.("")}
+            >
+              Clear
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={fullscreen} onOpenChange={setFullscreen}>
         <DialogContent className="sm:max-w-[95vw] h-[90vh] flex flex-col">
