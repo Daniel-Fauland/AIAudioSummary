@@ -159,7 +159,18 @@ This document defines all visual design decisions for the Next.js + shadcn/ui fr
 
 - **Glow on active**: `box-shadow: 0 0 0 4px rgba(252, 82, 11, 0.2)`
 
-### 5.3 File Upload Drop Zone (Step 1)
+### 5.3 Step 1 Input Area
+
+Step 1 has two modes toggled via a tab bar directly above the content zone:
+
+- **Tab bar**: Two text buttons — "Upload File" and "Record Audio"
+- **Active tab**: `--primary` bottom border (`border-b-2 border-primary`), `--foreground` text
+- **Inactive tab**: No border, `--foreground-muted` text, transitions to `--foreground-secondary` on hover
+- **Transition**: `150ms ease` color change
+
+Below the tab bar is the shared **"I already have a transcript — skip upload"** link, centered, `--foreground-muted` underlined text.
+
+#### 5.3.1 Upload File mode
 
 - **Size**: Full width of content area, `240px` min height
 - **Border**: `2px dashed` `--border`
@@ -177,6 +188,51 @@ This document defines all visual design decisions for the Next.js + shadcn/ui fr
 | **Disabled** | `--border` dashed, `opacity-50` | `--card` | `--foreground-muted` |
 
 - **File preview** (after selection): Show file icon, name, size, and a "Remove" (X) button inside the zone, replacing the upload prompt
+
+#### 5.3.2 Record Audio mode
+
+Same container style as Upload (`2px dashed --border`, `--card` bg, `240px` min height, `8px` border radius). The interior changes based on recorder state:
+
+| State | Container border/bg | Interior content |
+|-------|---------------------|-----------------|
+| **Idle** | `--border` dashed / `--card` | `Mic` icon (48px, `--foreground-muted`), instruction text, optional mic selector, "Start Recording" primary button |
+| **Recording** | `--border-accent` dashed / `--primary-muted` | Pulsing red dot + MM:SS timer (monospace, `text-lg`), live waveform canvas, "Pause" (secondary) + "Stop" (destructive) buttons |
+| **Paused** | `--border` dashed / `--card` | Gray dot + MM:SS timer + "Paused" label (`--foreground-muted`), static waveform, "Resume" (secondary) + "Stop" (destructive) buttons |
+| **Done** | `--border` dashed / `--card` | Final duration label, static waveform, AudioPlayer, "Record Again" (ghost) + "Download" (secondary) + "Use for Transcript" (primary) buttons |
+
+**Waveform visualization** (canvas element, `320×60px`, full width up to max):
+- 40 vertical bars, `2px` gap between bars
+- **Active (recording)**: bars driven by `AnalyserNode` frequency data, `--primary` fill (`#FC520B`)
+- **Inactive (paused / done)**: static decorative bars, `--foreground-muted` fill (`#71717A`)
+- Animated via `requestAnimationFrame` during recording; cancelled on pause/stop
+
+**Microphone selector** (shown in idle state only when ≥ 2 audio input devices are detected):
+- Layout: small `Mic` icon + shadcn `Select` dropdown, `max-w-xs`, sits between instruction text and "Start Recording" button
+- Dropdown lists real device labels after mic permission is granted; falls back to "Microphone 1", "Microphone 2", etc. before permission
+- Updates automatically on `devicechange` events (plug/unplug)
+
+#### 5.3.3 Audio Player
+
+Custom dark-themed playback widget used in the AudioRecorder "done" state. Implemented in `components/ui/audio-player.tsx`.
+
+**Layout**: Horizontal flex row — `[Play/Pause] [time] [seek bar ────────] [mute] [volume ──]`
+
+**Container**: `rounded-lg border border-border bg-card-elevated px-3 py-2`, `max-w-[320px]`, full width
+
+| Element | Style |
+|---------|-------|
+| **Play/Pause button** | Ghost variant, `h-8 w-8`, `Play`/`Pause` Lucide icons, `--foreground-secondary` → `--foreground` on hover |
+| **Time display** | `mm:ss / mm:ss`, monospace, `text-xs`, `--foreground-muted`, tabular nums |
+| **Seek bar** | shadcn `Slider`, `flex-1`, filled range in `--primary` |
+| **Mute button** | Ghost variant, `h-8 w-8`, `Volume2`/`VolumeX` Lucide icons |
+| **Volume slider** | shadcn `Slider`, `w-14` fixed width |
+
+**Slider thumb** (both seek and volume):
+- Size: `12px` (`size-3`) — smaller than the default `16px`
+- Fill: solid `--primary` (`#FC520B`), no border, no shadow
+- **Default**: `opacity-0`, `scale-75` (hidden)
+- **On hover / keyboard focus**: `opacity-100`, `scale-100`, `150ms` ease transition
+- This gives a clean Spotify/YouTube-style resting state
 
 ### 5.4 Transcript View (Step 2)
 
@@ -231,6 +287,7 @@ This document defines all visual design decisions for the Next.js + shadcn/ui fr
 - **API key inputs**: Password type with `Eye`/`EyeOff` toggle icon
 - **Key status badge**: Small dot — green (`--success`) if key saved, gray (`--foreground-muted`) if empty
 - **Warning badge**: `--warning` colored badge when selected provider has no key
+- **Keyboard shortcut badges** (`⌥` + `S`): Shown next to the "Settings" title on **desktop only** (`≥ 768px`). Hidden on mobile (`hidden md:flex`) since touch devices have no keyboard.
 
 ---
 
@@ -289,6 +346,8 @@ Using shadcn/ui `sonner` integration:
 | **Drag-over zone** | Border + background color | `150ms` | `ease` |
 | **Streaming cursor** | Blink (`opacity 0↔1`) | `1s` infinite | `step-end` |
 | **Loading spinner** | Rotate | `1s` infinite | `linear` |
+| **Recorder waveform bars** | Height driven by live frequency data via `requestAnimationFrame` | Continuous | - |
+| **Audio player slider thumb** | Fade + scale in on hover/focus (`opacity 0→1`, `scale 0.75→1`) | `150ms` | `ease` |
 
 Step transition implementation:
 ```css
@@ -313,6 +372,7 @@ Step transition implementation:
 |---------|-----------|
 | **Config loading** | Full-page skeleton: gray pulsing rectangles for header, steps, and content area |
 | **File uploading** | Spinner inside the drop zone + "Uploading..." text + progress bar (if available) |
+| **Recording upload** | Muted `Mic` icon + "Uploading recording..." text, container at `opacity-50` |
 | **Transcribing** | Skeleton lines pulsing in the transcript area + "Transcribing your audio..." with spinner |
 | **Generating summary** | Streaming text with blinking cursor `▊` + "Generating summary..." badge |
 
@@ -332,11 +392,15 @@ Step transition implementation:
 |-----------|------------------|-----------------|
 | **Header** | Full app name + settings icon | Same (app name may truncate) |
 | **Step indicator** | Icons + labels + lines | Icons + lines (labels abbreviated or hidden) |
+| **Step 1 tab toggle** | "Upload File" / "Record Audio" tabs visible | Same |
 | **File upload** | Centered in content area | Full width |
+| **Audio recorder** | Centered in content area, mic selector visible when ≥2 mics | Full width, mic selector visible when ≥2 mics |
+| **Audio player** | Horizontal row (play, time, seek, mute, volume) | Same (wraps naturally) |
 | **Transcript + Speakers** | Transcript full width, speakers below | Same, stacked |
 | **Prompt Editor** | Template + language selectors inline | Stacked, full width |
 | **Step 3 layout** | Two columns (transcript / summary) | Stacked, tab toggle between views |
 | **Settings sheet** | `380px` slide-out | Full-width slide-out |
+| **Settings keyboard shortcut** | `⌥S` badges visible next to "Settings" title | Hidden |
 | **Action buttons** | Inline row | Stacked, full width |
 
 ---
