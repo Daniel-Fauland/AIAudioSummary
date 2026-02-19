@@ -6,6 +6,8 @@ import type {
   ExtractKeyPointsRequest,
   ExtractKeyPointsResponse,
   GetSpeakersResponse,
+  IncrementalSummaryRequest,
+  IncrementalSummaryResponse,
   UpdatedTranscriptResponse,
 } from "./types";
 
@@ -148,4 +150,15 @@ export async function createSummary(
 
   const data = (await response.json()) as CreateSummaryResponse;
   return data.summary;
+}
+
+export async function createIncrementalSummary(
+  request: IncrementalSummaryRequest,
+): Promise<IncrementalSummaryResponse> {
+  const response = await fetch(`${API_BASE}/createIncrementalSummary`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<IncrementalSummaryResponse>(response);
 }

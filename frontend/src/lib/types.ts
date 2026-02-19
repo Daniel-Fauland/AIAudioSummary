@@ -89,3 +89,37 @@ export interface UpdateSpeakersRequest {
 export interface UpdatedTranscriptResponse {
   transcript: string;
 }
+
+// === Realtime types ===
+
+export type RealtimeConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
+
+export type SummaryInterval = 1 | 2 | 3 | 5 | 10;
+
+export type RealtimeWsMessage =
+  | { type: "session_started"; session_id: string }
+  | { type: "turn"; transcript: string; is_final: boolean }
+  | { type: "error"; message: string }
+  | { type: "reconnecting"; attempt: number }
+  | { type: "session_ended" };
+
+export interface IncrementalSummaryRequest {
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  azure_config?: AzureConfig;
+  system_prompt: string;
+  full_transcript: string;
+  previous_summary?: string;
+  new_transcript_chunk?: string;
+  is_full_recompute: boolean;
+  target_language: string;
+  informal_german: boolean;
+  date?: string;
+  author?: string;
+}
+
+export interface IncrementalSummaryResponse {
+  summary: string;
+  updated_at: string;
+}

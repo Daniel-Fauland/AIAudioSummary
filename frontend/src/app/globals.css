@@ -260,3 +260,33 @@
     transform: translateY(0);
   }
 }
+
+/* === Realtime mode styles === */
+
+/* Partial transcript text (in-progress words) */
+.realtime-partial {
+  color: var(--foreground-muted);
+  font-style: italic;
+}
+
+/* Summary fade-in animation when content updates */
+@keyframes summaryFadeIn {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+.summary-fade-enter {
+  animation: summaryFadeIn 400ms ease-out;
+}
+
+/* Connection status dot */
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.connection-dot.connected { background: var(--success); }
+.connection-dot.connecting,
+.connection-dot.reconnecting { background: var(--warning); animation: blink 1s step-end infinite; }
+.connection-dot.disconnected { background: var(--foreground-muted); }
+.connection-dot.error { background: var(--destructive); }

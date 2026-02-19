@@ -234,6 +234,7 @@ dependencies = [
     { name = "python-multipart" },
     { name = "pytz" },
     { name = "uvicorn" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -245,6 +246,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "pytz" },
     { name = "uvicorn", specifier = ">=0.34.2" },
+    { name = "websockets", specifier = ">=15.0.1" },
 ]
 
 [[package]]

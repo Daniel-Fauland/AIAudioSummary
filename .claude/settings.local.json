@@ -38,7 +38,10 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:www.assemblyai.com)",
+      "Bash(python:*)",
+      "Bash(timeout 5 uv run:*)"
     ]
   }
 }

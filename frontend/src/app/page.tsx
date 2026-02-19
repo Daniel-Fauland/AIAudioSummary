@@ -13,6 +13,7 @@ import { TranscriptView } from "@/components/workflow/TranscriptView";
 import { SpeakerMapper } from "@/components/workflow/SpeakerMapper";
 import { PromptEditor } from "@/components/workflow/PromptEditor";
 import { SummaryView } from "@/components/workflow/SummaryView";
+import { RealtimeMode } from "@/components/realtime/RealtimeMode";
 import { Button } from "@/components/ui/button";
 import { useConfig } from "@/hooks/useConfig";
 import { useApiKeys } from "@/hooks/useApiKeys";
@@ -25,6 +26,7 @@ const MODEL_KEY_PREFIX = "aias:v1:model:";
 const AUTO_KEY_POINTS_KEY = "aias:v1:auto_key_points";
 const MIN_SPEAKERS_KEY = "aias:v1:min_speakers";
 const MAX_SPEAKERS_KEY = "aias:v1:max_speakers";
+const APP_MODE_KEY = "aias:v1:app_mode";
 
 function safeGet(key: string, fallback: string): string {
   try {
@@ -55,6 +57,16 @@ export default function Home() {
 
   // Settings panel
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // App mode
+  const [appMode, setAppMode] = useState<"standard" | "realtime">(
+    () => safeGet(APP_MODE_KEY, "standard") as "standard" | "realtime",
+  );
+
+  const handleModeChange = useCallback((mode: "standard" | "realtime") => {
+    setAppMode(mode);
+    safeSet(APP_MODE_KEY, mode);
+  }, []);
 
   // Provider / model (persisted in localStorage)
   const [selectedProvider, setSelectedProvider] = useState<LLMProvider>(
@@ -446,6 +458,54 @@ export default function Home() {
       />
 
       <div className="mx-auto max-w-6xl px-4 md:px-6">
+        {/* Mode tab bar */}
+        <div className="flex border-b border-border mt-4 mb-2">
+          <button
+            type="button"
+            onClick={() => handleModeChange("standard")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              appMode === "standard"
+                ? "border-b-2 border-primary text-foreground -mb-px"
+                : "text-foreground-muted hover:text-foreground-secondary"
+            }`}
+          >
+            Standard
+          </button>
+          <button
+            type="button"
+            onClick={() => handleModeChange("realtime")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              appMode === "realtime"
+                ? "border-b-2 border-primary text-foreground -mb-px"
+                : "text-foreground-muted hover:text-foreground-secondary"
+            }`}
+          >
+            Realtime
+          </button>
+        </div>
+
+        {appMode === "realtime" ? (
+          <div className="step-content space-y-6 pb-8">
+            <RealtimeMode
+              config={config}
+              selectedProvider={selectedProvider}
+              selectedModel={selectedModel}
+              azureConfig={azureConfig}
+              selectedPrompt={
+                config?.prompt_templates.find((t) => t.content === selectedPrompt) ??
+                (selectedPrompt ? { id: "custom", name: "Custom", content: selectedPrompt } : null)
+              }
+              selectedLanguage={selectedLanguage}
+              informalGerman={informalGerman}
+              meetingDate={meetingDate ?? ""}
+              authorSpeaker={authorSpeaker ?? ""}
+              getKey={getKey}
+              hasKey={hasKey}
+              onOpenSettings={() => setSettingsOpen(true)}
+            />
+          </div>
+        ) : (
+          <>
         <StepIndicator currentStep={currentStep} />
 
         <div className="step-content space-y-6 pb-8" key={currentStep}>
@@ -576,6 +636,8 @@ export default function Home() {
             </>
           ) : null}
         </div>
+          </>
+        )}
       </div>
     </div>
   );

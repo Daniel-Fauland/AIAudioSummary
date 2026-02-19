@@ -49,12 +49,17 @@ Everything you need to know to implement a new feature or change an existing one
 
 ## Project Overview
 
-AIAudioSummary is a web app for uploading or recording audio files (meeting recordings) and generating transcripts + AI-powered summaries. It uses:
+AIAudioSummary is a web app for uploading or recording audio files (meeting recordings) and generating transcripts + AI-powered summaries. It supports two modes:
 
-- **AssemblyAI** for speech-to-text transcription
+- **Standard mode**: Upload/record audio → batch transcription → streaming summary generation
+- **Realtime mode**: Live microphone capture → streaming transcription via WebSocket → periodic incremental summaries
+
+It uses:
+
+- **AssemblyAI** for speech-to-text (batch SDK + streaming WebSocket API)
 - **Multi-provider LLM support** (OpenAI, Anthropic, Google Gemini, Azure OpenAI) via `pydantic-ai` for summarization
 - **Next.js 16** frontend with shadcn/ui
-- **FastAPI** backend
+- **FastAPI** backend with WebSocket support
 - **Google OAuth** (via Auth.js v5) for authentication with email allowlist
 - **Render** for deployment (both services on free tier with API proxy)
 
@@ -69,7 +74,8 @@ The key architectural decision is **BYOK (Bring Your Own Key)**: API keys are st
 | Backend  | Python 3.12+, FastAPI, pydantic-ai             | uv              |
 | Frontend | Next.js 16, React 19, TypeScript 5             | npm             |
 | UI       | shadcn/ui, Tailwind CSS v4                     | -               |
-| STT      | AssemblyAI SDK                                 | -               |
+| STT      | AssemblyAI SDK + Streaming WebSocket API       | -               |
+| Realtime | websockets (Python), AudioWorklet (browser)    | -               |
 | LLMs     | pydantic-ai (OpenAI, Anthropic, Gemini, Azure) | -               |
 
 ---
@@ -82,15 +88,18 @@ project-root/
 │   ├── api/                        # Router layer (HTTP endpoints)
 │   │   ├── assemblyai/router.py    #   POST /createTranscript
 │   │   ├── llm/router.py          #   POST /createSummary
-│   │   └── misc/router.py         #   GET /getConfig, POST /getSpeakers, POST /updateSpeakers
+│   │   ├── misc/router.py         #   GET /getConfig, POST /getSpeakers, POST /updateSpeakers
+│   │   └── realtime/router.py    #   WS /ws/realtime, POST /createIncrementalSummary
 │   ├── service/                    # Service layer (business logic)
 │   │   ├── assembly_ai/core.py    #   AssemblyAIService
 │   │   ├── llm/core.py            #   LLMService (multi-provider)
-│   │   └── misc/core.py           #   MiscService (speakers, dates)
+│   │   ├── misc/core.py           #   MiscService (speakers, dates)
+│   │   └── realtime/             #   RealtimeTranscriptionService, SessionManager
 │   ├── models/                     # Pydantic request/response models
 │   │   ├── assemblyai.py
 │   │   ├── config.py
-│   │   └── llm.py
+│   │   ├── llm.py
+│   │   └── realtime.py            #   IncrementalSummaryRequest/Response
 │   ├── utils/
 │   │   ├── helper.py              # File listing & reading utilities
 │   │   └── logging.py             # Logger configuration
@@ -116,14 +125,18 @@ project-root/
 │   │   │   ├── layout/             # Header, StepIndicator, SettingsSheet
 │   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm
 │   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor, SummaryView
+│   │   │   ├── realtime/          # RealtimeMode, RealtimeControls, RealtimeTranscriptView, RealtimeSummaryView, ConnectionStatus
 │   │   │   └── ui/                 # shadcn/ui primitives + AudioPlayer composite component
 │   │   ├── hooks/
 │   │   │   ├── useApiKeys.ts       # localStorage key management
-│   │   │   └── useConfig.ts        # Backend config fetching
+│   │   │   ├── useConfig.ts        # Backend config fetching
+│   │   │   └── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
 │   │       ├── types.ts            # TypeScript types (mirrors backend models)
 │   │       └── utils.ts            # cn() Tailwind merge utility
+│   ├── public/
+│   │   └── pcm-worklet-processor.js  # AudioWorklet for PCM16 capture
 │   ├── package.json
 │   └── next.config.ts
 │
@@ -144,18 +157,20 @@ In production (Render), both services are **public web services** on the free ti
 ```
 Browser (client)
     │
-    ▼
-Next.js Frontend (public, Render web service)
-    ├── proxy.ts ── checks auth session, redirects to /login if unauthenticated
-    ├── /api/auth/* ── Auth.js handles Google OAuth flow
-    └── /api/proxy/* ── forwards requests to backend
-            │
-            ▼
-FastAPI Backend (public, Render web service)
-    └── /createTranscript, /createSummary, /getConfig, etc.
+    ├── HTTP ──► Next.js Frontend (public, Render web service)
+    │                ├── proxy.ts ── checks auth session, redirects to /login if unauthenticated
+    │                ├── /api/auth/* ── Auth.js handles Google OAuth flow
+    │                └── /api/proxy/* ── forwards requests to backend
+    │                        │
+    │                        ▼
+    │                FastAPI Backend (public, Render web service)
+    │                    └── /createTranscript, /createSummary, /getConfig, etc.
+    │
+    └── WebSocket ──► FastAPI Backend (direct, bypasses proxy)
+                         └── /ws/realtime (realtime transcription relay)
 ```
 
-Locally, the same proxy route forwards `localhost:3000/api/proxy/*` to `localhost:8080/*`.
+Locally, the HTTP proxy route forwards `localhost:3000/api/proxy/*` to `localhost:8080/*`. The WebSocket connection goes directly from the browser to the backend (`ws://localhost:8080/ws/realtime`) — it bypasses the Next.js proxy because Auth.js session cookies are not sent over WebSocket connections. Authentication for the WebSocket is handled via the AssemblyAI API key sent in the init message.
 
 ### Authentication (Google OAuth)
 
@@ -192,8 +207,9 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 
 | Variable               | Service  | Default                 | Description                                                  |
 | ---------------------- | -------- | ----------------------- | ------------------------------------------------------------ |
-| `BACKEND_INTERNAL_URL` | Frontend | `http://localhost:8080` | Backend URL (auto-populated on Render via service discovery) |
-| `AUTH_GOOGLE_ID`       | Frontend | —                       | Google OAuth client ID                                       |
+| `BACKEND_INTERNAL_URL`        | Frontend | `http://localhost:8080` | Backend URL for HTTP proxy (auto-populated on Render)        |
+| `NEXT_PUBLIC_BACKEND_WS_URL` | Frontend | `ws://localhost:8080`   | Backend WebSocket URL for realtime transcription (direct)    |
+| `AUTH_GOOGLE_ID`              | Frontend | —                       | Google OAuth client ID                                       |
 | `AUTH_GOOGLE_SECRET`   | Frontend | —                       | Google OAuth client secret                                   |
 | `AUTH_SECRET`          | Frontend | —                       | Random secret for session encryption                         |
 | `ALLOWED_EMAILS`       | Frontend | (empty = allow all)     | Comma-separated email allowlist                              |
@@ -282,8 +298,9 @@ HTTP Request
 
 ### Router Conventions
 
-- **Endpoint paths**: camelCase (`/createTranscript`, `/getSpeakers`)
+- **Endpoint paths**: camelCase (`/createTranscript`, `/getSpeakers`); WebSocket paths use `/ws/` prefix (`/ws/realtime`)
 - **HTTP methods**: `POST` for operations, `GET` for data retrieval
+- **WebSocket**: `@router.websocket("/ws/path")` for persistent connections
 - **All handlers are `async def`**
 - **Services instantiated at module level**: `service = MyService()` (no DI framework)
 - **Response model declared in decorator**: `@router.post("/path", response_model=MyResponse)`
@@ -294,6 +311,10 @@ HTTP Request
 - All methods are `async def`
 - Services are plain classes (no base class, no DI)
 - Error handling: raise exceptions, let the router catch and convert to HTTP responses
+- The **realtime service** (`service/realtime/`) contains:
+  - `RealtimeTranscriptionService` (`core.py`): manages WebSocket connections to AssemblyAI's streaming API (connect, send audio, terminate)
+  - `SessionManager` (`session.py`): in-memory session state with asyncio Lock for thread safety — tracks accumulated transcript, current partial, and timestamps per session
+  - `SessionState` dataclass: `session_id`, `accumulated_transcript`, `current_partial`, `created_at`, `last_activity`
 - The LLM service uses a factory method `_create_model()` to instantiate the correct pydantic-ai provider:
 
   | Provider       | Model Class       | Provider Class      |
@@ -318,6 +339,7 @@ Key models:
 | `models/llm.py`        | `LLMProvider` (enum), `CreateSummaryRequest`, `CreateSummaryResponse`, `AzureConfig` |
 | `models/config.py`     | `ConfigResponse`, `ProviderInfo`, `PromptTemplate`, `LanguageOption`, speaker models |
 | `models/assemblyai.py` | `CreateTranscriptResponse`                                                           |
+| `models/realtime.py`   | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                            |
 
 ### Configuration & Environment
 
@@ -453,9 +475,13 @@ Format: `timestamp | level | filename:line | function | message`
 - **Toast notifications**: Sonner, positioned bottom-right
 - **Style Guide**: Always follow [UX_SPECIFICATION.md](../user_stories/UX_SPECIFICATION.md) when implementing any frontend feature!
 
-### 3-Step Workflow
+### App Modes
 
-The app follows a linear workflow managed by `currentStep` state (1, 2, or 3):
+The app has two top-level modes controlled by `appMode` state (`"standard"` | `"realtime"`), toggled via a tab bar below the header. The selected mode is persisted to localStorage (`aias:v1:app_mode`).
+
+### Standard Mode (3-Step Workflow)
+
+The standard mode follows a linear workflow managed by `currentStep` state (1, 2, or 3):
 
 ```
 Step 1: Input                 Step 2: Transcript              Step 3: Summary
@@ -477,6 +503,27 @@ Transitions:
 - **3 -> 2**: "Back to Transcript" button
 - **3 -> 1**: "Start Over" resets all state
 
+### Realtime Mode
+
+The realtime mode provides live transcription and incremental summarization:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  RealtimeControls                                            │
+│  [Start/Pause/Stop]  [Mic]  [Status]  [00:00]  [Interval]  │
+├──────────────────────────┬───────────────────────────────────┤
+│  RealtimeTranscriptView  │  RealtimeSummaryView              │
+│  (live, auto-scrolling)  │  (markdown, periodic updates)     │
+│  Final text + partials   │  "Updating..." badge + timestamp  │
+└──────────────────────────┴───────────────────────────────────┘
+         Desktop: two-column grid / Mobile: tabbed
+```
+
+The `useRealtimeSession` hook manages the entire lifecycle:
+1. **Start**: getUserMedia → AudioContext → AudioWorklet (PCM16 @ 16kHz) → WebSocket to backend → relay to AssemblyAI
+2. **During session**: transcript accumulates from WS `turn` events; summary timer fires at configurable interval (1-10 min) calling `POST /createIncrementalSummary`
+3. **Stop**: sends stop message → closes WS → triggers final full-transcript summary → shows copy buttons
+
 ### Component Hierarchy
 
 ```
@@ -494,12 +541,21 @@ RootLayout (layout.tsx)
         │   ├── ProviderSelector
         │   ├── ModelSelector           ← dropdown or free-text input
         │   └── AzureConfigForm        ← only if provider is azure_openai
-        ├── StepIndicator              ← visual 3-step progress bar
+        ├── Mode Tab Bar               ← [Standard] [Realtime] toggle
         │
-        └── Step Content (conditional):
-            ├── Step 1: tab toggle → FileUpload | AudioRecorder
-            ├── Step 2: TranscriptView + SpeakerMapper + PromptEditor
-            └── Step 3: TranscriptView (readonly) + SummaryView
+        ├── (Standard mode):
+        │   ├── StepIndicator          ← visual 3-step progress bar
+        │   └── Step Content (conditional):
+        │       ├── Step 1: tab toggle → FileUpload | AudioRecorder
+        │       ├── Step 2: TranscriptView + SpeakerMapper + PromptEditor
+        │       └── Step 3: TranscriptView (readonly) + SummaryView
+        │
+        └── (Realtime mode):
+            └── RealtimeMode           ← orchestrator, uses useRealtimeSession() hook
+                ├── RealtimeControls   ← Start/Pause/Stop, mic selector, timer, interval
+                │   └── ConnectionStatus
+                ├── RealtimeTranscriptView  ← live transcript with auto-scroll
+                └── RealtimeSummaryView     ← markdown summary with periodic updates
 ```
 
 ### Adding a New Frontend Component
@@ -508,7 +564,8 @@ RootLayout (layout.tsx)
    - `components/auth/` — authentication-related components (SessionWrapper, UserMenu)
    - `components/layout/` — structural/layout components
    - `components/settings/` — settings panel sub-components
-   - `components/workflow/` — step-specific workflow components
+   - `components/workflow/` — standard mode step-specific workflow components
+   - `components/realtime/` — realtime mode components (RealtimeMode, Controls, TranscriptView, SummaryView, ConnectionStatus)
 
 2. **Define a props interface**:
 
@@ -546,8 +603,10 @@ All application state lives in `page.tsx` using `useState`. There is no global s
 | Azure config      | Yes (localStorage) | `aias:v1:azure:{field}`     |
 | Selected provider | Yes (localStorage) | `aias:v1:selected_provider` |
 | Selected model    | Yes (localStorage) | `aias:v1:model:{provider}`  |
+| App mode          | Yes (localStorage) | `aias:v1:app_mode`          |
 | Workflow state    | No                 | -                           |
 | Prompt/language   | No                 | -                           |
+| Realtime session  | No (hook state)    | -                           |
 
 Pattern for persisted state:
 
@@ -566,13 +625,14 @@ const handleProviderChange = (provider: LLMProvider) => {
 
 All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which routes all requests through the Next.js API proxy layer (`src/app/api/proxy/[...path]/route.ts`). The proxy forwards to the backend using `BACKEND_INTERNAL_URL`.
 
-| Function             | Method | Endpoint            | Returns                                       |
-| -------------------- | ------ | ------------------- | --------------------------------------------- |
-| `getConfig()`        | GET    | `/getConfig`        | `ConfigResponse`                              |
-| `createTranscript()` | POST   | `/createTranscript` | `string` (transcript)                         |
-| `getSpeakers()`      | POST   | `/getSpeakers`      | `string[]` (speaker labels)                   |
-| `updateSpeakers()`   | POST   | `/updateSpeakers`   | `string` (updated transcript)                 |
-| `createSummary()`    | POST   | `/createSummary`    | `string` (full text, with streaming callback) |
+| Function                       | Method | Endpoint                     | Returns                                       |
+| ------------------------------ | ------ | ---------------------------- | --------------------------------------------- |
+| `getConfig()`                  | GET    | `/getConfig`                 | `ConfigResponse`                              |
+| `createTranscript()`           | POST   | `/createTranscript`          | `string` (transcript)                         |
+| `getSpeakers()`                | POST   | `/getSpeakers`               | `string[]` (speaker labels)                   |
+| `updateSpeakers()`             | POST   | `/updateSpeakers`            | `string` (updated transcript)                 |
+| `createSummary()`              | POST   | `/createSummary`             | `string` (full text, with streaming callback) |
+| `createIncrementalSummary()`   | POST   | `/createIncrementalSummary`  | `IncrementalSummaryResponse`                  |
 
 Error handling: `ApiError` class with `status` and `message`. The `handleResponse<T>()` helper extracts `detail` from FastAPI error JSON.
 
@@ -635,6 +695,7 @@ Key prefix: `aias:v1:` — all localStorage operations use safe try/catch wrappe
 | `aias:v1:azure:deployment_name` | Azure deployment name           |
 | `aias:v1:selected_provider`     | Currently selected LLM provider |
 | `aias:v1:model:{provider}`      | Selected model per provider     |
+| `aias:v1:app_mode`              | App mode (`standard` or `realtime`) |
 
 ### Styling & Theme
 
@@ -658,6 +719,9 @@ Custom animations:
 
 - `.streaming-cursor` — blinking orange cursor during streaming
 - `.step-content` — fade-in + slide-up on step transitions
+- `.summary-fade-enter` — 400ms fade-in on realtime summary updates
+- `.connection-dot` — colored status dots (green/amber/gray/red) with blink animation for connecting/reconnecting states
+- `.realtime-partial` — muted italic style for in-progress transcript text
 
 ### shadcn/ui Components
 
@@ -780,6 +844,51 @@ api.ts: reads stream with ReadableStream API
     │
     ▼
 SummaryView: re-renders with updated summary, auto-scrolls, shows cursor
+```
+
+### Realtime Transcription Flow
+
+```
+User clicks "Start" in Realtime mode
+    │
+    ▼
+RealtimeMode: validates API keys (AssemblyAI + LLM provider)
+    │
+    ▼
+useRealtimeSession.startSession():
+    ├── getUserMedia() → microphone stream
+    ├── AudioContext (48kHz) → AudioWorklet (pcm-worklet-processor)
+    │   └── Downsamples to 16kHz, converts Float32 → Int16 PCM
+    ├── Opens WebSocket to backend: ws://localhost:8080/ws/realtime
+    ├── Sends init JSON: {api_key, session_id, sample_rate}
+    │
+    ▼
+Backend /ws/realtime handler:
+    ├── Creates SessionState via SessionManager
+    ├── Connects to AssemblyAI: wss://streaming.eu.assemblyai.com/v3/ws
+    │   └── Auth header, params: pcm_s16le, 16kHz, universal-streaming-multi, format_turns
+    ├── Sends {type: "session_started"} to browser
+    ├── Runs two concurrent tasks:
+    │   ├── browser → AAI: forwards binary audio frames
+    │   └── AAI → browser: parses turn events, updates session state, forwards JSON
+    │
+    ▼
+Browser receives {type: "turn", transcript, is_final}:
+    ├── is_final=true → accumulatedTranscript += transcript
+    ├── is_final=false → currentPartial = transcript
+    │
+    ▼
+Summary timer (configurable interval, default 2 min):
+    ├── Calls POST /createIncrementalSummary via api.ts
+    ├── Incremental: sends previous_summary + new_transcript_chunk
+    ├── Every 10th call: full recompute for consistency
+    ├── Response: {summary, updated_at} → updates RealtimeSummaryView
+    │
+    ▼
+User clicks "Stop":
+    ├── Sends {type: "stop"} over WS → backend terminates AAI connection
+    ├── Cleans up: WS, AudioContext, MediaStream, timers
+    └── Triggers final full-transcript summary
 ```
 
 ### Config Flow
