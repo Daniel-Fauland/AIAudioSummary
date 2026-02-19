@@ -382,6 +382,8 @@ Prompt templates are Markdown files in `prompt_templates/`. They are loaded dyna
 
 **To add a new template**: create a new `.md` file in `prompt_templates/`. It will automatically appear in the frontend template selector.
 
+> **Note**: The **realtime incremental summary** (`/createIncrementalSummary`) does **not** use the prompt template system. It uses a hardcoded stability-focused system prompt defined in `api/realtime/router.py` (`_REALTIME_SYSTEM_PROMPT`). The target language is auto-detected from the transcript using the `langdetect` library rather than being selected by the user.
+
 ### Error Handling
 
 Routers catch exceptions and return categorized HTTP errors:
@@ -510,7 +512,8 @@ The realtime mode provides live transcription and incremental summarization:
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  RealtimeControls                                            │
-│  [Start/Pause/Stop]  [Mic]  [Status]  [00:00]  [Interval]  │
+│  [Start/Pause/Stop]  [Mic]  [Status]  [00:00]  [mm:ss] [↻] │
+│                                     elapsed  countdown  btn  │
 ├──────────────────────────┬───────────────────────────────────┤
 │  RealtimeTranscriptView  │  RealtimeSummaryView              │
 │  (live, auto-scrolling)  │  (markdown, periodic updates)     │
@@ -520,9 +523,10 @@ The realtime mode provides live transcription and incremental summarization:
 ```
 
 The `useRealtimeSession` hook manages the entire lifecycle:
-1. **Start**: getUserMedia → AudioContext → AudioWorklet (PCM16 @ 16kHz) → WebSocket to backend → relay to AssemblyAI
-2. **During session**: transcript accumulates from WS `turn` events; summary timer fires at configurable interval (1-10 min) calling `POST /createIncrementalSummary`
-3. **Stop**: sends stop message → closes WS → triggers final full-transcript summary → shows copy buttons
+1. **Start**: getUserMedia → AudioContext → AudioWorklet (PCM16 @ 16kHz, buffered in 100ms chunks) → WebSocket to backend → relay to AssemblyAI
+2. **During session**: transcript accumulates from WS `turn` events; summary timer fires at configurable interval (1-10 min, set in Settings panel) calling `POST /createIncrementalSummary`; countdown timer (`mm:ss`) shown in controls bar; timer pauses when recording is paused and restarts on resume
+3. **Manual summary**: "Refresh Summary" button in controls triggers immediate summary and resets the auto-timer from that point
+4. **Stop**: sends stop message → closes WS → triggers final full-transcript summary → shows copy buttons
 
 ### Component Hierarchy
 
@@ -552,7 +556,7 @@ RootLayout (layout.tsx)
         │
         └── (Realtime mode):
             └── RealtimeMode           ← orchestrator, uses useRealtimeSession() hook
-                ├── RealtimeControls   ← Start/Pause/Stop, mic selector, timer, interval
+                ├── RealtimeControls   ← Start/Pause/Stop, mic selector, elapsed timer, countdown + Refresh button
                 │   └── ConnectionStatus
                 ├── RealtimeTranscriptView  ← live transcript with auto-scroll
                 └── RealtimeSummaryView     ← markdown summary with periodic updates
@@ -604,6 +608,7 @@ All application state lives in `page.tsx` using `useState`. There is no global s
 | Selected provider | Yes (localStorage) | `aias:v1:selected_provider` |
 | Selected model    | Yes (localStorage) | `aias:v1:model:{provider}`  |
 | App mode          | Yes (localStorage) | `aias:v1:app_mode`          |
+| Realtime interval | Yes (localStorage) | `aias:v1:realtime_interval` |
 | Workflow state    | No                 | -                           |
 | Prompt/language   | No                 | -                           |
 | Realtime session  | No (hook state)    | -                           |
@@ -696,6 +701,7 @@ Key prefix: `aias:v1:` — all localStorage operations use safe try/catch wrappe
 | `aias:v1:selected_provider`     | Currently selected LLM provider |
 | `aias:v1:model:{provider}`      | Selected model per provider     |
 | `aias:v1:app_mode`              | App mode (`standard` or `realtime`) |
+| `aias:v1:realtime_interval`     | Realtime auto-summary interval (minutes: 1/2/3/5/10) |
 
 ### Styling & Theme
 
@@ -859,6 +865,7 @@ useRealtimeSession.startSession():
     ├── getUserMedia() → microphone stream
     ├── AudioContext (48kHz) → AudioWorklet (pcm-worklet-processor)
     │   └── Downsamples to 16kHz, converts Float32 → Int16 PCM
+    │       Buffers 1600 samples (100ms) before posting — AAI requires 50-1000ms chunks
     ├── Opens WebSocket to backend: ws://localhost:8080/ws/realtime
     ├── Sends init JSON: {api_key, session_id, sample_rate}
     │
@@ -866,21 +873,28 @@ useRealtimeSession.startSession():
 Backend /ws/realtime handler:
     ├── Creates SessionState via SessionManager
     ├── Connects to AssemblyAI: wss://streaming.eu.assemblyai.com/v3/ws
-    │   └── Auth header, params: pcm_s16le, 16kHz, universal-streaming-multi, format_turns
+    │   └── Auth header, params: pcm_s16le, 16kHz, universal-streaming-multilingual, format_turns=true
     ├── Sends {type: "session_started"} to browser
-    ├── Runs two concurrent tasks:
-    │   ├── browser → AAI: forwards binary audio frames
-    │   └── AAI → browser: parses turn events, updates session state, forwards JSON
+    ├── Runs two concurrent asyncio tasks:
+    │   ├── browser_to_aai: forwards binary audio frames
+    │   └── aai_to_browser: parses PascalCase turn events (Turn/Begin/Termination)
+    │       └── format_turns=true → AAI sends two Turn events per sentence:
+    │           1. end_of_turn=true, turn_is_formatted=false → skipped
+    │           2. turn_is_formatted=true → used as final transcript
     │
     ▼
 Browser receives {type: "turn", transcript, is_final}:
     ├── is_final=true → accumulatedTranscript += transcript
-    ├── is_final=false → currentPartial = transcript
+    ├── is_final=false → currentPartial = transcript (live partial display)
     │
     ▼
-Summary timer (configurable interval, default 2 min):
+Summary timer (configurable interval via Settings, default 2 min):
+    ├── Pauses automatically when recording is paused; restarts on resume
+    ├── Countdown shown as mm:ss in controls bar; manual "Refresh Summary" resets it
     ├── Calls POST /createIncrementalSummary via api.ts
-    ├── Incremental: sends previous_summary + new_transcript_chunk
+    ├── Language auto-detected from transcript via langdetect (Python)
+    ├── Hardcoded system prompt (stability-focused, not from prompt_templates/)
+    ├── Incremental: sends previous_summary + new_transcript_chunk, temperature=0.1
     ├── Every 10th call: full recompute for consistency
     ├── Response: {summary, updated_at} → updates RealtimeSummaryView
     │

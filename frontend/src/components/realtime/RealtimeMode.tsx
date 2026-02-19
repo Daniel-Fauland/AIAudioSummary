@@ -13,6 +13,7 @@ import type {
   ConfigResponse,
   LLMProvider,
   PromptTemplate,
+  SummaryInterval,
 } from "@/lib/types";
 
 interface RealtimeModeProps {
@@ -28,6 +29,7 @@ interface RealtimeModeProps {
   getKey: (provider: LLMProvider | "assemblyai") => string;
   hasKey: (provider: LLMProvider | "assemblyai") => boolean;
   onOpenSettings: () => void;
+  summaryInterval: SummaryInterval;
 }
 
 export function RealtimeMode({
@@ -42,6 +44,7 @@ export function RealtimeMode({
   getKey,
   hasKey,
   onOpenSettings,
+  summaryInterval,
 }: RealtimeModeProps) {
   const session = useRealtimeSession();
   const [mobileTab, setMobileTab] = useState<"transcript" | "summary">("transcript");
@@ -75,6 +78,10 @@ export function RealtimeMode({
     getKey,
     session.setLlmConfig,
   ]);
+
+  useEffect(() => {
+    session.setSummaryInterval(summaryInterval);
+  }, [summaryInterval, session.setSummaryInterval]);
 
   const handleStart = useCallback(() => {
     if (!hasKey("assemblyai")) {
@@ -112,12 +119,14 @@ export function RealtimeMode({
         isPaused={session.isPaused}
         isSessionEnded={session.isSessionEnded}
         elapsedTime={session.elapsedTime}
-        summaryInterval={session.summaryInterval}
+        summaryCountdown={session.summaryCountdown}
+        isSummaryUpdating={session.isSummaryUpdating}
+        hasTranscript={!!session.accumulatedTranscript}
         onStart={handleStart}
         onPause={session.pauseSession}
         onResume={session.resumeSession}
         onStop={session.stopSession}
-        onIntervalChange={session.setSummaryInterval}
+        onManualSummary={session.triggerManualSummary}
         onMicChange={setMicDeviceId}
       />
 

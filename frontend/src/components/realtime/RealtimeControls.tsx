@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Mic, Pause, Play, Square, RotateCcw } from "lucide-react";
+import { Mic, Pause, Play, Square, RotateCcw, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -11,30 +11,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConnectionStatus } from "./ConnectionStatus";
-import type { RealtimeConnectionStatus, SummaryInterval } from "@/lib/types";
+import type { RealtimeConnectionStatus } from "@/lib/types";
 
 interface RealtimeControlsProps {
   connectionStatus: RealtimeConnectionStatus;
   isPaused: boolean;
   isSessionEnded: boolean;
   elapsedTime: number;
-  summaryInterval: SummaryInterval;
+  summaryCountdown: number;
+  isSummaryUpdating: boolean;
+  hasTranscript: boolean;
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
-  onIntervalChange: (interval: SummaryInterval) => void;
+  onManualSummary: () => void;
   onMicChange: (deviceId: string) => void;
   disabled?: boolean;
 }
-
-const INTERVAL_OPTIONS: { value: SummaryInterval; label: string }[] = [
-  { value: 1, label: "1 min" },
-  { value: 2, label: "2 min" },
-  { value: 3, label: "3 min" },
-  { value: 5, label: "5 min" },
-  { value: 10, label: "10 min" },
-];
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -47,12 +41,14 @@ export function RealtimeControls({
   isPaused,
   isSessionEnded,
   elapsedTime,
-  summaryInterval,
+  summaryCountdown,
+  isSummaryUpdating,
+  hasTranscript,
   onStart,
   onPause,
   onResume,
   onStop,
-  onIntervalChange,
+  onManualSummary,
   onMicChange,
   disabled,
 }: RealtimeControlsProps) {
@@ -162,25 +158,24 @@ export function RealtimeControls({
         </span>
       )}
 
-      {/* Summary interval selector */}
+      {/* Manual summary trigger + countdown */}
       <div className="ml-auto flex items-center gap-2">
-        <span className="text-xs text-foreground-muted">Summary every</span>
-        <Select
-          value={String(summaryInterval)}
-          onValueChange={(v) => onIntervalChange(Number(v) as SummaryInterval)}
-          disabled={!isIdle && !isSessionEnded && !isActive}
-        >
-          <SelectTrigger className="h-8 w-[90px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {INTERVAL_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={String(opt.value)}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isActive && (
+          <span className="font-mono text-xs text-foreground-muted tabular-nums">
+            {formatTime(summaryCountdown)}
+          </span>
+        )}
+        {isActive && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onManualSummary}
+            disabled={!hasTranscript || isSummaryUpdating}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh Summary
+          </Button>
+        )}
       </div>
     </div>
   );

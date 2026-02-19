@@ -13,4 +13,5 @@ dependencies = [
     "pytz",
     "pydantic-ai>=1.59.0",
     "websockets>=15.0.1",
+    "langdetect>=1.0.9",
 ]

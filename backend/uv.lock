@@ -229,6 +229,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "assemblyai" },
     { name = "fastapi" },
+    { name = "langdetect" },
     { name = "pydantic-ai" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
@@ -241,6 +242,7 @@ dependencies = [
 requires-dist = [
     { name = "assemblyai" },
     { name = "fastapi", specifier = ">=0.115.12" },
+    { name = "langdetect", specifier = ">=1.0.9" },
     { name = "pydantic-ai", specifier = ">=1.59.0" },
     { name = "pydantic-settings", specifier = ">=2.10.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
@@ -1309,6 +1311,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/43/4b/674af6ef2f97d56f0
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/db/e655086b7f3a705df045bf0933bdd9c2f79bb3c97bfef1384598bb79a217/keyring-25.7.0-py3-none-any.whl", hash = "sha256:be4a0b195f149690c166e850609a477c532ddbfbaed96a404d4e43f8d5e2689f", size = 39160, upload-time = "2025-11-16T16:26:08.402Z" },
 ]
+
+[[package]]
+name = "langdetect"
+version = "1.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0e/72/a3add0e4eec4eb9e2569554f7c70f4a3c27712f40e3284d483e88094cc0e/langdetect-1.0.9.tar.gz", hash = "sha256:cbc1fef89f8d062739774bd51eda3da3274006b3661d199c2655f6b3f6d605a0", size = 981474, upload-time = "2021-05-07T07:54:13.562Z" }
 
 [[package]]
 name = "logfire"

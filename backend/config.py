@@ -1,4 +1,4 @@
-from pydantic import Field, field_validator, ValidationError
+from pydantic import Field, field_validator
 from pydantic_settings import SettingsConfigDict, BaseSettings
 
 

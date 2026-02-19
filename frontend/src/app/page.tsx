@@ -19,7 +19,7 @@ import { useConfig } from "@/hooks/useConfig";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { useCustomTemplates } from "@/hooks/useCustomTemplates";
 import { createTranscript, createSummary, extractKeyPoints } from "@/lib/api";
-import type { AzureConfig, LLMProvider } from "@/lib/types";
+import type { AzureConfig, LLMProvider, SummaryInterval } from "@/lib/types";
 
 const PROVIDER_KEY = "aias:v1:selected_provider";
 const MODEL_KEY_PREFIX = "aias:v1:model:";
@@ -27,6 +27,7 @@ const AUTO_KEY_POINTS_KEY = "aias:v1:auto_key_points";
 const MIN_SPEAKERS_KEY = "aias:v1:min_speakers";
 const MAX_SPEAKERS_KEY = "aias:v1:max_speakers";
 const APP_MODE_KEY = "aias:v1:app_mode";
+const REALTIME_INTERVAL_KEY = "aias:v1:realtime_interval";
 
 function safeGet(key: string, fallback: string): string {
   try {
@@ -110,6 +111,9 @@ export default function Home() {
   const [maxSpeakers, setMaxSpeakers] = useState<number>(
     () => parseInt(safeGet(MAX_SPEAKERS_KEY, "10")) || 10,
   );
+  const [realtimeSummaryInterval, setRealtimeSummaryInterval] = useState<SummaryInterval>(
+    () => (parseInt(safeGet(REALTIME_INTERVAL_KEY, "2")) || 2) as SummaryInterval,
+  );
   const hasAutoExtractedKeyPointsRef = useRef(false);
   // Accumulated speaker renames: original label → new name
   const speakerRenamesRef = useRef<Record<string, string>>({});
@@ -178,6 +182,11 @@ export default function Home() {
   const handleMaxSpeakersChange = useCallback((value: number) => {
     setMaxSpeakers(value);
     safeSet(MAX_SPEAKERS_KEY, String(value));
+  }, []);
+
+  const handleRealtimeSummaryIntervalChange = useCallback((interval: SummaryInterval) => {
+    setRealtimeSummaryInterval(interval);
+    safeSet(REALTIME_INTERVAL_KEY, String(interval));
   }, []);
 
   const applyRenames = useCallback((keyPoints: Record<string, string>): Record<string, string> => {
@@ -455,6 +464,8 @@ export default function Home() {
         onMinSpeakersChange={handleMinSpeakersChange}
         maxSpeakers={maxSpeakers}
         onMaxSpeakersChange={handleMaxSpeakersChange}
+        realtimeSummaryInterval={realtimeSummaryInterval}
+        onRealtimeSummaryIntervalChange={handleRealtimeSummaryIntervalChange}
       />
 
       <div className="mx-auto max-w-6xl px-4 md:px-6">
@@ -502,6 +513,7 @@ export default function Home() {
               getKey={getKey}
               hasKey={hasKey}
               onOpenSettings={() => setSettingsOpen(true)}
+              summaryInterval={realtimeSummaryInterval}
             />
           </div>
         ) : (

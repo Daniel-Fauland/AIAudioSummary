@@ -38,6 +38,7 @@ export function useRealtimeSession() {
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isSessionEnded, setIsSessionEnded] = useState(false);
+  const [summaryCountdown, setSummaryCountdown] = useState(0);
 
   // --- Internal refs ---
   const wsRef = useRef<WebSocket | null>(null);
@@ -53,6 +54,7 @@ export function useRealtimeSession() {
   const accumulatedTranscriptRef = useRef("");
   const realtimeSummaryRef = useRef("");
   const isSummaryUpdatingRef = useRef(false);
+  const isPausedRef = useRef(false);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -97,29 +99,14 @@ export function useRealtimeSession() {
     const config = llmConfigRef.current;
     const transcript = accumulatedTranscriptRef.current;
 
-    console.log("[summary] triggerSummary called", { forceFullRecompute, hasConfig: !!config, transcriptLength: transcript.length, lastLen: lastSummaryTranscriptLenRef.current, isUpdating: isSummaryUpdatingRef.current });
-
-    if (!config || !transcript.trim()) {
-      console.log("[summary] skip: no config or empty transcript");
-      return;
-    }
-
-    if (isSummaryUpdatingRef.current) {
-      console.log("[summary] skip: already updating");
-      return;
-    }
-
-    // Skip if no new content since last summary
-    if (!forceFullRecompute && transcript.length === lastSummaryTranscriptLenRef.current) {
-      console.log("[summary] skip: no new content");
-      return;
-    }
+    if (!config || !transcript.trim()) return;
+    if (isSummaryUpdatingRef.current) return;
+    if (!forceFullRecompute && transcript.length === lastSummaryTranscriptLenRef.current) return;
 
     setIsSummaryUpdating(true);
     summaryCountRef.current += 1;
 
     const isFullRecompute = forceFullRecompute || summaryCountRef.current % 10 === 0 || !realtimeSummaryRef.current;
-
     const newChunk = transcript.slice(lastSummaryTranscriptLenRef.current);
 
     const request: IncrementalSummaryRequest = {
@@ -138,16 +125,14 @@ export function useRealtimeSession() {
       author: config.author,
     };
 
-    console.log("[summary] calling API", { isFullRecompute, transcriptLength: transcript.length });
-
     try {
       const response = await createIncrementalSummary(request);
       setRealtimeSummary(response.summary);
       setSummaryUpdatedAt(response.updated_at);
       lastSummaryTranscriptLenRef.current = transcript.length;
-      console.log("[summary] success");
+      // Reset countdown after successful summary
+      setSummaryCountdown(summaryIntervalRef.current * 60);
     } catch (error) {
-      console.error("[summary] API call failed (will retry):", error);
       // Retry once after 5 seconds
       await new Promise((resolve) => setTimeout(resolve, 5000));
       try {
@@ -155,9 +140,9 @@ export function useRealtimeSession() {
         setRealtimeSummary(response.summary);
         setSummaryUpdatedAt(response.updated_at);
         lastSummaryTranscriptLenRef.current = transcript.length;
-        console.log("[summary] retry success");
-      } catch (retryError) {
-        console.error("[summary] retry also failed:", retryError);
+        setSummaryCountdown(summaryIntervalRef.current * 60);
+      } catch {
+        // Skip until next interval
       }
     } finally {
       setIsSummaryUpdating(false);
@@ -169,6 +154,7 @@ export function useRealtimeSession() {
     if (summaryTimerRef.current) {
       clearInterval(summaryTimerRef.current);
     }
+    setSummaryCountdown(intervalMinutes * 60);
     summaryTimerRef.current = setInterval(
       () => { triggerSummary(false); },
       intervalMinutes * 60 * 1000,
@@ -275,8 +261,12 @@ export function useRealtimeSession() {
 
       // 9. Start elapsed time counter
       setElapsedTime(0);
+      setSummaryCountdown(summaryIntervalRef.current * 60);
       elapsedTimerRef.current = setInterval(() => {
         setElapsedTime((prev) => prev + 1);
+        if (!isPausedRef.current) {
+          setSummaryCountdown((prev) => Math.max(0, prev - 1));
+        }
       }, 1000);
 
       // 10. Start summary timer
@@ -294,6 +284,7 @@ export function useRealtimeSession() {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => { t.enabled = false; });
     }
+    isPausedRef.current = true;
     // Stop summary timer while paused
     if (summaryTimerRef.current) {
       clearInterval(summaryTimerRef.current);
@@ -306,6 +297,7 @@ export function useRealtimeSession() {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => { t.enabled = true; });
     }
+    isPausedRef.current = false;
     // Restart summary timer on resume
     startSummaryTimer(summaryIntervalRef.current);
     setIsPaused(false);
@@ -344,11 +336,18 @@ export function useRealtimeSession() {
   const setSummaryInterval = useCallback((interval: SummaryInterval) => {
     summaryIntervalRef.current = interval;
     setSummaryIntervalState(interval);
+    setSummaryCountdown(interval * 60);
     // Restart timer if session is active and not paused
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       startSummaryTimer(interval);
     }
   }, [startSummaryTimer]);
+
+  const triggerManualSummary = useCallback(async () => {
+    // Restart the interval timer so next auto-fire is N minutes from now
+    startSummaryTimer(summaryIntervalRef.current);
+    await triggerSummary(true);
+  }, [startSummaryTimer, triggerSummary]);
 
   const setLlmConfig = useCallback((config: LlmConfig) => {
     llmConfigRef.current = config;
@@ -373,6 +372,7 @@ export function useRealtimeSession() {
     setIsPaused(false);
     setElapsedTime(0);
     setIsSessionEnded(false);
+    setSummaryCountdown(0);
     summaryCountRef.current = 0;
     lastSummaryTranscriptLenRef.current = 0;
   }, [clearTimers, cleanupAudio]);
@@ -402,6 +402,7 @@ export function useRealtimeSession() {
     isPaused,
     elapsedTime,
     isSessionEnded,
+    summaryCountdown,
     // Functions
     startSession,
     pauseSession,
@@ -410,5 +411,6 @@ export function useRealtimeSession() {
     setSummaryInterval,
     setLlmConfig,
     resetSession,
+    triggerManualSummary,
   };
 }

@@ -14,6 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -22,7 +29,7 @@ import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
 import { ProviderSelector } from "@/components/settings/ProviderSelector";
 import { ModelSelector } from "@/components/settings/ModelSelector";
 import { AzureConfigForm } from "@/components/settings/AzureConfigForm";
-import type { AzureConfig, ConfigResponse, LLMProvider } from "@/lib/types";
+import type { AzureConfig, ConfigResponse, LLMProvider, SummaryInterval } from "@/lib/types";
 
 interface SettingsSheetProps {
   open: boolean;
@@ -40,6 +47,8 @@ interface SettingsSheetProps {
   onMinSpeakersChange: (value: number) => void;
   maxSpeakers: number;
   onMaxSpeakersChange: (value: number) => void;
+  realtimeSummaryInterval: SummaryInterval;
+  onRealtimeSummaryIntervalChange: (interval: SummaryInterval) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -84,6 +93,8 @@ export function SettingsSheet({
   onMinSpeakersChange,
   maxSpeakers,
   onMaxSpeakersChange,
+  realtimeSummaryInterval,
+  onRealtimeSummaryIntervalChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -281,6 +292,28 @@ export function SettingsSheet({
                       />
                     </div>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm">Realtime Summary Interval</Label>
+                  <p className="text-xs text-foreground-muted">
+                    How often to automatically generate a summary during live recording
+                  </p>
+                  <Select
+                    value={String(realtimeSummaryInterval)}
+                    onValueChange={(v) => onRealtimeSummaryIntervalChange(Number(v) as SummaryInterval)}
+                  >
+                    <SelectTrigger className="h-8 w-[100px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {([1, 2, 3, 5, 10] as SummaryInterval[]).map((v) => (
+                        <SelectItem key={v} value={String(v)}>
+                          {v} min
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CollapsibleContent>

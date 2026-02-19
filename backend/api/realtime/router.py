@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, HTTPException, WebSocket, WebSocketDisconnect
+from langdetect import LangDetectException, detect
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
@@ -11,6 +12,60 @@ from service.llm.core import LLMService
 from service.realtime.core import RealtimeTranscriptionService
 from service.realtime.session import SessionManager
 from utils.logging import logger
+
+# --- Language detection ---
+
+_LANG_CODE_MAP: dict[str, str] = {
+    "en": "English",
+    "de": "German",
+    "fr": "French",
+    "es": "Spanish",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "nl": "Dutch",
+    "pl": "Polish",
+    "ru": "Russian",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "ar": "Arabic",
+    "tr": "Turkish",
+    "sv": "Swedish",
+    "da": "Danish",
+    "fi": "Finnish",
+    "cs": "Czech",
+    "sk": "Slovak",
+    "hu": "Hungarian",
+    "ro": "Romanian",
+    "uk": "Ukrainian",
+    "zh-cn": "Chinese",
+    "zh-tw": "Chinese (Traditional)",
+}
+
+
+def _detect_language(text: str) -> str:
+    try:
+        code = detect(text)
+        return _LANG_CODE_MAP.get(code, "English")
+    except LangDetectException:
+        return "English"
+
+
+# --- Hardcoded realtime summary prompt ---
+
+_REALTIME_SYSTEM_PROMPT = """\
+You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
+
+Your summary must:
+- Use clear headings (## Topic) and concise bullet points
+- Capture key topics, decisions, and action items discussed so far
+- Be written entirely in {language}
+
+Stability rules — these are strict:
+- On incremental updates, preserve ALL existing sections and bullets verbatim unless new content directly updates them
+- Only add or modify the specific bullets that are explicitly supported by the new transcript chunk
+- Never remove information that was in the previous summary
+- Never introduce topics, details, or action items not present in the transcript\
+"""
 
 realtime_router = APIRouter()
 service = RealtimeTranscriptionService()
@@ -44,33 +99,28 @@ async def create_incremental_summary(
             azure_config=request.azure_config,
         )
 
-        system_prompt, _ = await llm_service.build_prompt(
-            system_prompt=request.system_prompt,
-            user_prompt="",
-            target_language=request.target_language,
-            informal_german=request.informal_german,
-            date=None,
-            author=request.author,
-        )
+        # Detect language from the transcript and build a stable system prompt
+        language = _detect_language(request.full_transcript)
+        system_prompt = _REALTIME_SYSTEM_PROMPT.format(language=language)
 
         # Build user prompt based on mode
         if request.is_full_recompute or request.previous_summary is None:
             user_prompt = (
-                f"Please summarize the following transcription:\n\n"
+                f"Create a structured summary of the following transcript:\n\n"
                 f"{request.full_transcript}"
             )
         else:
             user_prompt = (
-                f"Previous Summary:\n{request.previous_summary}\n\n"
-                f"New Transcript:\n{request.new_transcript_chunk}\n\n"
-                f"Update the summary to incorporate the new information. "
-                f"Maintain the same format and structure."
+                f"Current summary:\n{request.previous_summary}\n\n"
+                f"New transcript (only update sections directly relevant to this):\n"
+                f"{request.new_transcript_chunk}\n\n"
+                f"Update the summary. Preserve all unchanged sections verbatim."
             )
 
         agent = Agent(
             model,
             system_prompt=system_prompt,
-            model_settings=ModelSettings(temperature=0.2),
+            model_settings=ModelSettings(temperature=0.1),
         )
 
         result = await agent.run(user_prompt)
@@ -180,11 +230,9 @@ async def _run_relay(
 ):
     stop_event = asyncio.Event()
 
-    frame_count = 0
-
     async def browser_to_aai():
         """Receive audio/control messages from browser and forward to AAI."""
-        nonlocal aai_ws, frame_count
+        nonlocal aai_ws
         try:
             while not stop_event.is_set():
                 message = await ws.receive()
@@ -195,9 +243,6 @@ async def _run_relay(
 
                 if "bytes" in message and message["bytes"]:
                     # Binary audio frame
-                    frame_count += 1
-                    if frame_count <= 3 or frame_count % 100 == 0:
-                        logger.info(f"Audio frame #{frame_count}: {len(message['bytes'])} bytes")
                     try:
                         await service.send_audio(aai_ws, message["bytes"])
                     except Exception:
@@ -254,7 +299,7 @@ async def _run_relay(
     task_a2b = asyncio.create_task(aai_to_browser())
 
     try:
-        done, pending = await asyncio.wait(
+        _, pending = await asyncio.wait(
             [task_b2a, task_a2b],
             return_when=asyncio.FIRST_COMPLETED,
         )
@@ -320,7 +365,8 @@ async def _attempt_reconnect(
     """Attempt to reconnect to AAI with exponential backoff."""
     for attempt in range(1, MAX_RECONNECT_ATTEMPTS + 1):
         delay = RECONNECT_BASE_DELAY * (2 ** (attempt - 1))
-        logger.info(f"Reconnect attempt {attempt}/{MAX_RECONNECT_ATTEMPTS} in {delay}s for session {session_id}")
+        logger.info(
+            f"Reconnect attempt {attempt}/{MAX_RECONNECT_ATTEMPTS} in {delay}s for session {session_id}")
 
         try:
             await ws.send_json({"type": "reconnecting", "attempt": attempt})

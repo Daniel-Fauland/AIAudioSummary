@@ -41,7 +41,8 @@
       "mcp__ide__getDiagnostics",
       "WebFetch(domain:www.assemblyai.com)",
       "Bash(python:*)",
-      "Bash(timeout 5 uv run:*)"
+      "Bash(timeout 5 uv run:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
