@@ -193,7 +193,7 @@ export function RealtimeMode({
       {/* Session ended actions */}
       {session.isSessionEnded && (
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => session.resetSession()}>
+          <Button onClick={() => session.resetSession()} className="hover:bg-primary/75">
             Start New Session
           </Button>
         </div>

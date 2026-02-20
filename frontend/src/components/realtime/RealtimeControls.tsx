@@ -96,6 +96,7 @@ export function RealtimeControls({
             onClick={onStart}
             disabled={disabled || isConnecting}
             size="sm"
+            className="hover:bg-primary/75"
           >
             {isSessionEnded ? (
               <>

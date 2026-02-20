@@ -99,9 +99,15 @@ export function useRealtimeSession() {
     const config = llmConfigRef.current;
     const transcript = accumulatedTranscriptRef.current;
 
-    if (!config || !transcript.trim()) return;
+    if (!config || !transcript.trim()) {
+      if (!forceFullRecompute) setSummaryCountdown(summaryIntervalRef.current * 60);
+      return;
+    }
     if (isSummaryUpdatingRef.current) return;
-    if (!forceFullRecompute && transcript.length === lastSummaryTranscriptLenRef.current) return;
+    if (!forceFullRecompute && transcript.length === lastSummaryTranscriptLenRef.current) {
+      setSummaryCountdown(summaryIntervalRef.current * 60);
+      return;
+    }
 
     setIsSummaryUpdating(true);
     summaryCountRef.current += 1;
