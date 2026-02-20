@@ -3,10 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, FileText, Loader2 } from "lucide-react";
+import { Copy, FileText, Loader2, Maximize2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 interface RealtimeSummaryViewProps {
@@ -32,6 +33,7 @@ export function RealtimeSummaryView({
   isSessionEnded,
 }: RealtimeSummaryViewProps) {
   const [relativeTime, setRelativeTime] = useState("");
+  const [fullscreen, setFullscreen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Update relative time every 30s
@@ -89,6 +91,17 @@ export function RealtimeSummaryView({
               Last updated: {relativeTime}
             </span>
           )}
+          {summary && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden md:inline-flex"
+              onClick={() => setFullscreen(true)}
+              title="Full screen"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -107,8 +120,8 @@ export function RealtimeSummaryView({
           )}
         </div>
 
-        {/* Copy buttons after session ends */}
-        {isSessionEnded && summary && (
+        {/* Copy buttons */}
+        {!!summary && (
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary" className="justify-start" onClick={handleCopyFormatted}>
               <Copy className="mr-2 h-4 w-4" />
@@ -121,6 +134,19 @@ export function RealtimeSummaryView({
           </div>
         )}
       </CardContent>
+
+      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
+        <DialogContent className="sm:max-w-[95vw] h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Summary</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="markdown-prose">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -2,29 +2,13 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { ChevronDown, Info } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
 import { ProviderSelector } from "@/components/settings/ProviderSelector";
 import { ModelSelector } from "@/components/settings/ModelSelector";
@@ -49,6 +33,8 @@ interface SettingsSheetProps {
   onMaxSpeakersChange: (value: number) => void;
   realtimeSummaryInterval: SummaryInterval;
   onRealtimeSummaryIntervalChange: (interval: SummaryInterval) => void;
+  realtimeFinalSummaryEnabled: boolean;
+  onRealtimeFinalSummaryEnabledChange: (enabled: boolean) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -95,6 +81,8 @@ export function SettingsSheet({
   onMaxSpeakersChange,
   realtimeSummaryInterval,
   onRealtimeSummaryIntervalChange,
+  realtimeFinalSummaryEnabled,
+  onRealtimeFinalSummaryEnabledChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -103,14 +91,10 @@ export function SettingsSheet({
     setKeyVersion((v) => v + 1);
   }, []);
 
-  const [apiKeysOpen, setApiKeysOpen] = useState(() =>
-    readSection("aias:v1:settings:section:apiKeys", true)
-  );
-  const [aiModelOpen, setAiModelOpen] = useState(() =>
-    readSection("aias:v1:settings:section:aiModel", true)
-  );
+  const [apiKeysOpen, setApiKeysOpen] = useState(() => readSection("aias:v1:settings:section:apiKeys", true));
+  const [aiModelOpen, setAiModelOpen] = useState(() => readSection("aias:v1:settings:section:aiModel", true));
   const [featuresOpen, setFeaturesOpen] = useState(() =>
-    readSection("aias:v1:settings:section:features", true)
+    readSection("aias:v1:settings:section:features", true),
   );
 
   const handleApiKeysOpen = (value: boolean) => {
@@ -155,7 +139,8 @@ export function SettingsSheet({
     };
   }, [open]);
 
-  const kbdBase = "flex h-6 min-w-6 items-center justify-center rounded border px-1.5 text-[11px] font-semibold transition-colors";
+  const kbdBase =
+    "flex h-6 min-w-6 items-center justify-center rounded border px-1.5 text-[11px] font-semibold transition-colors";
   const kbdDefault = "border-border bg-card-elevated text-foreground-secondary";
   const kbdActive = "border-foreground/30 bg-foreground/10 text-foreground";
 
@@ -170,11 +155,13 @@ export function SettingsSheet({
             <SheetTitle>Settings</SheetTitle>
             <div className="hidden md:flex items-center gap-1">
               <kbd className={`${kbdBase} ${altPressed ? kbdActive : kbdDefault}`}>
-                {typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? <span className="text-xs leading-none">⌥</span> : "Alt"}
+                {typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? (
+                  <span className="text-xs leading-none">⌥</span>
+                ) : (
+                  "Alt"
+                )}
               </kbd>
-              <kbd className={`${kbdBase} ${sPressed ? kbdActive : kbdDefault}`}>
-                S
-              </kbd>
+              <kbd className={`${kbdBase} ${sPressed ? kbdActive : kbdDefault}`}>S</kbd>
             </div>
           </div>
           <SheetDescription className="sr-only">
@@ -185,8 +172,7 @@ export function SettingsSheet({
         <div className="mx-4 flex items-start gap-2 rounded-md bg-info-muted p-3">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />
           <p className="text-xs text-foreground-secondary">
-            Your API keys are stored in your browser only and are never saved on
-            the server.
+            Your API keys are stored in your browser only and are never saved on the server.
           </p>
         </div>
 
@@ -224,10 +210,7 @@ export function SettingsSheet({
                 {selectedProvider === "azure_openai" ? (
                   <>
                     <Separator />
-                    <AzureConfigForm
-                      config={azureConfig}
-                      onConfigChange={onAzureConfigChange}
-                    />
+                    <AzureConfigForm config={azureConfig} onConfigChange={onAzureConfigChange} />
                   </>
                 ) : null}
               </div>
@@ -239,81 +222,116 @@ export function SettingsSheet({
           <Collapsible open={featuresOpen} onOpenChange={handleFeaturesOpen}>
             <SectionHeader>Features</SectionHeader>
             <CollapsibleContent>
-              <div className="space-y-4 pt-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="auto-key-points" className="text-sm">
-                      Speaker Key Points
-                    </Label>
+              <div className="space-y-5 pt-3">
+                {/* General mode sub-section */}
+                <div className="space-y-4">
+                  <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">
+                    Standard
+                  </p>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="auto-key-points" className="text-sm">
+                        Speaker Key Points
+                      </Label>
+                      <p className="text-xs text-foreground-muted">
+                        Auto-extract key point summaries per speaker after transcription
+                      </p>
+                    </div>
+                    <Switch
+                      id="auto-key-points"
+                      checked={autoKeyPointsEnabled}
+                      onCheckedChange={onAutoKeyPointsChange}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm">Speaker Count Range</Label>
                     <p className="text-xs text-foreground-muted">
-                      Auto-extract key point summaries per speaker after transcription
+                      Expected number of speakers in the recording
                     </p>
-                  </div>
-                  <Switch
-                    id="auto-key-points"
-                    checked={autoKeyPointsEnabled}
-                    onCheckedChange={onAutoKeyPointsChange}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm">Speaker Count Range</Label>
-                  <p className="text-xs text-foreground-muted">
-                    Expected number of speakers in the recording
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs text-foreground-muted">Min</span>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={maxSpeakers}
-                        value={minSpeakers}
-                        onChange={(e) => {
-                          const v = Math.max(1, Math.min(parseInt(e.target.value) || 1, maxSpeakers));
-                          onMinSpeakersChange(v);
-                        }}
-                        className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                      />
-                    </div>
-                    <span className="mt-5 text-foreground-muted">–</span>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs text-foreground-muted">Max</span>
-                      <Input
-                        type="number"
-                        min={minSpeakers}
-                        max={20}
-                        value={maxSpeakers}
-                        onChange={(e) => {
-                          const v = Math.max(minSpeakers, Math.min(parseInt(e.target.value) || minSpeakers, 20));
-                          onMaxSpeakersChange(v);
-                        }}
-                        className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                      />
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-foreground-muted">Min</span>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={maxSpeakers}
+                          value={minSpeakers}
+                          onChange={(e) => {
+                            const v = Math.max(1, Math.min(parseInt(e.target.value) || 1, maxSpeakers));
+                            onMinSpeakersChange(v);
+                          }}
+                          className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
+                      </div>
+                      <span className="mt-5 text-foreground-muted">–</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-foreground-muted">Max</span>
+                        <Input
+                          type="number"
+                          min={minSpeakers}
+                          max={20}
+                          value={maxSpeakers}
+                          onChange={(e) => {
+                            const v = Math.max(
+                              minSpeakers,
+                              Math.min(parseInt(e.target.value) || minSpeakers, 20),
+                            );
+                            onMaxSpeakersChange(v);
+                          }}
+                          className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm">Realtime Summary Interval</Label>
-                  <p className="text-xs text-foreground-muted">
-                    How often to automatically generate a summary during live recording
+                <Separator />
+
+                {/* Realtime mode sub-section */}
+                <div className="space-y-4">
+                  <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">
+                    Realtime
                   </p>
-                  <Select
-                    value={String(realtimeSummaryInterval)}
-                    onValueChange={(v) => onRealtimeSummaryIntervalChange(Number(v) as SummaryInterval)}
-                  >
-                    <SelectTrigger className="h-8 w-[100px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {([1, 2, 3, 5, 10] as SummaryInterval[]).map((v) => (
-                        <SelectItem key={v} value={String(v)}>
-                          {v} min
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm">Summary Interval</Label>
+                    <p className="text-xs text-foreground-muted">
+                      How often to automatically generate a summary during live recording
+                    </p>
+                    <Select
+                      value={String(realtimeSummaryInterval)}
+                      onValueChange={(v) => onRealtimeSummaryIntervalChange(Number(v) as SummaryInterval)}
+                    >
+                      <SelectTrigger className="h-8 w-[100px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {([1, 2, 3, 5, 10] as SummaryInterval[]).map((v) => (
+                          <SelectItem key={v} value={String(v)}>
+                            {v} min
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="final-summary" className="text-sm">
+                        Final Summary on Stop
+                      </Label>
+                      <p className="text-xs text-foreground-muted">
+                        Automatically generate a full summary when recording is stopped
+                      </p>
+                    </div>
+                    <Switch
+                      id="final-summary"
+                      checked={realtimeFinalSummaryEnabled}
+                      onCheckedChange={onRealtimeFinalSummaryEnabledChange}
+                    />
+                  </div>
                 </div>
               </div>
             </CollapsibleContent>

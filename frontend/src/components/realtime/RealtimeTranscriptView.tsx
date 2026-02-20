@@ -1,23 +1,27 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Anchor } from "lucide-react";
+import { Anchor, Copy, Maximize2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface RealtimeTranscriptViewProps {
   accumulatedTranscript: string;
   currentPartial: string;
   isSessionActive: boolean;
+  onCopy: () => void;
 }
 
 export function RealtimeTranscriptView({
   accumulatedTranscript,
   currentPartial,
   isSessionActive,
+  onCopy,
 }: RealtimeTranscriptViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
 
   // Auto-scroll when new content arrives
   useEffect(() => {
@@ -40,12 +44,30 @@ export function RealtimeTranscriptView({
     <Card className="border-border">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Live Transcript</CardTitle>
+        <div className="flex items-center gap-1">
+          {accumulatedTranscript && (
+            <Button variant="ghost" size="icon" onClick={onCopy} title="Copy transcript">
+              <Copy className="h-4 w-4" />
+            </Button>
+          )}
+          {accumulatedTranscript && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden md:inline-flex"
+              onClick={() => setFullscreen(true)}
+              title="Full screen"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="relative min-h-[300px] max-h-[500px] overflow-y-auto rounded-md bg-card-elevated p-4 font-mono text-sm"
+          className="min-h-[300px] max-h-[600px] overflow-y-auto rounded-md bg-card p-4 font-mono text-sm"
         >
           {hasContent ? (
             <>
@@ -67,7 +89,7 @@ export function RealtimeTranscriptView({
 
         {/* Scroll lock toggle */}
         {hasContent && (
-          <div className="flex justify-end mt-2">
+          <div className="flex justify-end">
             <Button
               variant="ghost"
               size="sm"
@@ -85,6 +107,20 @@ export function RealtimeTranscriptView({
           </div>
         )}
       </CardContent>
+
+      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
+        <DialogContent className="sm:max-w-[95vw] h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Live Transcript</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto whitespace-pre-wrap font-mono text-sm text-foreground p-4">
+            {accumulatedTranscript}
+            {currentPartial && (
+              <span className="italic text-foreground-muted">{currentPartial}</span>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -28,6 +28,7 @@ const MIN_SPEAKERS_KEY = "aias:v1:min_speakers";
 const MAX_SPEAKERS_KEY = "aias:v1:max_speakers";
 const APP_MODE_KEY = "aias:v1:app_mode";
 const REALTIME_INTERVAL_KEY = "aias:v1:realtime_interval";
+const REALTIME_FINAL_SUMMARY_KEY = "aias:v1:realtime_final_summary";
 
 function safeGet(key: string, fallback: string): string {
   try {
@@ -114,6 +115,9 @@ export default function Home() {
   const [realtimeSummaryInterval, setRealtimeSummaryInterval] = useState<SummaryInterval>(
     () => (parseInt(safeGet(REALTIME_INTERVAL_KEY, "2")) || 2) as SummaryInterval,
   );
+  const [realtimeFinalSummaryEnabled, setRealtimeFinalSummaryEnabled] = useState(
+    () => safeGet(REALTIME_FINAL_SUMMARY_KEY, "true") !== "false",
+  );
   const hasAutoExtractedKeyPointsRef = useRef(false);
   // Accumulated speaker renames: original label → new name
   const speakerRenamesRef = useRef<Record<string, string>>({});
@@ -187,6 +191,11 @@ export default function Home() {
   const handleRealtimeSummaryIntervalChange = useCallback((interval: SummaryInterval) => {
     setRealtimeSummaryInterval(interval);
     safeSet(REALTIME_INTERVAL_KEY, String(interval));
+  }, []);
+
+  const handleRealtimeFinalSummaryEnabledChange = useCallback((enabled: boolean) => {
+    setRealtimeFinalSummaryEnabled(enabled);
+    safeSet(REALTIME_FINAL_SUMMARY_KEY, enabled ? "true" : "false");
   }, []);
 
   const applyRenames = useCallback((keyPoints: Record<string, string>): Record<string, string> => {
@@ -466,6 +475,8 @@ export default function Home() {
         onMaxSpeakersChange={handleMaxSpeakersChange}
         realtimeSummaryInterval={realtimeSummaryInterval}
         onRealtimeSummaryIntervalChange={handleRealtimeSummaryIntervalChange}
+        realtimeFinalSummaryEnabled={realtimeFinalSummaryEnabled}
+        onRealtimeFinalSummaryEnabledChange={handleRealtimeFinalSummaryEnabledChange}
       />
 
       <div className="mx-auto max-w-6xl px-4 md:px-6">
@@ -514,6 +525,7 @@ export default function Home() {
               hasKey={hasKey}
               onOpenSettings={() => setSettingsOpen(true)}
               summaryInterval={realtimeSummaryInterval}
+              realtimeFinalSummaryEnabled={realtimeFinalSummaryEnabled}
             />
           </div>
         ) : (

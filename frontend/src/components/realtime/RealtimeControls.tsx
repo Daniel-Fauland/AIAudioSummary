@@ -21,6 +21,7 @@ interface RealtimeControlsProps {
   summaryCountdown: number;
   isSummaryUpdating: boolean;
   hasTranscript: boolean;
+  hasSummary: boolean;
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -44,6 +45,7 @@ export function RealtimeControls({
   summaryCountdown,
   isSummaryUpdating,
   hasTranscript,
+  hasSummary,
   onStart,
   onPause,
   onResume,
@@ -98,7 +100,7 @@ export function RealtimeControls({
             {isSessionEnded ? (
               <>
                 <RotateCcw className="mr-2 h-4 w-4" />
-                New Session
+                Continue Session
               </>
             ) : (
               <>
@@ -165,7 +167,7 @@ export function RealtimeControls({
             {formatTime(summaryCountdown)}
           </span>
         )}
-        {isActive && (
+        {(isActive || isSessionEnded) && (
           <Button
             variant="secondary"
             size="sm"
@@ -173,7 +175,7 @@ export function RealtimeControls({
             disabled={!hasTranscript || isSummaryUpdating}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh Summary
+            {hasSummary ? "Refresh Summary" : "Generate Summary"}
           </Button>
         )}
       </div>

@@ -303,7 +303,7 @@ export function useRealtimeSession() {
     setIsPaused(false);
   }, [startSummaryTimer]);
 
-  const stopSession = useCallback(async () => {
+  const stopSession = useCallback(async (triggerFinalSummary: boolean = true) => {
     // Send stop message to WS
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
@@ -329,8 +329,10 @@ export function useRealtimeSession() {
     setConnectionStatus("disconnected");
     setIsSessionEnded(true);
 
-    // Trigger final full-transcript summary
-    await triggerSummary(true);
+    // Trigger final full-transcript summary (if enabled)
+    if (triggerFinalSummary) {
+      await triggerSummary(true);
+    }
   }, [clearTimers, cleanupAudio, triggerSummary]);
 
   const setSummaryInterval = useCallback((interval: SummaryInterval) => {
@@ -344,8 +346,10 @@ export function useRealtimeSession() {
   }, [startSummaryTimer]);
 
   const triggerManualSummary = useCallback(async () => {
-    // Restart the interval timer so next auto-fire is N minutes from now
-    startSummaryTimer(summaryIntervalRef.current);
+    // Only restart interval timer if session is still active
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      startSummaryTimer(summaryIntervalRef.current);
+    }
     await triggerSummary(true);
   }, [startSummaryTimer, triggerSummary]);
 

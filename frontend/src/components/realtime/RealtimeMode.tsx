@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { RealtimeControls } from "./RealtimeControls";
@@ -30,6 +29,7 @@ interface RealtimeModeProps {
   hasKey: (provider: LLMProvider | "assemblyai") => boolean;
   onOpenSettings: () => void;
   summaryInterval: SummaryInterval;
+  realtimeFinalSummaryEnabled: boolean;
 }
 
 export function RealtimeMode({
@@ -45,6 +45,7 @@ export function RealtimeMode({
   hasKey,
   onOpenSettings,
   summaryInterval,
+  realtimeFinalSummaryEnabled,
 }: RealtimeModeProps) {
   const session = useRealtimeSession();
   const [mobileTab, setMobileTab] = useState<"transcript" | "summary">("transcript");
@@ -122,10 +123,11 @@ export function RealtimeMode({
         summaryCountdown={session.summaryCountdown}
         isSummaryUpdating={session.isSummaryUpdating}
         hasTranscript={!!session.accumulatedTranscript}
+        hasSummary={!!session.realtimeSummary}
         onStart={handleStart}
         onPause={session.pauseSession}
         onResume={session.resumeSession}
-        onStop={session.stopSession}
+        onStop={() => session.stopSession(realtimeFinalSummaryEnabled)}
         onManualSummary={session.triggerManualSummary}
         onMicChange={setMicDeviceId}
       />
@@ -136,6 +138,7 @@ export function RealtimeMode({
           accumulatedTranscript={session.accumulatedTranscript}
           currentPartial={session.currentPartial}
           isSessionActive={isActive}
+          onCopy={handleCopyTranscript}
         />
         <RealtimeSummaryView
           summary={session.realtimeSummary}
@@ -175,6 +178,7 @@ export function RealtimeMode({
             accumulatedTranscript={session.accumulatedTranscript}
             currentPartial={session.currentPartial}
             isSessionActive={isActive}
+            onCopy={handleCopyTranscript}
           />
         ) : (
           <RealtimeSummaryView
@@ -187,12 +191,8 @@ export function RealtimeMode({
       </div>
 
       {/* Session ended actions */}
-      {session.isSessionEnded && session.accumulatedTranscript && (
+      {session.isSessionEnded && (
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={handleCopyTranscript}>
-            <Copy className="mr-2 h-4 w-4" />
-            Copy Transcript
-          </Button>
           <Button onClick={() => session.resetSession()}>
             Start New Session
           </Button>
