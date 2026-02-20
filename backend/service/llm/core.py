@@ -11,7 +11,7 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
-from models.llm import LLMProvider, AzureConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse
+from models.llm import LLMProvider, AzureConfig, LangdockConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse
 from service.misc.core import MiscService
 
 helper = MiscService()
@@ -19,7 +19,8 @@ helper = MiscService()
 
 class LLMService:
     def _create_model(self, provider: LLMProvider, model_name: str, api_key: str,
-                      azure_config: AzureConfig | None = None):
+                      azure_config: AzureConfig | None = None,
+                      langdock_config: LangdockConfig | None = None):
         """Create the appropriate pydantic-ai model based on the provider."""
         if provider == LLMProvider.OPENAI:
             return OpenAIChatModel(
@@ -45,6 +46,31 @@ class LLMService:
                     api_key=api_key,
                 )
             )
+        elif provider == LLMProvider.LANGDOCK:
+            from anthropic import AsyncAnthropic
+            region = langdock_config.region if langdock_config else "eu"
+            if model_name.startswith("claude"):
+                client = AsyncAnthropic(
+                    base_url=f"https://api.langdock.com/anthropic/{region}/",
+                    api_key=api_key
+                )
+                return AnthropicModel(model_name, provider=AnthropicProvider(anthropic_client=client))
+            elif model_name.startswith("gemini"):
+                return GoogleModel(
+                    model_name,
+                    provider=GoogleProvider(
+                        api_key=api_key,
+                        base_url=f"https://api.langdock.com/google/{region}/"
+                    )
+                )
+            else:
+                return OpenAIChatModel(
+                    model_name,
+                    provider=OpenAIProvider(
+                        api_key=api_key,
+                        base_url=f"https://api.langdock.com/openai/{region}/v1"
+                    )
+                )
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
@@ -103,7 +129,8 @@ class LLMService:
             provider=request.provider,
             model_name=model_name,
             api_key=request.api_key,
-            azure_config=request.azure_config
+            azure_config=request.azure_config,
+            langdock_config=request.langdock_config
         )
 
         system_prompt, user_prompt = await self.build_prompt(
@@ -137,7 +164,8 @@ class LLMService:
             provider=request.provider,
             model_name=model_name,
             api_key=request.api_key,
-            azure_config=request.azure_config
+            azure_config=request.azure_config,
+            langdock_config=request.langdock_config
         )
 
         speakers_list = ", ".join(request.speakers)

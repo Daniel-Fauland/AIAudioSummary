@@ -1,6 +1,6 @@
 // === Enums ===
 
-export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai";
+export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai" | "langdock";
 
 // === Config types (from GET /getConfig) ===
 
@@ -42,11 +42,16 @@ export interface AzureConfig {
   deployment_name: string;
 }
 
+export interface LangdockConfig {
+  region: "eu" | "us";
+}
+
 export interface CreateSummaryRequest {
   provider: LLMProvider;
   api_key: string;
   model: string;
   azure_config: AzureConfig | null;
+  langdock_config?: LangdockConfig;
   stream: boolean;
   system_prompt: string;
   text: string;
@@ -67,6 +72,7 @@ export interface ExtractKeyPointsRequest {
   api_key: string;
   model: string;
   azure_config: AzureConfig | null;
+  langdock_config?: LangdockConfig;
   transcript: string;
   speakers: string[];
 }
@@ -108,6 +114,7 @@ export interface IncrementalSummaryRequest {
   api_key: string;
   model: string;
   azure_config?: AzureConfig;
+  langdock_config?: LangdockConfig;
   system_prompt: string;
   full_transcript: string;
   previous_summary?: string;

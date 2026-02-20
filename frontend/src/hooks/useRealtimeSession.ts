@@ -9,6 +9,7 @@ import type {
   IncrementalSummaryRequest,
   LLMProvider,
   AzureConfig,
+  LangdockConfig,
 } from "@/lib/types";
 
 const WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL || "ws://localhost:8080";
@@ -18,6 +19,7 @@ export interface LlmConfig {
   apiKey: string;
   model: string;
   azureConfig?: AzureConfig;
+  langdockConfig?: LangdockConfig;
   systemPrompt: string;
   targetLanguage: string;
   informalGerman: boolean;
@@ -120,6 +122,7 @@ export function useRealtimeSession() {
       api_key: config.apiKey,
       model: config.model,
       azure_config: config.azureConfig,
+      langdock_config: config.langdockConfig,
       system_prompt: config.systemPrompt,
       full_transcript: transcript,
       previous_summary: realtimeSummaryRef.current || undefined,

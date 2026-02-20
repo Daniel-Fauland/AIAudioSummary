@@ -5,6 +5,7 @@ import { Loader2, Copy, Maximize2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -110,9 +111,11 @@ export function TranscriptView({
       </CardHeader>
       <CardContent>
         {readOnly ? (
-          <div className="max-h-[600px] min-h-[300px] overflow-y-auto whitespace-pre-wrap font-mono text-sm text-foreground">
-            {transcript || "Transcript will appear here..."}
-          </div>
+          <ScrollArea className="max-h-[600px] min-h-[300px]">
+            <div className="whitespace-pre-wrap font-mono text-sm text-foreground">
+              {transcript || "Transcript will appear here..."}
+            </div>
+          </ScrollArea>
         ) : (
           <Textarea
             value={transcript}
@@ -150,9 +153,11 @@ export function TranscriptView({
             <DialogTitle>Transcript</DialogTitle>
           </DialogHeader>
           {readOnly ? (
-            <div className="flex-1 overflow-y-auto whitespace-pre-wrap font-mono text-sm text-foreground p-4">
-              {transcript}
-            </div>
+            <ScrollArea className="flex-1">
+              <div className="whitespace-pre-wrap font-mono text-sm text-foreground p-4">
+                {transcript}
+              </div>
+            </ScrollArea>
           ) : (
             <Textarea
               value={transcript}

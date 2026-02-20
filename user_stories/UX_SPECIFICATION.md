@@ -195,21 +195,54 @@ Same container style as Upload (`2px dashed --border`, `--card` bg, `240px` min 
 
 | State | Container border/bg | Interior content |
 |-------|---------------------|-----------------|
-| **Idle** | `--border` dashed / `--card` | `Mic` icon (48px, `--foreground-muted`), instruction text, optional mic selector, "Start Recording" primary button |
+| **Idle** | `--border` dashed / `--card` | `Mic` icon (48px, `--foreground-muted`), instruction text, usage hint, mode toggle (Chromium only), optional mic selector, start button |
 | **Recording** | `--border-accent` dashed / `--primary-muted` | Pulsing red dot + MM:SS timer (monospace, `text-lg`), live waveform canvas, "Pause" (secondary) + "Stop" (destructive) buttons |
 | **Paused** | `--border` dashed / `--card` | Gray dot + MM:SS timer + "Paused" label (`--foreground-muted`), static waveform, "Resume" (secondary) + "Stop" (destructive) buttons |
 | **Done** | `--border` dashed / `--card` | Final duration label, static waveform, AudioPlayer, "Record Again" (ghost) + "Download" (secondary) + "Use for Transcript" (primary) buttons |
+
+**Idle state layout** (top to bottom, center-aligned):
+1. `Mic` icon (48px, `--foreground-muted`)
+2. Instruction text (`--foreground-secondary`) — changes per mode:
+   - Mic Only: *"Click the button to start recording"*
+   - Mic + Meeting Audio: *"Share your entire screen and check 'Also share system audio' in the dialog"*
+3. Usage hint (`--foreground-muted`, `text-xs`) — changes per mode:
+   - Mic Only: *"Best used when playing audio through speakers"*
+   - Mic + Meeting Audio: *"Best used with headphones to avoid mic feedback"*
+4. **Recording mode toggle** (see below)
+5. Mic selector dropdown (when ≥ 2 devices)
+6. Start button (label changes per mode)
+
+**Recording mode toggle** (segmented control, always visible):
+- Container: `flex rounded-md border border-border text-xs`
+- Two segments: "Mic Only" (left, `rounded-l-md`) and "Mic + Meeting Audio" (right, `rounded-r-md`)
+- **Active segment**: `bg-card-elevated text-foreground`
+- **Inactive segment**: `text-foreground-muted hover:text-foreground-secondary`
+- Defaults to "Mic Only" on every page load (no persistence)
+- **"Mic + Meeting Audio"** is only enabled on Chromium-based browsers (Chrome, Brave, Edge). On other browsers (Firefox, Safari) it is rendered but visually disabled (`opacity-40 cursor-not-allowed`). Hovering the disabled segment shows a Radix `Tooltip` with the message: *"Only supported on Chromium-based browsers like Google Chrome, Brave, or Edge"*. Tooltip delay: `100ms`.
+
+**Start button label**:
+- Mic Only: "Start Recording"
+- Mic + Meeting Audio: "Share Screen & Record"
+
+**Meeting audio recording flow**:
+- Clicking "Share Screen & Record" opens the browser's native screen-share picker
+- If the user cancels the picker, nothing happens (no error toast)
+- If no audio track is included in the share, shows error toast: *"No audio was shared. Make sure to check 'Share audio' in the share dialog."*
+- Mic permission is requested after screen share is confirmed; if denied, the display stream is cleaned up and the standard mic-denied toast is shown
+- The mic and system audio are merged via `AudioContext` into a single `MediaRecorder` stream
 
 **Waveform visualization** (canvas element, `320×60px`, full width up to max):
 - 40 vertical bars, `2px` gap between bars
 - **Active (recording)**: bars driven by `AnalyserNode` frequency data, `--primary` fill (`#FC520B`)
 - **Inactive (paused / done)**: static decorative bars, `--foreground-muted` fill (`#71717A`)
 - Animated via `requestAnimationFrame` during recording; cancelled on pause/stop
+- In meeting mode, both mic and system audio feed the same `AnalyserNode`
 
 **Microphone selector** (shown in idle state only when ≥ 2 audio input devices are detected):
-- Layout: small `Mic` icon + shadcn `Select` dropdown, `max-w-xs`, sits between instruction text and "Start Recording" button
+- Layout: small `Mic` icon + shadcn `Select` dropdown, `max-w-xs`, sits between the mode toggle and the start button
 - Dropdown lists real device labels after mic permission is granted; falls back to "Microphone 1", "Microphone 2", etc. before permission
 - Updates automatically on `devicechange` events (plug/unplug)
+- Shown in both Mic Only and Mic + Meeting Audio modes
 
 #### 5.3.3 Audio Player
 
@@ -282,8 +315,9 @@ Custom dark-themed playback widget used in the AudioRecorder "done" state. Imple
 - **Background**: `--card`
 - **Border left**: `1px solid` `--border`
 - **Overlay**: Semi-transparent black (`rgba(0, 0, 0, 0.6)`)
-- **Sections**: "API Keys" and "Provider & Model" separated by `Separator`
-- **Info note**: Small info banner at top with `--info-muted` background and `Info` Lucide icon
+- **Layout**: `flex flex-col` — header is fixed at top, body is wrapped in `ScrollArea` (Radix) so content scrolls without native browser scrollbar
+- **Sections**: "API Keys", "AI Model", and "Features" separated by `Separator`, each collapsible
+- **Info note**: Small info banner at top (above scroll area) with `--info-muted` background and `Info` Lucide icon
 - **API key inputs**: Password type with `Eye`/`EyeOff` toggle icon
 - **Key status badge**: Small dot — green (`--success`) if key saved, gray (`--foreground-muted`) if empty
 - **Warning badge**: `--warning` colored badge when selected provider has no key
@@ -328,10 +362,10 @@ Using shadcn/ui `sonner` integration:
 | **Warning** | `--warning` | `AlertTriangle` |
 | **Info** | `--info` | `Info` |
 
-- **Position**: Bottom-right
+- **Position**: Top-right, `72px` from the top (clears the `64px` sticky header)
 - **Background**: `--card`
 - **Border**: `1px solid --border`
-- **Duration**: 4 seconds (errors: 6 seconds)
+- **Duration**: 5 seconds, pauses on hover
 
 ---
 
@@ -405,7 +439,44 @@ Step transition implementation:
 
 ---
 
-## 12. Accessibility Notes
+## 12. Scrollable Areas
+
+All scrollable regions use the shadcn `ScrollArea` component (Radix UI `@radix-ui/react-scroll-area`) instead of native browser scrollbars. This provides a consistent, minimal custom scrollbar across all browsers and OS themes.
+
+| Component | Scroll area | Constraint |
+|-----------|-------------|------------|
+| **TranscriptView** (card, read-only) | Transcript text | `max-h-[600px] min-h-[300px]` |
+| **TranscriptView** (fullscreen dialog) | Transcript text | `flex-1` (fills dialog height) |
+| **SummaryView** (card) | Markdown summary | `max-h-[600px]` |
+| **SummaryView** (fullscreen dialog) | Markdown summary | `flex-1` |
+| **RealtimeTranscriptView** (card) | Live transcript | `min-h-[300px] max-h-[600px]` |
+| **RealtimeTranscriptView** (fullscreen) | Live transcript | `flex-1` |
+| **RealtimeSummaryView** (card) | Markdown summary | `max-h-[600px]` |
+| **RealtimeSummaryView** (fullscreen) | Markdown summary | `flex-1` |
+| **SpeakerMapper** (dialog) | Speaker rows | `flex-1` (dialog body minus header/footer) |
+| **SettingsSheet** | All settings content | `flex-1` (panel height minus sheet header) |
+
+**Scrollbar style**: thin (`w-2.5`), `--border` colored thumb, appears on hover/scroll, sits inside the component boundary.
+
+**Auto-scroll**: `SummaryView` scrolls to the bottom during streaming. `RealtimeTranscriptView` auto-scrolls as new transcript arrives and detects manual scroll-up to disable auto-scroll (re-enabled via the "Auto-scroll" button).
+
+---
+
+## 13. Tooltips
+
+Tooltips use the shadcn `Tooltip` component (Radix UI `@radix-ui/react-tooltip`). A single `TooltipProvider` with `delayDuration={100}` wraps the entire app in `layout.tsx`, giving a fast `100ms` hover delay globally (vs. the ~600ms browser-native `title` delay).
+
+Currently used for:
+
+| Location | Trigger | Content |
+|----------|---------|---------|
+| **AudioRecorder — "Mic + Meeting Audio" segment** | Hover on the disabled button (non-Chromium browsers) | *"Only supported on Chromium-based browsers like Google Chrome, Brave, or Edge"* |
+
+Tooltip placement defaults to the Radix default (above the trigger). Content uses `TooltipContent` with default shadcn styling (`--popover` background, `--border` border, `text-xs`).
+
+---
+
+## 14. Accessibility Notes
 
 - All interactive elements must have visible focus rings (`--ring`)
 - Color is never the sole indicator — always pair with icons or text

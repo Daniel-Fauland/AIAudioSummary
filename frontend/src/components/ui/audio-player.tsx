@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 interface AudioPlayerProps {
   src: string;
   className?: string;
+  knownDuration?: number;
 }
 
 // Thumb overrides scoped to the audio player — leaves the global Slider unchanged.
@@ -38,20 +39,32 @@ function formatTime(seconds: number): string {
   return `${m}:${s}`;
 }
 
-export function AudioPlayer({ src, className }: AudioPlayerProps) {
+export function AudioPlayer({ src, className, knownDuration }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(knownDuration ?? 0);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+
+  // Keep duration in sync if prop changes (e.g. recording finishes)
+  useEffect(() => {
+    if (knownDuration !== undefined) setDuration(knownDuration);
+  }, [knownDuration]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onLoadedMetadata = () => setDuration(audio.duration);
+    // Only trust the audio element's duration when it's a real finite value.
+    // Safari MP4 blobs from MediaRecorder have no duration in the header, so
+    // audio.duration is 0 or Infinity — in that case we keep knownDuration.
+    const onLoadedMetadata = () => {
+      if (isFinite(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration);
+      }
+    };
     const onEnded = () => setIsPlaying(false);
 
     audio.addEventListener("timeupdate", onTimeUpdate);

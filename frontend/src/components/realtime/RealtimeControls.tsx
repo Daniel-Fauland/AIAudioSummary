@@ -13,6 +13,30 @@ import {
 import { ConnectionStatus } from "./ConnectionStatus";
 import type { RealtimeConnectionStatus } from "@/lib/types";
 
+const MIC_STORAGE_KEY = "aias:v1:mic_device_id";
+
+function getSavedMicId(): string {
+  try {
+    return localStorage.getItem(MIC_STORAGE_KEY) || "default";
+  } catch {
+    return "default";
+  }
+}
+
+function saveMicId(deviceId: string) {
+  try {
+    localStorage.setItem(MIC_STORAGE_KEY, deviceId);
+  } catch {
+    // localStorage not available
+  }
+}
+
+function resolveDeviceId(inputs: MediaDeviceInfo[], preferred: string): string {
+  if (inputs.find((d) => d.deviceId === preferred)) return preferred;
+  const fallback = inputs.find((d) => d.deviceId === "default");
+  return fallback?.deviceId || inputs[0]?.deviceId || "";
+}
+
 interface RealtimeControlsProps {
   connectionStatus: RealtimeConnectionStatus;
   isPaused: boolean;
@@ -55,7 +79,7 @@ export function RealtimeControls({
   disabled,
 }: RealtimeControlsProps) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<string>("");
+  const [selectedDevice, setSelectedDevice] = useState<string>(getSavedMicId);
 
   const isIdle = connectionStatus === "disconnected" && !isSessionEnded;
   const isActive = connectionStatus === "connected" || connectionStatus === "reconnecting";
@@ -66,13 +90,12 @@ export function RealtimeControls({
       const allDevices = await navigator.mediaDevices.enumerateDevices();
       const audioInputs = allDevices.filter((d) => d.kind === "audioinput");
       setDevices(audioInputs);
-      if (audioInputs.length > 0 && !selectedDevice) {
-        setSelectedDevice(audioInputs[0].deviceId);
-      }
+      // Resolve to the best available device, falling back to "default" if stored device is gone
+      setSelectedDevice((prev) => resolveDeviceId(audioInputs, prev));
     } catch {
       // Permission not granted yet
     }
-  }, [selectedDevice]);
+  }, []);
 
   useEffect(() => {
     loadDevices();
@@ -82,8 +105,36 @@ export function RealtimeControls({
     };
   }, [loadDevices]);
 
+  // On mount: if device labels are already available (permission previously granted),
+  // just re-enumerate — no need to activate the mic. Only call getUserMedia when
+  // labels are absent (Safari before first permission grant) to unlock them.
+  // This prevents triggering the iPhone Continuity Mic popup on Chrome.
+  useEffect(() => {
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then((devices) => {
+        const hasLabels = devices
+          .filter((d) => d.kind === "audioinput")
+          .some((d) => d.label !== "");
+        if (hasLabels) {
+          loadDevices();
+        } else {
+          navigator.mediaDevices
+            .getUserMedia({ audio: true })
+            .then((stream) => {
+              stream.getTracks().forEach((t) => t.stop());
+              loadDevices();
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleDeviceChange = (deviceId: string) => {
     setSelectedDevice(deviceId);
+    saveMicId(deviceId);
     onMicChange(deviceId);
   };
 
@@ -136,7 +187,7 @@ export function RealtimeControls({
 
       {/* Mic selector */}
       {(isIdle || isSessionEnded) && devices.length >= 2 && (
-        <Select value={selectedDevice} onValueChange={handleDeviceChange}>
+        <Select value={resolveDeviceId(devices, selectedDevice)} onValueChange={handleDeviceChange}>
           <SelectTrigger className="h-8 w-[180px] text-xs">
             <Mic className="mr-1 h-3 w-3" />
             <SelectValue placeholder="Microphone" />

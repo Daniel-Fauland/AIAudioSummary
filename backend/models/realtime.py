@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, model_validator
 
-from models.llm import AzureConfig, LLMProvider
+from models.llm import AzureConfig, LangdockConfig, LLMProvider
 
 
 class IncrementalSummaryRequest(BaseModel):
@@ -8,6 +8,7 @@ class IncrementalSummaryRequest(BaseModel):
     api_key: str = Field(..., min_length=1, description="Provider API key (sent per-request)")
     model: str = Field(..., min_length=1, description="Model identifier")
     azure_config: AzureConfig | None = Field(None, description="Required only when provider is 'azure_openai'")
+    langdock_config: LangdockConfig = Field(default_factory=LangdockConfig, description="Langdock region config")
     system_prompt: str = Field(..., min_length=1, description="The system prompt (selected/edited template)")
     full_transcript: str = Field(..., min_length=1, description="The full accumulated transcript so far")
     previous_summary: str | None = Field(None, description="The previous summary to update incrementally")

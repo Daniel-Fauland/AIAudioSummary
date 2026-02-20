@@ -13,6 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getSpeakers, updateSpeakers } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
 interface SpeakerMapperProps {
@@ -97,9 +99,7 @@ export function SpeakerMapper({
         }
       } catch (e) {
         if (!cancelled) {
-          toast.error(
-            e instanceof Error ? e.message : "Failed to detect speakers",
-          );
+          toast.error(getErrorMessage(e, "speakers"));
         }
       } finally {
         if (!cancelled) {
@@ -146,9 +146,7 @@ export function SpeakerMapper({
 
       toast.success("Speaker names updated.");
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Failed to update speakers",
-      );
+      toast.error(getErrorMessage(e, "speakers"));
     } finally {
       setApplying(false);
     }
@@ -331,7 +329,8 @@ export function SpeakerMapper({
               </div>
             </div>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-4">
+          <ScrollArea className="flex-1">
+          <div className="space-y-4">
             {speakers.map((speaker) => renderSpeakerRow(speaker, true))}
 
             {authorSpeaker ? (
@@ -344,6 +343,7 @@ export function SpeakerMapper({
               </p>
             ) : null}
           </div>
+          </ScrollArea>
           <div className="pt-4 border-t border-border">
             <Button
               onClick={handleApply}

@@ -133,6 +133,7 @@ project-root/
 │   │   │   └── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
+│   │       ├── errors.ts           # getErrorMessage() — maps ApiError status codes to user-friendly strings
 │   │       ├── types.ts            # TypeScript types (mirrors backend models)
 │   │       └── utils.ts            # cn() Tailwind merge utility
 │   ├── public/
@@ -474,7 +475,7 @@ Format: `timestamp | level | filename:line | function | message`
 - **`"use client"`** — the main page is a client component (all interactivity)
 - **Authentication**: Google OAuth via Auth.js v5. `layout.tsx` wraps all children in `<SessionWrapper>` for client-side session access. `proxy.ts` redirects unauthenticated users to `/login`.
 - **API proxy**: All API calls go through `/api/proxy/*` which forwards to the backend. The frontend never calls the backend directly.
-- **Toast notifications**: Sonner, positioned bottom-right
+- **Toast notifications**: Sonner, positioned top-right (72px from top, clearing the 64px header), 5-second auto-dismiss with hover-pause
 - **Style Guide**: Always follow [UX_SPECIFICATION.md](../user_stories/UX_SPECIFICATION.md) when implementing any frontend feature!
 
 ### App Modes
@@ -636,10 +637,11 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 | `createTranscript()`           | POST   | `/createTranscript`          | `string` (transcript)                         |
 | `getSpeakers()`                | POST   | `/getSpeakers`               | `string[]` (speaker labels)                   |
 | `updateSpeakers()`             | POST   | `/updateSpeakers`            | `string` (updated transcript)                 |
+| `extractKeyPoints()`           | POST   | `/extractKeyPoints`          | `ExtractKeyPointsResponse`                    |
 | `createSummary()`              | POST   | `/createSummary`             | `string` (full text, with streaming callback) |
 | `createIncrementalSummary()`   | POST   | `/createIncrementalSummary`  | `IncrementalSummaryResponse`                  |
 
-Error handling: `ApiError` class with `status` and `message`. The `handleResponse<T>()` helper extracts `detail` from FastAPI error JSON.
+Error handling: `ApiError` class with `status` and `message`. The `handleResponse<T>()` helper extracts `detail` from FastAPI error JSON. Use `getErrorMessage(error, context)` from `lib/errors.ts` in catch blocks to map `ApiError` status codes to user-friendly toast messages — never show raw backend error strings to the user.
 
 **To add a new API call**: add a function in `api.ts`, add types in `types.ts`, call it from `page.tsx` or a component.
 

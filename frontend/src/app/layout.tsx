@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionWrapper } from "@/components/auth/SessionWrapper";
 import "./globals.css";
 
@@ -24,8 +25,10 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${inter.variable} font-sans antialiased`}>
         <SessionWrapper>
-          {children}
-          <Toaster position="bottom-right" />
+          <TooltipProvider delayDuration={100}>
+            {children}
+            <Toaster position="top-right" offset="72px" duration={5000} />
+          </TooltipProvider>
         </SessionWrapper>
       </body>
     </html>

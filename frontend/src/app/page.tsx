@@ -19,7 +19,8 @@ import { useConfig } from "@/hooks/useConfig";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { useCustomTemplates } from "@/hooks/useCustomTemplates";
 import { createTranscript, createSummary, extractKeyPoints } from "@/lib/api";
-import type { AzureConfig, LLMProvider, SummaryInterval } from "@/lib/types";
+import { getErrorMessage } from "@/lib/errors";
+import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval } from "@/lib/types";
 
 const PROVIDER_KEY = "aias:v1:selected_provider";
 const MODEL_KEY_PREFIX = "aias:v1:model:";
@@ -64,7 +65,7 @@ function safeSet(key: string, value: string): void {
 
 export default function Home() {
   const { config, loading: configLoading, error: configError, refetch } = useConfig();
-  const { getKey, hasKey, getAzureConfig } = useApiKeys();
+  const { getKey, hasKey, getAzureConfig, getLangdockConfig, setLangdockConfig } = useApiKeys();
   const {
     templates: customTemplates,
     saveTemplate: saveCustomTemplate,
@@ -92,6 +93,7 @@ export default function Home() {
     safeGet(`${MODEL_KEY_PREFIX}${safeGet(PROVIDER_KEY, "openai")}`, "gpt-5.2"),
   );
   const [azureConfig, setAzureConfig] = useState<AzureConfig | null>(() => getAzureConfig());
+  const [langdockConfig, setLangdockConfigState] = useState<LangdockConfig>(() => getLangdockConfig());
 
   // Workflow state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -190,6 +192,11 @@ export default function Home() {
     [selectedProvider],
   );
 
+  const handleLangdockConfigChange = useCallback((config: LangdockConfig) => {
+    setLangdockConfigState(config);
+    setLangdockConfig(config);
+  }, [setLangdockConfig]);
+
   const handleAutoKeyPointsChange = useCallback((enabled: boolean) => {
     setAutoKeyPointsEnabled(enabled);
     safeSet(AUTO_KEY_POINTS_KEY, enabled ? "true" : "false");
@@ -242,17 +249,18 @@ export default function Home() {
           api_key: llmKey,
           model: selectedModel,
           azure_config: selectedProvider === "azure_openai" ? azureConfig : null,
+          langdock_config: selectedProvider === "langdock" ? langdockConfig : undefined,
           transcript: transcriptText,
           speakers,
         });
         setSpeakerKeyPoints(applyRenames(result.key_points));
-      } catch {
-        // Convenience feature — fail silently
+      } catch (e) {
+        toast.error(getErrorMessage(e, "keyPoints"));
       } finally {
         setIsExtractingKeyPoints(false);
       }
     },
-    [getKey, selectedProvider, selectedModel, azureConfig, applyRenames],
+    [getKey, selectedProvider, selectedModel, azureConfig, langdockConfig, applyRenames],
   );
 
   const handleAutoExtractKeyPoints = useCallback(
@@ -337,7 +345,7 @@ export default function Home() {
         setTranscript(result);
         toast.success("Transcription complete!");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Transcription failed");
+        toast.error(getErrorMessage(e, "transcript"));
         setCurrentStep(1);
         setSelectedFile(null);
       } finally {
@@ -378,6 +386,7 @@ export default function Home() {
           api_key: llmKey,
           model: selectedModel,
           azure_config: selectedProvider === "azure_openai" ? azureConfig : null,
+          langdock_config: selectedProvider === "langdock" ? langdockConfig : undefined,
           stream: true,
           system_prompt: selectedPrompt,
           text: transcript,
@@ -395,7 +404,7 @@ export default function Home() {
       if (e instanceof DOMException && e.name === "AbortError") {
         // User stopped generation — not an error
       } else {
-        toast.error(e instanceof Error ? e.message : "Summary generation failed");
+        toast.error(getErrorMessage(e, "summary"));
       }
     } finally {
       abortControllerRef.current = null;
@@ -406,6 +415,7 @@ export default function Home() {
     selectedProvider,
     selectedModel,
     azureConfig,
+    langdockConfig,
     selectedPrompt,
     transcript,
     selectedLanguage,
@@ -489,6 +499,8 @@ export default function Home() {
         onModelChange={handleModelChange}
         azureConfig={azureConfig}
         onAzureConfigChange={setAzureConfig}
+        langdockConfig={langdockConfig}
+        onLangdockConfigChange={handleLangdockConfigChange}
         autoKeyPointsEnabled={autoKeyPointsEnabled}
         onAutoKeyPointsChange={handleAutoKeyPointsChange}
         minSpeakers={minSpeakers}
@@ -538,6 +550,7 @@ export default function Home() {
               selectedProvider={selectedProvider}
               selectedModel={selectedModel}
               azureConfig={azureConfig}
+              langdockConfig={langdockConfig}
               selectedLanguage={selectedLanguage}
               informalGerman={informalGerman}
               meetingDate={meetingDate ?? ""}

@@ -10,8 +10,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { AudioPlayer } from "@/components/ui/audio-player";
+
+const MIC_STORAGE_KEY = "aias:v1:mic_device_id";
+
+function getSavedMicId(): string {
+  try {
+    return localStorage.getItem(MIC_STORAGE_KEY) || "default";
+  } catch {
+    return "default";
+  }
+}
+
+function saveMicId(deviceId: string) {
+  try {
+    localStorage.setItem(MIC_STORAGE_KEY, deviceId);
+  } catch {
+    // localStorage not available
+  }
+}
+
+function resolveDeviceId(inputs: MediaDeviceInfo[], preferred: string): string {
+  if (inputs.find((d) => d.deviceId === preferred)) return preferred;
+  const fallback = inputs.find((d) => d.deviceId === "default");
+  return fallback?.deviceId || inputs[0]?.deviceId || "";
+}
+
+function getSupportedMimeType(): string {
+  const types = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4;codecs=aac",
+    "audio/mp4",
+  ];
+  return types.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+}
+
+function getExtensionForMime(mimeType: string): string {
+  return mimeType.startsWith("audio/mp4") ? "mp4" : "webm";
+}
 
 interface AudioRecorderProps {
   onFileSelected: (file: File) => void;
@@ -96,11 +139,18 @@ export function AudioRecorder({
 
   // Microphone device state
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>(getSavedMicId);
+
+  // Recording mode: "mic" (mic only) or "meeting" (mic + system audio)
+  const [recordMode, setRecordMode] = useState<"mic" | "meeting">("mic");
+  // Whether the browser supports getDisplayMedia with audio (Chromium only)
+  const [supportsSystemAudio, setSupportsSystemAudio] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const displayStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const mimeTypeRef = useRef<string>("");
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -116,11 +166,8 @@ export function AudioRecorder({
       const all = await navigator.mediaDevices.enumerateDevices();
       const inputs = all.filter((d) => d.kind === "audioinput");
       setMicDevices(inputs);
-      // If the currently selected device was removed, reset to default
-      setSelectedDeviceId((prev) => {
-        if (prev && !inputs.find((d) => d.deviceId === prev)) return "";
-        return prev;
-      });
+      // If the currently selected device was removed, fall back to "default"
+      setSelectedDeviceId((prev) => resolveDeviceId(inputs, prev));
     } catch {
       // enumerateDevices not supported — ignore
     }
@@ -135,6 +182,42 @@ export function AudioRecorder({
       return () => mmd.removeEventListener("devicechange", refreshDevices);
     }
   }, [refreshDevices]);
+
+  // Detect Chromium-based browser with getDisplayMedia support (SSR-safe)
+  useEffect(() => {
+    setSupportsSystemAudio(
+      typeof window !== "undefined" &&
+        "chrome" in window &&
+        typeof navigator.mediaDevices?.getDisplayMedia === "function",
+    );
+  }, []);
+
+  // On mount: if device labels are already available (permission previously granted),
+  // just re-enumerate — no need to activate the mic. Only call getUserMedia when
+  // labels are absent (Safari before first permission grant) to unlock them.
+  // This prevents triggering the iPhone Continuity Mic popup on Chrome.
+  useEffect(() => {
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then((devices) => {
+        const hasLabels = devices
+          .filter((d) => d.kind === "audioinput")
+          .some((d) => d.label !== "");
+        if (hasLabels) {
+          refreshDevices();
+        } else {
+          navigator.mediaDevices
+            .getUserMedia({ audio: true })
+            .then((stream) => {
+              stream.getTracks().forEach((t) => t.stop());
+              refreshDevices();
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -164,6 +247,10 @@ export function AudioRecorder({
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+    }
+    if (displayStreamRef.current) {
+      displayStreamRef.current.getTracks().forEach((t) => t.stop());
+      displayStreamRef.current = null;
     }
     if (audioContextRef.current) {
       audioContextRef.current.close().catch(() => {});
@@ -196,28 +283,105 @@ export function AudioRecorder({
   }
 
   const startRecording = useCallback(async () => {
+    const audioConstraints: MediaTrackConstraints = selectedDeviceId
+      ? { deviceId: { exact: selectedDeviceId } }
+      : (true as unknown as MediaTrackConstraints);
+
     try {
-      const audioConstraints: MediaTrackConstraints =
-        selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true as unknown as MediaTrackConstraints;
+      let recordStream: MediaStream;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
-      });
-      streamRef.current = stream;
+      if (recordMode === "meeting") {
+        // 1. Prompt user to pick a tab/window (must share audio)
+        let displayStream: MediaStream;
+        try {
+          displayStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: true,
+          });
+        } catch {
+          // User cancelled the screen-share dialog — return silently
+          return;
+        }
 
-      // Re-enumerate after permission grant to pick up real device labels
-      refreshDevices();
+        // Stop video tracks — we only need audio
+        displayStream.getVideoTracks().forEach((t) => t.stop());
+        displayStreamRef.current = displayStream;
 
-      const audioContext = new AudioContext();
-      audioContextRef.current = audioContext;
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analyserRef.current = analyser;
+        // Check that audio was actually shared
+        if (displayStream.getAudioTracks().length === 0) {
+          displayStream.getTracks().forEach((t) => t.stop());
+          displayStreamRef.current = null;
+          toast.error(
+            "No audio was shared. Make sure to check 'Share audio' in the share dialog.",
+          );
+          return;
+        }
+
+        // 2. Capture mic separately
+        let micStream: MediaStream;
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({
+            audio: audioConstraints,
+          });
+        } catch {
+          // Mic denied — clean up display stream first
+          displayStream.getTracks().forEach((t) => t.stop());
+          displayStreamRef.current = null;
+          toast.error(
+            "Microphone permission denied. Please allow microphone access in your browser settings.",
+          );
+          return;
+        }
+        streamRef.current = micStream;
+
+        // Re-enumerate after permission grant to pick up real device labels
+        refreshDevices();
+
+        // 3. Merge both streams via AudioContext
+        const audioContext = new AudioContext();
+        audioContextRef.current = audioContext;
+        const destination = audioContext.createMediaStreamDestination();
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        analyserRef.current = analyser;
+
+        const micSource = audioContext.createMediaStreamSource(micStream);
+        const sysSource = audioContext.createMediaStreamSource(displayStream);
+
+        micSource.connect(analyser);
+        micSource.connect(destination);
+        sysSource.connect(analyser);
+        sysSource.connect(destination);
+
+        recordStream = destination.stream;
+      } else {
+        // Mic-only path (original behaviour)
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+        });
+        streamRef.current = stream;
+
+        // Re-enumerate after permission grant to pick up real device labels
+        refreshDevices();
+
+        const audioContext = new AudioContext();
+        audioContextRef.current = audioContext;
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analyserRef.current = analyser;
+
+        recordStream = stream;
+      }
 
       chunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
+      const mimeType = getSupportedMimeType();
+      mimeTypeRef.current = mimeType;
+      const recorder = new MediaRecorder(
+        recordStream,
+        mimeType ? { mimeType } : undefined,
+      );
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -225,7 +389,9 @@ export function AudioRecorder({
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, {
+          type: mimeTypeRef.current || "audio/webm",
+        });
         setRecordedBlob(blob);
         const url = URL.createObjectURL(blob);
         audioUrlRef.current = url;
@@ -250,7 +416,7 @@ export function AudioRecorder({
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDeviceId, refreshDevices]);
+  }, [selectedDeviceId, refreshDevices, recordMode]);
 
   const pauseRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state === "recording") {
@@ -302,31 +468,38 @@ export function AudioRecorder({
   const handleDownload = useCallback(() => {
     if (!recordedBlob) return;
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const ext = getExtensionForMime(recordedBlob.type);
     const url = URL.createObjectURL(recordedBlob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `recording-${timestamp}.webm`;
+    a.download = `recording-${timestamp}.${ext}`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }, [recordedBlob]);
 
   const handleUseForTranscript = useCallback(() => {
     if (!recordedBlob) return;
-    const file = new File([recordedBlob], "recording.webm", {
-      type: "audio/webm",
+    const ext = getExtensionForMime(recordedBlob.type);
+    const file = new File([recordedBlob], `recording.${ext}`, {
+      type: recordedBlob.type,
     });
     onFileSelected(file);
   }, [recordedBlob, onFileSelected]);
 
   const isDisabled = disabled || uploading;
 
+  const handleMicChange = useCallback((deviceId: string) => {
+    setSelectedDeviceId(deviceId);
+    saveMicId(deviceId);
+  }, []);
+
   // The mic selector — only shown in idle state when multiple devices exist
   const micSelector = micDevices.length > 1 && (
     <div className="flex items-center gap-2">
       <Mic className="h-4 w-4 shrink-0 text-foreground-muted" />
       <Select
-        value={selectedDeviceId || micDevices[0]?.deviceId || ""}
-        onValueChange={setSelectedDeviceId}
+        value={resolveDeviceId(micDevices, selectedDeviceId)}
+        onValueChange={handleMicChange}
         disabled={isDisabled}
       >
         <SelectTrigger className="h-9 w-52 text-sm">
@@ -404,8 +577,51 @@ export function AudioRecorder({
           <>
             <Mic className="h-12 w-12 text-foreground-muted" />
             <p className="text-sm text-foreground-secondary">
-              Click the button to start recording
+              {recordMode === "meeting"
+                ? "Share your entire screen and check 'Also share system audio' in the dialog"
+                : "Click the button to start recording"}
             </p>
+            <p className="text-xs text-foreground-muted">
+              {recordMode === "meeting"
+                ? "Best used with headphones to avoid mic feedback"
+                : "Best used when playing audio through speakers"}
+            </p>
+            <div className="flex rounded-md border border-border text-xs">
+              <button
+                type="button"
+                onClick={() => setRecordMode("mic")}
+                className={`px-3 py-1.5 rounded-l-md transition-colors ${
+                  recordMode === "mic"
+                    ? "bg-card-elevated text-foreground"
+                    : "text-foreground-muted hover:text-foreground-secondary"
+                }`}
+              >
+                Mic Only
+              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => supportsSystemAudio && setRecordMode("meeting")}
+                    disabled={!supportsSystemAudio}
+                    className={`px-3 py-1.5 rounded-r-md transition-colors ${
+                      recordMode === "meeting"
+                        ? "bg-card-elevated text-foreground"
+                        : supportsSystemAudio
+                          ? "text-foreground-muted hover:text-foreground-secondary"
+                          : "text-foreground-muted opacity-40 cursor-not-allowed"
+                    }`}
+                  >
+                    Mic + Meeting Audio
+                  </button>
+                </TooltipTrigger>
+                {!supportsSystemAudio ? (
+                  <TooltipContent>
+                    Only supported on Chromium-based browsers like Google Chrome, Brave, or Edge
+                  </TooltipContent>
+                ) : null}
+              </Tooltip>
+            </div>
             {micSelector}
             <Button
               onClick={startRecording}
@@ -413,7 +629,7 @@ export function AudioRecorder({
               className="gap-2"
             >
               <Mic className="h-4 w-4" />
-              Start Recording
+              {recordMode === "meeting" ? "Share Screen & Record" : "Start Recording"}
             </Button>
           </>
         )}
@@ -488,7 +704,7 @@ export function AudioRecorder({
               className="w-full max-w-[320px]"
             />
 
-            {audioUrl && <AudioPlayer src={audioUrl} />}
+            {audioUrl && <AudioPlayer src={audioUrl} knownDuration={elapsedSeconds} />}
 
             <div className="flex flex-wrap justify-center gap-2">
               <Button

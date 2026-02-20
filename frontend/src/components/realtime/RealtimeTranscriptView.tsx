@@ -5,6 +5,7 @@ import { Anchor, Copy, Maximize2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface RealtimeTranscriptViewProps {
   accumulatedTranscript: string;
@@ -23,20 +24,35 @@ export function RealtimeTranscriptView({
   const [autoScroll, setAutoScroll] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
 
+  const getViewport = useCallback(
+    () => scrollRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]'),
+    [],
+  );
+
   // Auto-scroll when new content arrives
   useEffect(() => {
-    if (autoScroll && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (autoScroll) {
+      const vp = getViewport();
+      if (vp) vp.scrollTop = vp.scrollHeight;
     }
-  }, [accumulatedTranscript, currentPartial, autoScroll]);
+  }, [accumulatedTranscript, currentPartial, autoScroll, getViewport]);
 
   // Detect user scrolling up to disable auto-scroll
   const handleScroll = useCallback(() => {
-    if (!scrollRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const vp = getViewport();
+    if (!vp) return;
+    const { scrollTop, scrollHeight, clientHeight } = vp;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 40;
     setAutoScroll(isAtBottom);
-  }, []);
+  }, [getViewport]);
+
+  // Attach scroll listener directly to the viewport element
+  useEffect(() => {
+    const vp = getViewport();
+    if (!vp) return;
+    vp.addEventListener("scroll", handleScroll);
+    return () => vp.removeEventListener("scroll", handleScroll);
+  }, [getViewport, handleScroll]);
 
   const hasContent = accumulatedTranscript || currentPartial;
 
@@ -64,28 +80,26 @@ export function RealtimeTranscriptView({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="min-h-[300px] max-h-[600px] overflow-y-auto rounded-md bg-card p-4 font-mono text-sm"
-        >
-          {hasContent ? (
-            <>
-              <span className="whitespace-pre-wrap text-foreground">
-                {accumulatedTranscript}
-              </span>
-              {currentPartial && (
-                <span className="whitespace-pre-wrap italic text-foreground-muted">
-                  {currentPartial}
+        <ScrollArea ref={scrollRef} className="min-h-[300px] max-h-[600px] rounded-md bg-card">
+          <div className="p-4 font-mono text-sm">
+            {hasContent ? (
+              <>
+                <span className="whitespace-pre-wrap text-foreground">
+                  {accumulatedTranscript}
                 </span>
-              )}
-            </>
-          ) : (
-            <p className="py-8 text-center text-sm text-foreground-muted">
-              {isSessionActive ? "Waiting for speech..." : "Transcript will appear here..."}
-            </p>
-          )}
-        </div>
+                {currentPartial && (
+                  <span className="whitespace-pre-wrap italic text-foreground-muted">
+                    {currentPartial}
+                  </span>
+                )}
+              </>
+            ) : (
+              <p className="py-8 text-center text-sm text-foreground-muted">
+                {isSessionActive ? "Waiting for speech..." : "Transcript will appear here..."}
+              </p>
+            )}
+          </div>
+        </ScrollArea>
 
         {/* Scroll lock toggle */}
         {hasContent && (
@@ -96,9 +110,8 @@ export function RealtimeTranscriptView({
               className={`h-7 px-2 text-xs ${autoScroll ? "text-primary" : "text-foreground-muted"}`}
               onClick={() => {
                 setAutoScroll(true);
-                if (scrollRef.current) {
-                  scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-                }
+                const vp = getViewport();
+                if (vp) vp.scrollTop = vp.scrollHeight;
               }}
             >
               <Anchor className="mr-1 h-3 w-3" />
@@ -113,12 +126,14 @@ export function RealtimeTranscriptView({
           <DialogHeader>
             <DialogTitle>Live Transcript</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto whitespace-pre-wrap font-mono text-sm text-foreground p-4">
-            {accumulatedTranscript}
-            {currentPartial && (
-              <span className="italic text-foreground-muted">{currentPartial}</span>
-            )}
-          </div>
+          <ScrollArea className="flex-1">
+            <div className="whitespace-pre-wrap font-mono text-sm text-foreground p-4">
+              {accumulatedTranscript}
+              {currentPartial && (
+                <span className="italic text-foreground-muted">{currentPartial}</span>
+              )}
+            </div>
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </Card>

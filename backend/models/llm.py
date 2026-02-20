@@ -1,5 +1,6 @@
 import datetime
 from enum import Enum
+from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -8,6 +9,7 @@ class LLMProvider(str, Enum):
     ANTHROPIC = "anthropic"
     GEMINI = "gemini"
     AZURE_OPENAI = "azure_openai"
+    LANGDOCK = "langdock"
 
 
 class AzureConfig(BaseModel):
@@ -16,11 +18,16 @@ class AzureConfig(BaseModel):
     deployment_name: str = Field(..., description="Azure OpenAI deployment name", examples=["gpt-4-deployment"])
 
 
+class LangdockConfig(BaseModel):
+    region: Literal["eu", "us"] = "eu"
+
+
 class CreateSummaryRequest(BaseModel):
     provider: LLMProvider = Field(..., description="Which LLM provider to use")
     api_key: str = Field(..., min_length=1, description="Provider API key (sent per-request)")
     model: str = Field(..., min_length=1, description="Model identifier", examples=["gpt-4.1-mini", "claude-sonnet-4-5", "gemini-2.0-flash"])
     azure_config: AzureConfig | None = Field(None, description="Required only when provider is 'azure_openai'")
+    langdock_config: LangdockConfig = Field(default_factory=LangdockConfig, description="Langdock region config")
     stream: bool = Field(True, description="Whether to stream the response")
     system_prompt: str = Field(..., min_length=1, description="The system prompt (selected/edited template)")
     text: str = Field(..., min_length=1, description="The transcript text to summarize")
@@ -45,6 +52,7 @@ class ExtractKeyPointsRequest(BaseModel):
     api_key: str = Field(..., min_length=1, description="Provider API key (sent per-request)")
     model: str = Field(..., min_length=1, description="Model identifier")
     azure_config: AzureConfig | None = Field(None, description="Required only when provider is 'azure_openai'")
+    langdock_config: LangdockConfig = Field(default_factory=LangdockConfig, description="Langdock region config")
     transcript: str = Field(..., min_length=1, description="The transcript text to extract key points from")
     speakers: list[str] = Field(..., min_length=1, description="List of speaker labels found in the transcript")
 

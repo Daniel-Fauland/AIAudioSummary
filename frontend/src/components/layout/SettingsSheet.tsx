@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { ChevronDown, Info, Pencil } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +24,8 @@ import { ApiKeyManager } from "@/components/settings/ApiKeyManager";
 import { ProviderSelector } from "@/components/settings/ProviderSelector";
 import { ModelSelector } from "@/components/settings/ModelSelector";
 import { AzureConfigForm } from "@/components/settings/AzureConfigForm";
-import type { AzureConfig, ConfigResponse, LLMProvider, SummaryInterval } from "@/lib/types";
+import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
+import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval } from "@/lib/types";
 
 interface SettingsSheetProps {
   open: boolean;
@@ -35,6 +37,8 @@ interface SettingsSheetProps {
   onModelChange: (model: string) => void;
   azureConfig: AzureConfig | null;
   onAzureConfigChange: (config: AzureConfig) => void;
+  langdockConfig: LangdockConfig;
+  onLangdockConfigChange: (config: LangdockConfig) => void;
   autoKeyPointsEnabled: boolean;
   onAutoKeyPointsChange: (enabled: boolean) => void;
   minSpeakers: number;
@@ -86,6 +90,8 @@ export function SettingsSheet({
   onModelChange,
   azureConfig,
   onAzureConfigChange,
+  langdockConfig,
+  onLangdockConfigChange,
   autoKeyPointsEnabled,
   onAutoKeyPointsChange,
   minSpeakers,
@@ -210,7 +216,7 @@ export function SettingsSheet({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          className="w-[380px] overflow-y-auto border-l border-border bg-card sm:max-w-[380px]"
+          className="w-[380px] flex flex-col border-l border-border bg-card sm:max-w-[380px]"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <SheetHeader>
@@ -232,6 +238,7 @@ export function SettingsSheet({
             </SheetDescription>
           </SheetHeader>
 
+          <ScrollArea className="flex-1">
           <div className="mx-4 flex items-start gap-2 rounded-md bg-info-muted p-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />
             <p className="text-xs text-foreground-secondary">
@@ -274,6 +281,13 @@ export function SettingsSheet({
                     <>
                       <Separator />
                       <AzureConfigForm config={azureConfig} onConfigChange={onAzureConfigChange} />
+                    </>
+                  ) : null}
+
+                  {selectedProvider === "langdock" ? (
+                    <>
+                      <Separator />
+                      <LangdockConfigForm config={langdockConfig} onConfigChange={onLangdockConfigChange} />
                     </>
                   ) : null}
                 </div>
@@ -414,6 +428,7 @@ export function SettingsSheet({
               </CollapsibleContent>
             </Collapsible>
           </div>
+          </ScrollArea>
         </SheetContent>
       </Sheet>
 

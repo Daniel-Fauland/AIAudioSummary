@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback } from "react";
-import type { AzureConfig, LLMProvider } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, LLMProvider } from "@/lib/types";
 
 const KEY_PREFIX = "aias:v1:apikey:";
 const AZURE_PREFIX = "aias:v1:azure:";
 const ASSEMBLYAI_KEY = "aias:v1:apikey:assemblyai";
+const LANGDOCK_CONFIG_KEY = "aias:v1:langdock_config";
 
 function safeGetItem(key: string): string {
   try {
@@ -86,5 +87,19 @@ export function useApiKeys() {
     safeSetItem(`${AZURE_PREFIX}deployment_name`, config.deployment_name);
   }, []);
 
-  return { getKey, setKey, hasKey, clearKey, getAzureConfig, setAzureConfig };
+  const getLangdockConfig = useCallback((): LangdockConfig => {
+    const raw = safeGetItem(LANGDOCK_CONFIG_KEY);
+    if (!raw) return { region: "eu" };
+    try {
+      return JSON.parse(raw) as LangdockConfig;
+    } catch {
+      return { region: "eu" };
+    }
+  }, []);
+
+  const setLangdockConfig = useCallback((config: LangdockConfig): void => {
+    safeSetItem(LANGDOCK_CONFIG_KEY, JSON.stringify(config));
+  }, []);
+
+  return { getKey, setKey, hasKey, clearKey, getAzureConfig, setAzureConfig, getLangdockConfig, setLangdockConfig };
 }

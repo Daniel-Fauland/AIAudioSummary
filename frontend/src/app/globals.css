@@ -278,6 +278,28 @@
   animation: summaryFadeIn 400ms ease-out;
 }
 
+/* Native scrollbar styling — matches shadcn ScrollArea appearance.
+   Applies to elements that can't use ScrollArea (e.g. <textarea>). */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #262626; /* --border */
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: #3A3A3A; /* --border-hover */
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Connection status dot */
 .connection-dot {
   width: 8px;

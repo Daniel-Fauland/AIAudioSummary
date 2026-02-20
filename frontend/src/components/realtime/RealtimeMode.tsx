@@ -9,6 +9,7 @@ import { RealtimeSummaryView } from "./RealtimeSummaryView";
 import { useRealtimeSession } from "@/hooks/useRealtimeSession";
 import type {
   AzureConfig,
+  LangdockConfig,
   ConfigResponse,
   LLMProvider,
   SummaryInterval,
@@ -19,6 +20,7 @@ interface RealtimeModeProps {
   selectedProvider: LLMProvider;
   selectedModel: string;
   azureConfig: AzureConfig | null;
+  langdockConfig: LangdockConfig;
   selectedLanguage: string;
   informalGerman: boolean;
   meetingDate: string;
@@ -35,6 +37,7 @@ export function RealtimeMode({
   selectedProvider,
   selectedModel,
   azureConfig,
+  langdockConfig,
   selectedLanguage,
   informalGerman,
   meetingDate,
@@ -59,6 +62,7 @@ export function RealtimeMode({
       apiKey: getKey(selectedProvider),
       model: selectedModel,
       azureConfig: azureConfig || undefined,
+      langdockConfig: selectedProvider === "langdock" ? langdockConfig : undefined,
       systemPrompt: realtimeSystemPrompt,
       targetLanguage: selectedLanguage,
       informalGerman,
@@ -69,6 +73,7 @@ export function RealtimeMode({
     selectedProvider,
     selectedModel,
     azureConfig,
+    langdockConfig,
     realtimeSystemPrompt,
     selectedLanguage,
     informalGerman,

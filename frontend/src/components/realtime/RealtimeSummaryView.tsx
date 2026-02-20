@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
 interface RealtimeSummaryViewProps {
@@ -105,20 +106,19 @@ export function RealtimeSummaryView({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div
-          ref={scrollRef}
-          className="max-h-[600px] overflow-y-auto rounded-md bg-card p-4"
-        >
-          {summary ? (
-            <div className="markdown-prose summary-fade-enter" key={summaryUpdatedAt}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
-            </div>
-          ) : (
-            <p className="py-8 text-center text-sm text-foreground-muted">
-              Summary will appear after the first interval...
-            </p>
-          )}
-        </div>
+        <ScrollArea ref={scrollRef} className="max-h-[600px] rounded-md bg-card">
+          <div className="p-4">
+            {summary ? (
+              <div className="markdown-prose summary-fade-enter" key={summaryUpdatedAt}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-foreground-muted">
+                Summary will appear after the first interval...
+              </p>
+            )}
+          </div>
+        </ScrollArea>
 
         {/* Copy buttons */}
         {!!summary && (
@@ -140,11 +140,11 @@ export function RealtimeSummaryView({
           <DialogHeader>
             <DialogTitle>Summary</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="markdown-prose">
+          <ScrollArea className="flex-1">
+            <div className="p-4 markdown-prose">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
             </div>
-          </div>
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </Card>

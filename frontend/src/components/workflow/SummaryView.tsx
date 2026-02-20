@@ -7,6 +7,7 @@ import { Copy, FileText, RefreshCw, ArrowLeft, Maximize2, Square } from "lucide-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +41,8 @@ export function SummaryView({
   // Auto-scroll during streaming
   useEffect(() => {
     if (loading && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const vp = scrollRef.current.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+      if (vp) vp.scrollTop = vp.scrollHeight;
     }
   }, [summary, loading]);
 
@@ -115,28 +117,27 @@ export function SummaryView({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div
-          ref={scrollRef}
-          className="max-h-[600px] overflow-y-auto rounded-md bg-card p-4"
-        >
-          {summary ? (
-            <div className="markdown-prose">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
-              {loading ? <span className="streaming-cursor">▊</span> : null}
-            </div>
-          ) : loading ? (
-            <div className="flex items-center gap-2 py-8 justify-center">
-              <span className="streaming-cursor text-lg">▊</span>
-              <span className="text-sm text-foreground-secondary">
-                Waiting for response...
-              </span>
-            </div>
-          ) : (
-            <p className="py-8 text-center text-sm text-foreground-muted">
-              Summary will appear here...
-            </p>
-          )}
-        </div>
+        <ScrollArea ref={scrollRef} className="max-h-[600px] rounded-md bg-card">
+          <div className="p-4">
+            {summary ? (
+              <div className="markdown-prose">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
+                {loading ? <span className="streaming-cursor">▊</span> : null}
+              </div>
+            ) : loading ? (
+              <div className="flex items-center gap-2 py-8 justify-center">
+                <span className="streaming-cursor text-lg">▊</span>
+                <span className="text-sm text-foreground-secondary">
+                  Waiting for response...
+                </span>
+              </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-foreground-muted">
+                Summary will appear here...
+              </p>
+            )}
+          </div>
+        </ScrollArea>
 
         {!loading ? (
           <div className="grid grid-cols-2 gap-2">
@@ -165,11 +166,11 @@ export function SummaryView({
           <DialogHeader>
             <DialogTitle>Summary</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto rounded-md bg-card p-4">
-            <div className="markdown-prose">
+          <ScrollArea className="flex-1 rounded-md bg-card">
+            <div className="p-4 markdown-prose">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
             </div>
-          </div>
+          </ScrollArea>
           <DialogFooter className="sm:justify-start">
             <div className="grid w-full grid-cols-2 gap-2">
               <Button variant="secondary" className="justify-start" onClick={handleCopyFormatted}>

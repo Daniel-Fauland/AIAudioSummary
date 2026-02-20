@@ -50,23 +50,6 @@ def _detect_language(text: str) -> str:
         return "English"
 
 
-# --- Hardcoded realtime summary prompt ---
-
-_REALTIME_SYSTEM_PROMPT = """\
-You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
-
-Your summary must:
-- Use clear headings (## Topic) and concise bullet points
-- Capture key topics, decisions, and action items discussed so far
-- Be written entirely in {language}
-
-Stability rules — these are strict:
-- On incremental updates, preserve ALL existing sections and bullets verbatim unless new content directly updates them
-- Only add or modify the specific bullets that are explicitly supported by the new transcript chunk
-- Never remove information that was in the previous summary
-- Never introduce topics, details, or action items not present in the transcript\
-"""
-
 realtime_router = APIRouter()
 service = RealtimeTranscriptionService()
 session_manager = SessionManager()
@@ -97,6 +80,7 @@ async def create_incremental_summary(
             model_name=model_name,
             api_key=request.api_key,
             azure_config=request.azure_config,
+            langdock_config=request.langdock_config,
         )
 
         # Detect language from the transcript; substitute {language} in the prompt
