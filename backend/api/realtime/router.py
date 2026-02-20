@@ -99,9 +99,9 @@ async def create_incremental_summary(
             azure_config=request.azure_config,
         )
 
-        # Detect language from the transcript and build a stable system prompt
+        # Detect language from the transcript; substitute {language} in the prompt
         language = _detect_language(request.full_transcript)
-        system_prompt = _REALTIME_SYSTEM_PROMPT.format(language=language)
+        system_prompt = request.system_prompt.replace("{language}", language)
 
         # Build user prompt based on mode
         if request.is_full_recompute or request.previous_summary is None:

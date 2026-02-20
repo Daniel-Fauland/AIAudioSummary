@@ -11,7 +11,6 @@ import type {
   AzureConfig,
   ConfigResponse,
   LLMProvider,
-  PromptTemplate,
   SummaryInterval,
 } from "@/lib/types";
 
@@ -20,7 +19,6 @@ interface RealtimeModeProps {
   selectedProvider: LLMProvider;
   selectedModel: string;
   azureConfig: AzureConfig | null;
-  selectedPrompt: PromptTemplate | null;
   selectedLanguage: string;
   informalGerman: boolean;
   meetingDate: string;
@@ -30,13 +28,13 @@ interface RealtimeModeProps {
   onOpenSettings: () => void;
   summaryInterval: SummaryInterval;
   realtimeFinalSummaryEnabled: boolean;
+  realtimeSystemPrompt: string;
 }
 
 export function RealtimeMode({
   selectedProvider,
   selectedModel,
   azureConfig,
-  selectedPrompt,
   selectedLanguage,
   informalGerman,
   meetingDate,
@@ -46,6 +44,7 @@ export function RealtimeMode({
   onOpenSettings,
   summaryInterval,
   realtimeFinalSummaryEnabled,
+  realtimeSystemPrompt,
 }: RealtimeModeProps) {
   const session = useRealtimeSession();
   const [mobileTab, setMobileTab] = useState<"transcript" | "summary">("transcript");
@@ -55,13 +54,12 @@ export function RealtimeMode({
 
   // Keep LLM config in sync with settings
   useEffect(() => {
-    if (!selectedPrompt) return;
     session.setLlmConfig({
       provider: selectedProvider,
       apiKey: getKey(selectedProvider),
       model: selectedModel,
       azureConfig: azureConfig || undefined,
-      systemPrompt: selectedPrompt.content,
+      systemPrompt: realtimeSystemPrompt,
       targetLanguage: selectedLanguage,
       informalGerman,
       date: meetingDate || undefined,
@@ -71,7 +69,7 @@ export function RealtimeMode({
     selectedProvider,
     selectedModel,
     azureConfig,
-    selectedPrompt,
+    realtimeSystemPrompt,
     selectedLanguage,
     informalGerman,
     meetingDate,
@@ -95,13 +93,9 @@ export function RealtimeMode({
       onOpenSettings();
       return;
     }
-    if (!selectedPrompt) {
-      toast.error("Please select a prompt template first");
-      return;
-    }
 
     session.startSession(getKey("assemblyai"), micDeviceId);
-  }, [hasKey, selectedProvider, selectedPrompt, getKey, micDeviceId, onOpenSettings, session]);
+  }, [hasKey, selectedProvider, getKey, micDeviceId, onOpenSettings, session]);
 
   const handleCopyTranscript = useCallback(async () => {
     try {

@@ -29,6 +29,20 @@ const MAX_SPEAKERS_KEY = "aias:v1:max_speakers";
 const APP_MODE_KEY = "aias:v1:app_mode";
 const REALTIME_INTERVAL_KEY = "aias:v1:realtime_interval";
 const REALTIME_FINAL_SUMMARY_KEY = "aias:v1:realtime_final_summary";
+const REALTIME_SYSTEM_PROMPT_KEY = "aias:v1:realtime_system_prompt";
+
+export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
+
+Your summary must:
+- Use clear headings (## Topic) and concise bullet points
+- Capture key topics, decisions, and action items discussed so far
+- Be written entirely in {language}
+
+Stability rules — these are strict:
+- On incremental updates, preserve ALL existing sections and bullets verbatim unless new content directly updates them
+- Only add or modify the specific bullets that are explicitly supported by the new transcript chunk
+- Never remove information that was in the previous summary
+- Never introduce topics, details, or action items not present in the transcript`;
 
 function safeGet(key: string, fallback: string): string {
   try {
@@ -118,6 +132,9 @@ export default function Home() {
   const [realtimeFinalSummaryEnabled, setRealtimeFinalSummaryEnabled] = useState(
     () => safeGet(REALTIME_FINAL_SUMMARY_KEY, "true") !== "false",
   );
+  const [realtimeSystemPrompt, setRealtimeSystemPrompt] = useState(
+    () => safeGet(REALTIME_SYSTEM_PROMPT_KEY, DEFAULT_REALTIME_SYSTEM_PROMPT),
+  );
   const hasAutoExtractedKeyPointsRef = useRef(false);
   // Accumulated speaker renames: original label → new name
   const speakerRenamesRef = useRef<Record<string, string>>({});
@@ -196,6 +213,11 @@ export default function Home() {
   const handleRealtimeFinalSummaryEnabledChange = useCallback((enabled: boolean) => {
     setRealtimeFinalSummaryEnabled(enabled);
     safeSet(REALTIME_FINAL_SUMMARY_KEY, enabled ? "true" : "false");
+  }, []);
+
+  const handleRealtimeSystemPromptChange = useCallback((prompt: string) => {
+    setRealtimeSystemPrompt(prompt);
+    safeSet(REALTIME_SYSTEM_PROMPT_KEY, prompt);
   }, []);
 
   const applyRenames = useCallback((keyPoints: Record<string, string>): Record<string, string> => {
@@ -477,6 +499,9 @@ export default function Home() {
         onRealtimeSummaryIntervalChange={handleRealtimeSummaryIntervalChange}
         realtimeFinalSummaryEnabled={realtimeFinalSummaryEnabled}
         onRealtimeFinalSummaryEnabledChange={handleRealtimeFinalSummaryEnabledChange}
+        realtimeSystemPrompt={realtimeSystemPrompt}
+        onRealtimeSystemPromptChange={handleRealtimeSystemPromptChange}
+        defaultRealtimeSystemPrompt={DEFAULT_REALTIME_SYSTEM_PROMPT}
       />
 
       <div className="mx-auto max-w-6xl px-4 md:px-6">
@@ -513,10 +538,6 @@ export default function Home() {
               selectedProvider={selectedProvider}
               selectedModel={selectedModel}
               azureConfig={azureConfig}
-              selectedPrompt={
-                config?.prompt_templates.find((t) => t.content === selectedPrompt) ??
-                (selectedPrompt ? { id: "custom", name: "Custom", content: selectedPrompt } : null)
-              }
               selectedLanguage={selectedLanguage}
               informalGerman={informalGerman}
               meetingDate={meetingDate ?? ""}
@@ -526,6 +547,7 @@ export default function Home() {
               onOpenSettings={() => setSettingsOpen(true)}
               summaryInterval={realtimeSummaryInterval}
               realtimeFinalSummaryEnabled={realtimeFinalSummaryEnabled}
+              realtimeSystemPrompt={realtimeSystemPrompt}
             />
           </div>
         ) : (
