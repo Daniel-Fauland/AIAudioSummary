@@ -85,6 +85,12 @@
   }
 }
 
+/* Text selection — high contrast against all text colors in dark mode */
+::selection {
+  background-color: rgba(252, 82, 11, 0.35);
+  color: #FAFAFA;
+}
+
 /* Markdown prose styles for summary rendering */
 .markdown-prose {
   font-size: 0.875rem;
@@ -302,13 +308,14 @@
 
 /* Connection status dot */
 .connection-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 .connection-dot.connected { background: var(--success); }
 .connection-dot.connecting,
 .connection-dot.reconnecting { background: var(--warning); animation: blink 1s step-end infinite; }
-.connection-dot.disconnected { background: var(--foreground-muted); }
+.connection-dot.disconnected { background: var(--foreground-secondary); }
 .connection-dot.error { background: var(--destructive); }

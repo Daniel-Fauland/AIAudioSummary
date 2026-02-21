@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 interface RealtimeTranscriptViewProps {
   accumulatedTranscript: string;
   currentPartial: string;
+  committedPartial: string;
   isSessionActive: boolean;
   onCopy: () => void;
 }
@@ -18,6 +19,7 @@ interface RealtimeTranscriptViewProps {
 export function RealtimeTranscriptView({
   accumulatedTranscript,
   currentPartial,
+  committedPartial,
   isSessionActive,
   onCopy,
 }: RealtimeTranscriptViewProps) {
@@ -55,7 +57,7 @@ export function RealtimeTranscriptView({
     return () => vp.removeEventListener("scroll", handleScroll);
   }, [getViewport, handleScroll]);
 
-  const hasContent = accumulatedTranscript || currentPartial;
+  const hasContent = accumulatedTranscript || committedPartial || currentPartial;
 
   return (
     <Card className="border-border">
@@ -97,6 +99,11 @@ export function RealtimeTranscriptView({
                 <span className="whitespace-pre-wrap text-foreground">
                   {accumulatedTranscript}
                 </span>
+                {committedPartial && (
+                  <span className="whitespace-pre-wrap text-foreground">
+                    {committedPartial}
+                  </span>
+                )}
                 {currentPartial && (
                   <span className="whitespace-pre-wrap italic text-foreground-muted">
                     {currentPartial}
@@ -139,6 +146,7 @@ export function RealtimeTranscriptView({
           <ScrollArea className="flex-1">
             <div className="whitespace-pre-wrap font-mono text-sm text-foreground p-4">
               {accumulatedTranscript}
+              {committedPartial}
               {currentPartial && (
                 <span className="italic text-foreground-muted">{currentPartial}</span>
               )}

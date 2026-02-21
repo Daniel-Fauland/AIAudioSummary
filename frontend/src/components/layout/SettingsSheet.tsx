@@ -25,7 +25,8 @@ import { ProviderSelector } from "@/components/settings/ProviderSelector";
 import { ModelSelector } from "@/components/settings/ModelSelector";
 import { AzureConfigForm } from "@/components/settings/AzureConfigForm";
 import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
-import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval } from "@/lib/types";
+import { FeatureModelOverrides } from "@/components/settings/FeatureModelOverrides";
+import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride } from "@/lib/types";
 
 interface SettingsSheetProps {
   open: boolean;
@@ -52,6 +53,8 @@ interface SettingsSheetProps {
   realtimeSystemPrompt: string;
   onRealtimeSystemPromptChange: (prompt: string) => void;
   defaultRealtimeSystemPrompt: string;
+  featureOverrides: Partial<Record<LLMFeature, FeatureModelOverride>>;
+  onFeatureOverridesChange: (overrides: Partial<Record<LLMFeature, FeatureModelOverride>>) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -105,6 +108,8 @@ export function SettingsSheet({
   realtimeSystemPrompt,
   onRealtimeSystemPromptChange,
   defaultRealtimeSystemPrompt,
+  featureOverrides,
+  onFeatureOverridesChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -262,6 +267,13 @@ export function SettingsSheet({
               <SectionHeader>AI Model</SectionHeader>
               <CollapsibleContent>
                 <div className="space-y-4 pt-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Default AI Model</p>
+                    <p className="text-xs text-foreground-muted mt-0.5">
+                      Used for all features unless overridden below.
+                    </p>
+                  </div>
+
                   <ProviderSelector
                     providers={providers}
                     selectedProvider={selectedProvider}
@@ -290,6 +302,16 @@ export function SettingsSheet({
                       <LangdockConfigForm config={langdockConfig} onConfigChange={onLangdockConfigChange} />
                     </>
                   ) : null}
+
+                  <Separator />
+
+                  <FeatureModelOverrides
+                    featureOverrides={featureOverrides}
+                    onFeatureOverridesChange={onFeatureOverridesChange}
+                    defaultProvider={selectedProvider}
+                    defaultModel={selectedModel}
+                    providers={providers}
+                  />
                 </div>
               </CollapsibleContent>
             </Collapsible>

@@ -34,6 +34,9 @@ export function useRealtimeSession() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [accumulatedTranscript, setAccumulatedTranscript] = useState("");
   const [currentPartial, setCurrentPartial] = useState("");
+  // Partial that was in-progress when a summary was triggered — displayed as white
+  // (committed) text until AssemblyAI sends the real final turn for that sentence.
+  const [committedPartial, setCommittedPartial] = useState("");
   const [realtimeSummary, setRealtimeSummary] = useState("");
   const [summaryUpdatedAt, setSummaryUpdatedAt] = useState<string | null>(null);
   const [isSummaryUpdating, setIsSummaryUpdating] = useState(false);
@@ -56,6 +59,7 @@ export function useRealtimeSession() {
   const summaryIntervalRef = useRef<SummaryInterval>(2);
   const llmConfigRef = useRef<LlmConfig | null>(null);
   const accumulatedTranscriptRef = useRef("");
+  const currentPartialRef = useRef("");
   const realtimeSummaryRef = useRef("");
   const isSummaryUpdatingRef = useRef(false);
   const isPausedRef = useRef(false);
@@ -64,6 +68,9 @@ export function useRealtimeSession() {
   useEffect(() => {
     accumulatedTranscriptRef.current = accumulatedTranscript;
   }, [accumulatedTranscript]);
+  useEffect(() => {
+    currentPartialRef.current = currentPartial;
+  }, [currentPartial]);
   useEffect(() => {
     realtimeSummaryRef.current = realtimeSummary;
   }, [realtimeSummary]);
@@ -105,23 +112,34 @@ export function useRealtimeSession() {
   // --- Summary logic ---
   const triggerSummary = useCallback(async (forceFullRecompute: boolean = false) => {
     const config = llmConfigRef.current;
-    const transcript = accumulatedTranscriptRef.current;
+    const accumulated = accumulatedTranscriptRef.current;
+    // Include any in-progress partial so speech that hasn't paused yet is still summarised.
+    // Trim the partial to avoid trailing whitespace causing a false "transcript grew" signal.
+    const partial = currentPartialRef.current.trim();
+    const effectiveTranscript = partial ? accumulated + partial : accumulated;
 
-    if (!config || !transcript.trim()) {
+    if (!config || !effectiveTranscript.trim()) {
       if (!forceFullRecompute) setSummaryCountdown(summaryIntervalRef.current * 60);
       return;
     }
     if (isSummaryUpdatingRef.current) return;
-    if (!forceFullRecompute && transcript.length === lastSummaryTranscriptLenRef.current) {
+    if (!forceFullRecompute && effectiveTranscript.length === lastSummaryTranscriptLenRef.current) {
       setSummaryCountdown(summaryIntervalRef.current * 60);
       return;
+    }
+
+    // Visually commit the partial: move it from grey → white until the real final turn arrives.
+    if (partial) {
+      setCommittedPartial(partial);
+      setCurrentPartial("");
+      currentPartialRef.current = "";
     }
 
     setIsSummaryUpdating(true);
     summaryCountRef.current += 1;
 
     const isFullRecompute = forceFullRecompute || summaryCountRef.current % 10 === 0 || !realtimeSummaryRef.current;
-    const newChunk = transcript.slice(lastSummaryTranscriptLenRef.current);
+    const newChunk = effectiveTranscript.slice(lastSummaryTranscriptLenRef.current);
 
     const request: IncrementalSummaryRequest = {
       provider: config.provider,
@@ -130,7 +148,7 @@ export function useRealtimeSession() {
       azure_config: config.azureConfig,
       langdock_config: config.langdockConfig,
       system_prompt: config.systemPrompt,
-      full_transcript: transcript,
+      full_transcript: effectiveTranscript,
       previous_summary: realtimeSummaryRef.current || undefined,
       new_transcript_chunk: newChunk || undefined,
       is_full_recompute: isFullRecompute,
@@ -144,7 +162,7 @@ export function useRealtimeSession() {
       const response = await createIncrementalSummary(request);
       setRealtimeSummary(response.summary);
       setSummaryUpdatedAt(response.updated_at);
-      lastSummaryTranscriptLenRef.current = transcript.length;
+      lastSummaryTranscriptLenRef.current = effectiveTranscript.length;
       // Reset countdown after successful summary
       setSummaryCountdown(summaryIntervalRef.current * 60);
     } catch (error) {
@@ -154,7 +172,7 @@ export function useRealtimeSession() {
         const response = await createIncrementalSummary(request);
         setRealtimeSummary(response.summary);
         setSummaryUpdatedAt(response.updated_at);
-        lastSummaryTranscriptLenRef.current = transcript.length;
+        lastSummaryTranscriptLenRef.current = effectiveTranscript.length;
         setSummaryCountdown(summaryIntervalRef.current * 60);
       } catch {
         // Skip until next interval
@@ -189,6 +207,9 @@ export function useRealtimeSession() {
         if (msg.is_final) {
           setAccumulatedTranscript((prev) => prev + msg.transcript + "\n");
           setCurrentPartial("");
+          // The real final turn has arrived — the committed partial is now part of accumulated,
+          // so clear it to avoid showing duplicate white text.
+          setCommittedPartial("");
         } else {
           setCurrentPartial(msg.transcript);
         }
@@ -444,6 +465,7 @@ export function useRealtimeSession() {
     setSessionId(null);
     setAccumulatedTranscript("");
     setCurrentPartial("");
+    setCommittedPartial("");
     setRealtimeSummary("");
     setSummaryUpdatedAt(null);
     setIsSummaryUpdating(false);
@@ -473,6 +495,7 @@ export function useRealtimeSession() {
     sessionId,
     accumulatedTranscript,
     currentPartial,
+    committedPartial,
     realtimeSummary,
     summaryUpdatedAt,
     isSummaryUpdating,

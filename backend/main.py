@@ -10,6 +10,7 @@ from api.llm.router import llm_router
 from api.misc.router import misc_router
 from api.realtime.router import realtime_router
 from api.prompt_assistant.router import prompt_assistant_router
+from api.live_questions.router import live_questions_router
 
 app = FastAPI()
 
@@ -28,6 +29,7 @@ app.include_router(llm_router, tags=["LLM"])
 app.include_router(misc_router, tags=["Misc"])
 app.include_router(realtime_router, tags=["Realtime"])
 app.include_router(prompt_assistant_router, tags=["PromptAssistant"])
+app.include_router(live_questions_router, tags=["LiveQuestions"])
 
 
 @app.get("/")

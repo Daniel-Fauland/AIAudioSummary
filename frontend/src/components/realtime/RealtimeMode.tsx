@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { RealtimeControls } from "./RealtimeControls";
 import { RealtimeTranscriptView } from "./RealtimeTranscriptView";
 import { RealtimeSummaryView } from "./RealtimeSummaryView";
+import { LiveQuestions } from "@/components/live-transcript/LiveQuestions";
+import { useLiveQuestions } from "@/components/live-transcript/useLiveQuestions";
 import { useRealtimeSession } from "@/hooks/useRealtimeSession";
 import type {
   AzureConfig,
@@ -31,6 +33,9 @@ interface RealtimeModeProps {
   summaryInterval: SummaryInterval;
   realtimeFinalSummaryEnabled: boolean;
   realtimeSystemPrompt: string;
+  /** Provider/model to use for Live Question Evaluation (may differ from main summary provider) */
+  liveQuestionsProvider: LLMProvider;
+  liveQuestionsModel: string;
 }
 
 export function RealtimeMode({
@@ -48,13 +53,20 @@ export function RealtimeMode({
   summaryInterval,
   realtimeFinalSummaryEnabled,
   realtimeSystemPrompt,
+  liveQuestionsProvider,
+  liveQuestionsModel,
 }: RealtimeModeProps) {
   const session = useRealtimeSession();
+  const liveQuestions = useLiveQuestions();
+
   const [mobileTab, setMobileTab] = useState<"transcript" | "summary">("transcript");
   const [micDeviceId, setMicDeviceId] = useState<string | undefined>(undefined);
   const [recordMode, setRecordMode] = useState<"mic" | "meeting">("mic");
 
   const isActive = session.connectionStatus === "connected" || session.connectionStatus === "reconnecting";
+
+  // Track previous isSummaryUpdating value to detect when a summary run starts
+  const prevIsSummaryUpdatingRef = useRef(false);
 
   // Keep LLM config in sync with settings
   useEffect(() => {
@@ -88,6 +100,39 @@ export function RealtimeMode({
     session.setSummaryInterval(summaryInterval);
   }, [summaryInterval, session.setSummaryInterval]);
 
+  // Trigger live question evaluation in parallel whenever a summary update starts
+  useEffect(() => {
+    const wasUpdating = prevIsSummaryUpdatingRef.current;
+    const isNowUpdating = session.isSummaryUpdating;
+
+    if (!wasUpdating && isNowUpdating) {
+      const transcript = session.accumulatedTranscript;
+      if (liveQuestions.shouldEvaluate(transcript)) {
+        const apiKey = getKey(liveQuestionsProvider);
+        if (apiKey) {
+          liveQuestions.triggerEvaluation(transcript, {
+            provider: liveQuestionsProvider,
+            apiKey,
+            model: liveQuestionsModel,
+            azureConfig: liveQuestionsProvider === "azure_openai" ? azureConfig ?? undefined : undefined,
+            langdockConfig: liveQuestionsProvider === "langdock" ? langdockConfig : undefined,
+          });
+        }
+      }
+    }
+
+    prevIsSummaryUpdatingRef.current = isNowUpdating;
+  }, [
+    session.isSummaryUpdating,
+    session.accumulatedTranscript,
+    liveQuestions,
+    liveQuestionsProvider,
+    liveQuestionsModel,
+    azureConfig,
+    langdockConfig,
+    getKey,
+  ]);
+
   const handleStart = useCallback(() => {
     if (!hasKey("assemblyai")) {
       toast.error("AssemblyAI API key is required for realtime transcription");
@@ -112,6 +157,23 @@ export function RealtimeMode({
     }
   }, [session.accumulatedTranscript]);
 
+  const handleResetSession = useCallback(() => {
+    session.resetSession();
+    liveQuestions.resetEvaluationTracking();
+  }, [session, liveQuestions]);
+
+  const liveQuestionsCard = (
+    <LiveQuestions
+      questions={liveQuestions.questions}
+      isEvaluating={liveQuestions.isEvaluating}
+      warningDismissed={liveQuestions.warningDismissed}
+      onAdd={liveQuestions.addQuestion}
+      onRemove={liveQuestions.removeQuestion}
+      onReset={liveQuestions.resetQuestion}
+      onDismissWarning={liveQuestions.dismissWarning}
+    />
+  );
+
   return (
     <div className="space-y-4">
       {/* Controls bar */}
@@ -134,20 +196,24 @@ export function RealtimeMode({
         onRecordModeChange={setRecordMode}
       />
 
-      {/* Desktop layout: two columns */}
-      <div className="hidden md:grid md:grid-cols-2 md:gap-4">
-        <RealtimeTranscriptView
-          accumulatedTranscript={session.accumulatedTranscript}
-          currentPartial={session.currentPartial}
-          isSessionActive={isActive}
-          onCopy={handleCopyTranscript}
-        />
-        <RealtimeSummaryView
-          summary={session.realtimeSummary}
-          summaryUpdatedAt={session.summaryUpdatedAt}
-          isSummaryUpdating={session.isSummaryUpdating}
-          isSessionEnded={session.isSessionEnded}
-        />
+      {/* Desktop layout: two columns for transcript+summary, then full-width questions */}
+      <div className="hidden md:block md:space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <RealtimeTranscriptView
+            accumulatedTranscript={session.accumulatedTranscript}
+            currentPartial={session.currentPartial}
+            committedPartial={session.committedPartial}
+            isSessionActive={isActive}
+            onCopy={handleCopyTranscript}
+          />
+          <RealtimeSummaryView
+            summary={session.realtimeSummary}
+            summaryUpdatedAt={session.summaryUpdatedAt}
+            isSummaryUpdating={session.isSummaryUpdating}
+            isSessionEnded={session.isSessionEnded}
+          />
+        </div>
+        {liveQuestionsCard}
       </div>
 
       {/* Mobile layout: tabbed */}
@@ -179,23 +245,27 @@ export function RealtimeMode({
           <RealtimeTranscriptView
             accumulatedTranscript={session.accumulatedTranscript}
             currentPartial={session.currentPartial}
+            committedPartial={session.committedPartial}
             isSessionActive={isActive}
             onCopy={handleCopyTranscript}
           />
         ) : (
-          <RealtimeSummaryView
-            summary={session.realtimeSummary}
-            summaryUpdatedAt={session.summaryUpdatedAt}
-            isSummaryUpdating={session.isSummaryUpdating}
-            isSessionEnded={session.isSessionEnded}
-          />
+          <div className="flex flex-col gap-4">
+            <RealtimeSummaryView
+              summary={session.realtimeSummary}
+              summaryUpdatedAt={session.summaryUpdatedAt}
+              isSummaryUpdating={session.isSummaryUpdating}
+              isSessionEnded={session.isSessionEnded}
+            />
+            {liveQuestionsCard}
+          </div>
         )}
       </div>
 
       {/* Session ended actions */}
       {session.isSessionEnded && (
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => session.resetSession()}>
+          <Button onClick={handleResetSession}>
             Start New Session
           </Button>
         </div>

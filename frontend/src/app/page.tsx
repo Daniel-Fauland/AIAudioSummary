@@ -28,7 +28,7 @@ import { useApiKeys } from "@/hooks/useApiKeys";
 import { useCustomTemplates } from "@/hooks/useCustomTemplates";
 import { createTranscript, createSummary, extractKeyPoints } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride } from "@/lib/types";
 
 const PROVIDER_KEY = "aias:v1:selected_provider";
 const MODEL_KEY_PREFIX = "aias:v1:model:";
@@ -39,6 +39,7 @@ const APP_MODE_KEY = "aias:v1:app_mode";
 const REALTIME_INTERVAL_KEY = "aias:v1:realtime_interval";
 const REALTIME_FINAL_SUMMARY_KEY = "aias:v1:realtime_final_summary";
 const REALTIME_SYSTEM_PROMPT_KEY = "aias:v1:realtime_system_prompt";
+const FEATURE_OVERRIDES_KEY = "aias:v1:feature_overrides";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -148,6 +149,17 @@ export default function Home() {
   const [realtimeSystemPrompt, setRealtimeSystemPrompt] = useState(
     () => safeGet(REALTIME_SYSTEM_PROMPT_KEY, DEFAULT_REALTIME_SYSTEM_PROMPT),
   );
+  const [featureOverrides, setFeatureOverrides] = useState<
+    Partial<Record<LLMFeature, FeatureModelOverride>>
+  >(() => {
+    try {
+      if (typeof window === "undefined") return {};
+      const stored = localStorage.getItem(FEATURE_OVERRIDES_KEY);
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
   const hasAutoExtractedKeyPointsRef = useRef(false);
   // Accumulated speaker renames: original label → new name
   const speakerRenamesRef = useRef<Record<string, string>>({});
@@ -238,6 +250,22 @@ export default function Home() {
     safeSet(REALTIME_SYSTEM_PROMPT_KEY, prompt);
   }, []);
 
+  const resolveModelConfig = useCallback(
+    (feature: LLMFeature): { provider: LLMProvider; model: string } => {
+      const override = featureOverrides[feature];
+      return override ?? { provider: selectedProvider, model: selectedModel };
+    },
+    [featureOverrides, selectedProvider, selectedModel],
+  );
+
+  const handleFeatureOverridesChange = useCallback(
+    (overrides: Partial<Record<LLMFeature, FeatureModelOverride>>) => {
+      setFeatureOverrides(overrides);
+      safeSet(FEATURE_OVERRIDES_KEY, JSON.stringify(overrides));
+    },
+    [],
+  );
+
   const applyRenames = useCallback((keyPoints: Record<string, string>): Record<string, string> => {
     const renames = speakerRenamesRef.current;
     if (Object.keys(renames).length === 0) return keyPoints;
@@ -250,17 +278,18 @@ export default function Home() {
 
   const doExtractKeyPoints = useCallback(
     async (transcriptText: string, speakers: string[]) => {
-      const llmKey = getKey(selectedProvider);
+      const { provider: kpProvider, model: kpModel } = resolveModelConfig("key_point_extraction");
+      const llmKey = getKey(kpProvider);
       if (!llmKey) return;
 
       setIsExtractingKeyPoints(true);
       try {
         const result = await extractKeyPoints({
-          provider: selectedProvider,
+          provider: kpProvider,
           api_key: llmKey,
-          model: selectedModel,
-          azure_config: selectedProvider === "azure_openai" ? azureConfig : null,
-          langdock_config: selectedProvider === "langdock" ? langdockConfig : undefined,
+          model: kpModel,
+          azure_config: kpProvider === "azure_openai" ? azureConfig : null,
+          langdock_config: kpProvider === "langdock" ? langdockConfig : undefined,
           transcript: transcriptText,
           speakers,
         });
@@ -271,7 +300,7 @@ export default function Home() {
         setIsExtractingKeyPoints(false);
       }
     },
-    [getKey, selectedProvider, selectedModel, azureConfig, langdockConfig, applyRenames],
+    [resolveModelConfig, getKey, azureConfig, langdockConfig, applyRenames],
   );
 
   const handleAutoExtractKeyPoints = useCallback(
@@ -378,9 +407,11 @@ export default function Home() {
 
   // Step 2 → 3: generate summary
   const handleGenerate = useCallback(async () => {
-    const llmKey = getKey(selectedProvider);
+    const { provider: summaryProvider, model: summaryModel } =
+      resolveModelConfig("summary_generation");
+    const llmKey = getKey(summaryProvider);
     if (!llmKey) {
-      toast.error(`Please add your ${selectedProvider} API key in Settings.`);
+      toast.error(`Please add your ${summaryProvider} API key in Settings.`);
       setSettingsOpen(true);
       return;
     }
@@ -396,11 +427,11 @@ export default function Home() {
     try {
       await createSummary(
         {
-          provider: selectedProvider,
+          provider: summaryProvider,
           api_key: llmKey,
-          model: selectedModel,
-          azure_config: selectedProvider === "azure_openai" ? azureConfig : null,
-          langdock_config: selectedProvider === "langdock" ? langdockConfig : undefined,
+          model: summaryModel,
+          azure_config: summaryProvider === "azure_openai" ? azureConfig : null,
+          langdock_config: summaryProvider === "langdock" ? langdockConfig : undefined,
           stream: true,
           system_prompt: selectedPrompt,
           text: transcript,
@@ -425,9 +456,8 @@ export default function Home() {
       setIsGenerating(false);
     }
   }, [
+    resolveModelConfig,
     getKey,
-    selectedProvider,
-    selectedModel,
     azureConfig,
     langdockConfig,
     selectedPrompt,
@@ -503,7 +533,17 @@ export default function Home() {
     setPendingStep(null);
   }, []);
 
-  const hasLlmKey = hasKey(selectedProvider);
+  // Derived resolved configs for each LLM feature
+  const resolvedSummaryConfig =
+    featureOverrides["summary_generation"] ?? { provider: selectedProvider, model: selectedModel };
+  const resolvedRealtimeConfig =
+    featureOverrides["realtime_summary"] ?? { provider: selectedProvider, model: selectedModel };
+  const resolvedPromptAssistantConfig =
+    featureOverrides["prompt_assistant"] ?? { provider: selectedProvider, model: selectedModel };
+  const resolvedLiveQuestionsConfig =
+    featureOverrides["live_question_evaluation"] ?? { provider: selectedProvider, model: selectedModel };
+
+  const hasLlmKey = hasKey(resolvedSummaryConfig.provider);
   const hasAssemblyAiKey = hasKey("assemblyai");
 
   // Config loading state
@@ -568,6 +608,8 @@ export default function Home() {
         realtimeSystemPrompt={realtimeSystemPrompt}
         onRealtimeSystemPromptChange={handleRealtimeSystemPromptChange}
         defaultRealtimeSystemPrompt={DEFAULT_REALTIME_SYSTEM_PROMPT}
+        featureOverrides={featureOverrides}
+        onFeatureOverridesChange={handleFeatureOverridesChange}
       />
 
       <div className="mx-auto max-w-6xl px-4 md:px-6">
@@ -603,8 +645,8 @@ export default function Home() {
           <div className="step-content space-y-6 pb-8">
             <RealtimeMode
               config={config}
-              selectedProvider={selectedProvider}
-              selectedModel={selectedModel}
+              selectedProvider={resolvedRealtimeConfig.provider}
+              selectedModel={resolvedRealtimeConfig.model}
               azureConfig={azureConfig}
               langdockConfig={langdockConfig}
               selectedLanguage={selectedLanguage}
@@ -617,6 +659,8 @@ export default function Home() {
               summaryInterval={realtimeSummaryInterval}
               realtimeFinalSummaryEnabled={realtimeFinalSummaryEnabled}
               realtimeSystemPrompt={realtimeSystemPrompt}
+              liveQuestionsProvider={resolvedLiveQuestionsConfig.provider}
+              liveQuestionsModel={resolvedLiveQuestionsConfig.model}
             />
           </div>
         ) : (
@@ -718,13 +762,13 @@ export default function Home() {
                     meetingDate={meetingDate}
                     onMeetingDateChange={setMeetingDate}
                     onGenerate={handleGenerate}
-                    generateDisabled={!transcript || !hasLlmKey || !selectedModel}
+                    generateDisabled={!transcript || !hasLlmKey || !resolvedSummaryConfig.model}
                     generating={isGenerating}
-                    hasLlmKey={hasLlmKey}
+                    hasLlmKey={hasKey(resolvedPromptAssistantConfig.provider)}
                     onOpenSettings={() => setSettingsOpen(true)}
-                    llmProvider={selectedProvider}
-                    llmApiKey={hasLlmKey ? (getKey(selectedProvider) ?? "") : ""}
-                    llmModel={selectedModel}
+                    llmProvider={resolvedPromptAssistantConfig.provider}
+                    llmApiKey={hasKey(resolvedPromptAssistantConfig.provider) ? (getKey(resolvedPromptAssistantConfig.provider) ?? "") : ""}
+                    llmModel={resolvedPromptAssistantConfig.model}
                     llmAzureConfig={azureConfig}
                     llmLangdockConfig={langdockConfig}
                   />

@@ -139,6 +139,28 @@ export interface PromptAssistantGenerateResponse {
   generated_prompt: string;
 }
 
+// === Feature Model Override types ===
+
+export type LLMFeature =
+  | "summary_generation"
+  | "realtime_summary"
+  | "key_point_extraction"
+  | "prompt_assistant"
+  | "live_question_evaluation";
+
+export const LLM_FEATURE_LABELS: Record<LLMFeature, string> = {
+  summary_generation: "Summary Generation",
+  realtime_summary: "Realtime Summary",
+  key_point_extraction: "Key Point Extraction",
+  prompt_assistant: "Prompt Assistant",
+  live_question_evaluation: "Live Question Evaluation",
+};
+
+export interface FeatureModelOverride {
+  provider: LLMProvider;
+  model: string;
+}
+
 // === Realtime types ===
 
 export type RealtimeConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
@@ -172,4 +194,35 @@ export interface IncrementalSummaryRequest {
 export interface IncrementalSummaryResponse {
   summary: string;
   updated_at: string;
+}
+
+// === Live Questions types ===
+
+export interface LiveQuestion {
+  id: string;
+  question: string;
+  status: "unanswered" | "answered";
+  answer?: string;
+  answeredAtTranscriptLength?: number;
+  createdAt: number;
+}
+
+export interface EvaluateQuestionsRequest {
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  azure_config?: AzureConfig;
+  langdock_config?: LangdockConfig;
+  transcript: string;
+  questions: { id: string; question: string }[];
+}
+
+export interface QuestionEvaluation {
+  id: string;
+  answered: boolean;
+  answer?: string;
+}
+
+export interface EvaluateQuestionsResponse {
+  evaluations: QuestionEvaluation[];
 }

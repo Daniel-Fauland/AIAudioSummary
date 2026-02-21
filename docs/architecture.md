@@ -90,19 +90,22 @@ project-root/
 │   │   ├── llm/router.py          #   POST /createSummary
 │   │   ├── misc/router.py         #   GET /getConfig, POST /getSpeakers, POST /updateSpeakers
 │   │   ├── realtime/router.py    #   WS /ws/realtime, POST /createIncrementalSummary
-│   │   └── prompt_assistant/router.py  #   POST /prompt-assistant/analyze, POST /prompt-assistant/generate
+│   │   ├── prompt_assistant/router.py  #   POST /prompt-assistant/analyze, POST /prompt-assistant/generate
+│   │   └── live_questions/router.py    #   POST /live-questions/evaluate
 │   ├── service/                    # Service layer (business logic)
 │   │   ├── assembly_ai/core.py    #   AssemblyAIService
 │   │   ├── llm/core.py            #   LLMService (multi-provider)
 │   │   ├── misc/core.py           #   MiscService (speakers, dates)
 │   │   ├── realtime/             #   RealtimeTranscriptionService, SessionManager
-│   │   └── prompt_assistant/core.py  #   PromptAssistantService (analyze + generate)
+│   │   ├── prompt_assistant/core.py  #   PromptAssistantService (analyze + generate)
+│   │   └── live_questions/core.py    #   LiveQuestionsService (strict LLM evaluation)
 │   ├── models/                     # Pydantic request/response models
 │   │   ├── assemblyai.py
 │   │   ├── config.py
 │   │   ├── llm.py
 │   │   ├── realtime.py            #   IncrementalSummaryRequest/Response
-│   │   └── prompt_assistant.py    #   AssistantQuestion, AnalyzeRequest/Response, GenerateRequest/Response
+│   │   ├── prompt_assistant.py    #   AssistantQuestion, AnalyzeRequest/Response, GenerateRequest/Response
+│   │   └── live_questions.py      #   EvaluateQuestionsRequest/Response, QuestionInput, QuestionEvaluation
 │   ├── utils/
 │   │   ├── helper.py              # File listing & reading utilities
 │   │   └── logging.py             # Logger configuration
@@ -129,6 +132,7 @@ project-root/
 │   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm
 │   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor (+ Prompt Assistant trigger), SummaryView
 │   │   │   ├── realtime/          # RealtimeMode, RealtimeControls, RealtimeTranscriptView, RealtimeSummaryView, ConnectionStatus
+│   │   │   ├── live-transcript/   # LiveQuestions, LiveQuestionItem, AddQuestionInput, useLiveQuestions hook
 │   │   │   ├── prompt-assistant/  # PromptAssistantModal, StepBasePrompt, StepQuestions, StepSummary, StepResult, QuestionField, usePromptAssistant hook
 │   │   │   └── ui/                 # shadcn/ui primitives + AudioPlayer composite component
 │   │   ├── hooks/
@@ -346,6 +350,7 @@ Key models:
 | `models/assemblyai.py`       | `CreateTranscriptResponse`                                                                       |
 | `models/realtime.py`         | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                                        |
 | `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest`, `AnalyzeResponse` (incl. `suggested_target_system`), `GenerateRequest/Response` |
+| `models/live_questions.py`   | `QuestionInput`, `EvaluateQuestionsRequest`, `QuestionEvaluation`, `EvaluateQuestionsResponse`                                                    |
 
 ### Configuration & Environment
 
@@ -550,9 +555,12 @@ RootLayout (layout.tsx)
         │   └── Settings gear icon
         ├── SettingsSheet (right-side drawer, 380px)
         │   ├── ApiKeyManager          ← uses useApiKeys() hook
-        │   ├── ProviderSelector
-        │   ├── ModelSelector           ← dropdown or free-text input
-        │   └── AzureConfigForm        ← only if provider is azure_openai
+        │   ├── ProviderSelector       ← "Default AI Model" section
+        │   ├── ModelSelector          ← dropdown or free-text input
+        │   ├── AzureConfigForm        ← only if provider is azure_openai
+        │   └── FeatureModelOverrides  ← collapsible per-feature model overrides
+        │       ├── FeatureModelRow    ← one row per LLMFeature
+        │       └── FeatureModelConfigModal ← dialog: ProviderSelector + ModelSelector + config form
         ├── Mode Tab Bar               ← [Standard] [Realtime] toggle
         │
         ├── (Standard mode):
@@ -622,6 +630,7 @@ All application state lives in `page.tsx` using `useState`. There is no global s
 | Selected model    | Yes (localStorage) | `aias:v1:model:{provider}`  |
 | App mode          | Yes (localStorage) | `aias:v1:app_mode`          |
 | Realtime interval | Yes (localStorage) | `aias:v1:realtime_interval` |
+| Feature overrides | Yes (localStorage) | `aias:v1:feature_overrides` |
 | Workflow state    | No                 | -                           |
 | Prompt/language   | No                 | -                           |
 | Realtime session  | No (hook state)    | -                           |
@@ -654,6 +663,7 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 | `createIncrementalSummary()`   | POST   | `/createIncrementalSummary`  | `IncrementalSummaryResponse`                  |
 | `analyzePrompt()`              | POST   | `/prompt-assistant/analyze`  | `PromptAssistantAnalyzeResponse`              |
 | `generatePrompt()`             | POST   | `/prompt-assistant/generate` | `PromptAssistantGenerateResponse`             |
+| `evaluateLiveQuestions()`      | POST   | `/live-questions/evaluate`   | `EvaluateQuestionsResponse`                   |
 
 Error handling: `ApiError` class with `status` and `message`. The `handleResponse<T>()` helper extracts `detail` from FastAPI error JSON. Use `getErrorMessage(error, context)` from `lib/errors.ts` in catch blocks to map `ApiError` status codes to user-friendly toast messages — never show raw backend error strings to the user.
 
@@ -720,6 +730,7 @@ Key prefix: `aias:v1:` — all localStorage operations use safe try/catch wrappe
 | `aias:v1:model:{provider}`      | Selected model per provider     |
 | `aias:v1:app_mode`              | App mode (`standard` or `realtime`) |
 | `aias:v1:realtime_interval`     | Realtime auto-summary interval (minutes: 1/2/3/5/10) |
+| `aias:v1:feature_overrides`     | JSON: per-feature model overrides (`Partial<Record<LLMFeature, FeatureModelOverride>>`); features: `summary_generation`, `realtime_summary`, `key_point_extraction`, `prompt_assistant`, `live_question_evaluation` |
 
 ### Styling & Theme
 

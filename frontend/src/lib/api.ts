@@ -3,6 +3,8 @@ import type {
   CreateSummaryRequest,
   CreateSummaryResponse,
   CreateTranscriptResponse,
+  EvaluateQuestionsRequest,
+  EvaluateQuestionsResponse,
   ExtractKeyPointsRequest,
   ExtractKeyPointsResponse,
   GetSpeakersResponse,
@@ -187,4 +189,15 @@ export async function generatePrompt(
     body: JSON.stringify(request),
   });
   return handleResponse<PromptAssistantGenerateResponse>(response);
+}
+
+export async function evaluateLiveQuestions(
+  request: EvaluateQuestionsRequest,
+): Promise<EvaluateQuestionsResponse> {
+  const response = await fetch(`${API_BASE}/live-questions/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<EvaluateQuestionsResponse>(response);
 }

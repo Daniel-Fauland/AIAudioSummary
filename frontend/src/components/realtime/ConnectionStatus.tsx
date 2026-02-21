@@ -1,5 +1,6 @@
 "use client";
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { RealtimeConnectionStatus } from "@/lib/types";
 
 interface ConnectionStatusProps {
@@ -14,11 +15,21 @@ const statusLabels: Record<RealtimeConnectionStatus, string> = {
   error: "Error",
 };
 
+const statusClasses: Record<RealtimeConnectionStatus, string> = {
+  connected: "bg-success",
+  connecting: "bg-warning animate-pulse",
+  reconnecting: "bg-warning animate-pulse",
+  disconnected: "bg-foreground-muted",
+  error: "bg-destructive",
+};
+
 export function ConnectionStatus({ status }: ConnectionStatusProps) {
   return (
-    <div className="flex items-center gap-2">
-      <span className={`connection-dot ${status}`} />
-      <span className="text-xs text-foreground-secondary">{statusLabels[status]}</span>
-    </div>
+    <Tooltip>
+      <TooltipTrigger className="flex items-center cursor-default focus:outline-none">
+        <div className={`h-2.5 w-2.5 rounded-full ${statusClasses[status]}`} />
+      </TooltipTrigger>
+      <TooltipContent>{statusLabels[status]}</TooltipContent>
+    </Tooltip>
   );
 }
