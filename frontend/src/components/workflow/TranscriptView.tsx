@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2, Copy, Maximize2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -82,20 +83,29 @@ export function TranscriptView({
         <CardTitle className="text-lg">Transcript</CardTitle>
         <div className="flex items-center gap-2">
           {transcript && !readOnly ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setClearDialogOpen(true)}
-              title="Clear transcript"
-              className="hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setClearDialogOpen(true)}
+                  className="hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear transcript</TooltipContent>
+            </Tooltip>
           ) : null}
           {transcript ? (
-            <Button variant="ghost" size="icon" onClick={handleCopy} title="Copy transcript">
-              <Copy className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={handleCopy}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Copy transcript</TooltipContent>
+            </Tooltip>
           ) : null}
           {transcript ? (
             <Button

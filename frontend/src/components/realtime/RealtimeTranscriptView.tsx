@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface RealtimeTranscriptViewProps {
   accumulatedTranscript: string;
@@ -62,20 +63,29 @@ export function RealtimeTranscriptView({
         <CardTitle className="text-lg">Live Transcript</CardTitle>
         <div className="flex items-center gap-1">
           {accumulatedTranscript && (
-            <Button variant="ghost" size="icon" onClick={onCopy} title="Copy transcript">
-              <Copy className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={onCopy}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Copy transcript</TooltipContent>
+            </Tooltip>
           )}
           {accumulatedTranscript && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden md:inline-flex"
-              onClick={() => setFullscreen(true)}
-              title="Full screen"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden md:inline-flex"
+                  onClick={() => setFullscreen(true)}
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Full screen</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </CardHeader>

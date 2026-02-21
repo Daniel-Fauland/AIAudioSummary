@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { PromptTemplate, LanguageOption } from "@/lib/types";
 
 interface PromptEditorProps {
@@ -287,14 +288,18 @@ export function PromptEditor({
               </Button>
             ) : null}
             {isCustomSelected ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setDeleteDialogOpen(true)}
-                title="Delete custom template"
-              >
-                <Trash2 className="h-4 w-4 text-foreground-muted" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4 text-foreground-muted" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete custom template</TooltipContent>
+              </Tooltip>
             ) : null}
           </div>
 
@@ -375,7 +380,7 @@ export function PromptEditor({
             <Button
               onClick={onGenerate}
               disabled={generateDisabled || generating || !selectedPrompt.trim()}
-              className="h-11 w-full sm:w-auto hover:bg-primary/75"
+              className="h-11 w-full sm:w-auto"
             >
               {generating ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

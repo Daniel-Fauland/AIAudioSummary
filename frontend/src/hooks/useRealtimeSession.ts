@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import { createIncrementalSummary } from "@/lib/api";
 import type {
   RealtimeConnectionStatus,
@@ -47,6 +48,7 @@ export function useRealtimeSession() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const displayStreamRef = useRef<MediaStream | null>(null);
   const summaryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const summaryCountRef = useRef(0);
@@ -82,6 +84,10 @@ export function useRealtimeSession() {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+    }
+    if (displayStreamRef.current) {
+      displayStreamRef.current.getTracks().forEach((t) => t.stop());
+      displayStreamRef.current = null;
     }
   }, []);
 
@@ -203,7 +209,7 @@ export function useRealtimeSession() {
   }, []);
 
   // --- Exposed functions ---
-  const startSession = useCallback(async (assemblyAiKey: string, deviceId?: string) => {
+  const startSession = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic") => {
     setConnectionStatus("connecting");
     setIsSessionEnded(false);
 
@@ -211,37 +217,83 @@ export function useRealtimeSession() {
     setSessionId(newSessionId);
 
     try {
-      // 1. Get microphone stream
-      const constraints: MediaStreamConstraints = {
-        audio: deviceId
-          ? { deviceId: { exact: deviceId } }
-          : true,
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-
-      // 2. Create AudioContext and ensure it's running
+      // 1. Create AudioContext and AudioWorklet (common setup)
       const audioContext = new AudioContext({ sampleRate: 48000 });
       await audioContext.resume();
       audioContextRef.current = audioContext;
 
-      // 3. Load AudioWorklet
       await audioContext.audioWorklet.addModule("/pcm-worklet-processor.js");
 
-      // 4. Create worklet node and connect
       const workletNode = new AudioWorkletNode(audioContext, "pcm-worklet-processor");
       workletNodeRef.current = workletNode;
-
-      const source = audioContext.createMediaStreamSource(stream);
-      source.connect(workletNode);
       workletNode.connect(audioContext.destination);
 
-      // 6. Open WebSocket
+      if (recordMode === "meeting") {
+        // 2a. Get system audio via screen share
+        let displayStream: MediaStream;
+        try {
+          displayStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: true,
+          });
+        } catch {
+          // User cancelled the screen-share dialog — return silently
+          setConnectionStatus("disconnected");
+          cleanupAudio();
+          return;
+        }
+
+        // Stop video tracks — only need audio
+        displayStream.getVideoTracks().forEach((t) => t.stop());
+        displayStreamRef.current = displayStream;
+
+        if (displayStream.getAudioTracks().length === 0) {
+          displayStream.getTracks().forEach((t) => t.stop());
+          displayStreamRef.current = null;
+          toast.error("No audio was shared. Make sure to check 'Share audio' in the share dialog.");
+          setConnectionStatus("disconnected");
+          cleanupAudio();
+          return;
+        }
+
+        // 2b. Get mic stream separately
+        let micStream: MediaStream;
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({
+            audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+          });
+        } catch {
+          displayStream.getTracks().forEach((t) => t.stop());
+          displayStreamRef.current = null;
+          toast.error("Microphone permission denied. Please allow microphone access in your browser settings.");
+          setConnectionStatus("disconnected");
+          cleanupAudio();
+          return;
+        }
+        streamRef.current = micStream;
+
+        // 2c. Connect both sources to the worklet (Web Audio mixes them automatically)
+        const micSource = audioContext.createMediaStreamSource(micStream);
+        const sysSource = audioContext.createMediaStreamSource(displayStream);
+        micSource.connect(workletNode);
+        sysSource.connect(workletNode);
+      } else {
+        // 2a. Mic-only path
+        const constraints: MediaStreamConstraints = {
+          audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = stream;
+
+        const source = audioContext.createMediaStreamSource(stream);
+        source.connect(workletNode);
+      }
+
+      // 3. Open WebSocket
       const ws = new WebSocket(`${WS_URL}/ws/realtime`);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        // 7. Send init message
         ws.send(JSON.stringify({
           api_key: assemblyAiKey,
           session_id: newSessionId,
@@ -261,14 +313,14 @@ export function useRealtimeSession() {
         }
       };
 
-      // 5. On worklet message: send binary frame over WebSocket
+      // 4. Send audio frames over WebSocket
       workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(e.data);
         }
       };
 
-      // 9. Start elapsed time counter
+      // 5. Start elapsed time counter
       setElapsedTime(0);
       setSummaryCountdown(summaryIntervalRef.current * 60);
       elapsedTimerRef.current = setInterval(() => {
@@ -278,7 +330,7 @@ export function useRealtimeSession() {
         }
       }, 1000);
 
-      // 10. Start summary timer
+      // 6. Start summary timer
       summaryIntervalRef.current = summaryInterval;
       startSummaryTimer(summaryInterval);
 
@@ -293,6 +345,9 @@ export function useRealtimeSession() {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => { t.enabled = false; });
     }
+    if (displayStreamRef.current) {
+      displayStreamRef.current.getTracks().forEach((t) => { t.enabled = false; });
+    }
     isPausedRef.current = true;
     // Stop summary timer while paused
     if (summaryTimerRef.current) {
@@ -305,6 +360,9 @@ export function useRealtimeSession() {
   const resumeSession = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => { t.enabled = true; });
+    }
+    if (displayStreamRef.current) {
+      displayStreamRef.current.getTracks().forEach((t) => { t.enabled = true; });
     }
     isPausedRef.current = false;
     // Restart summary timer on resume

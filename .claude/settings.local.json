@@ -42,7 +42,8 @@
       "WebFetch(domain:www.assemblyai.com)",
       "Bash(python:*)",
       "Bash(timeout 5 uv run:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:docs.langdock.com)"
     ]
   }
 }

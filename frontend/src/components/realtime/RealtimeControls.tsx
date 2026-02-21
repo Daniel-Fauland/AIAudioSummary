@@ -10,6 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ConnectionStatus } from "./ConnectionStatus";
 import type { RealtimeConnectionStatus } from "@/lib/types";
 
@@ -46,12 +51,14 @@ interface RealtimeControlsProps {
   isSummaryUpdating: boolean;
   hasTranscript: boolean;
   hasSummary: boolean;
+  recordMode: "mic" | "meeting";
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
   onManualSummary: () => void;
   onMicChange: (deviceId: string) => void;
+  onRecordModeChange: (mode: "mic" | "meeting") => void;
   disabled?: boolean;
 }
 
@@ -70,16 +77,19 @@ export function RealtimeControls({
   isSummaryUpdating,
   hasTranscript,
   hasSummary,
+  recordMode,
   onStart,
   onPause,
   onResume,
   onStop,
   onManualSummary,
   onMicChange,
+  onRecordModeChange,
   disabled,
 }: RealtimeControlsProps) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>(getSavedMicId);
+  const [supportsSystemAudio, setSupportsSystemAudio] = useState(false);
 
   const isIdle = connectionStatus === "disconnected" && !isSessionEnded;
   const isActive = connectionStatus === "connected" || connectionStatus === "reconnecting";
@@ -132,6 +142,15 @@ export function RealtimeControls({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Detect Chromium-based browser with getDisplayMedia support (SSR-safe)
+  useEffect(() => {
+    setSupportsSystemAudio(
+      typeof window !== "undefined" &&
+        "chrome" in window &&
+        typeof navigator.mediaDevices?.getDisplayMedia === "function",
+    );
+  }, []);
+
   const handleDeviceChange = (deviceId: string) => {
     setSelectedDevice(deviceId);
     saveMicId(deviceId);
@@ -147,12 +166,16 @@ export function RealtimeControls({
             onClick={onStart}
             disabled={disabled || isConnecting}
             size="sm"
-            className="hover:bg-primary/75"
           >
             {isSessionEnded ? (
               <>
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Continue Session
+              </>
+            ) : recordMode === "meeting" ? (
+              <>
+                <Mic className="mr-2 h-4 w-4" />
+                Share Screen & Start
               </>
             ) : (
               <>
@@ -184,6 +207,46 @@ export function RealtimeControls({
           </Button>
         )}
       </div>
+
+      {/* Recording mode toggle */}
+      {isIdle && (
+        <div className="flex rounded-md border border-border text-xs">
+          <button
+            type="button"
+            onClick={() => onRecordModeChange("mic")}
+            className={`px-3 py-1.5 rounded-l-md transition-colors ${
+              recordMode === "mic"
+                ? "bg-card-elevated text-foreground"
+                : "text-foreground-muted hover:text-foreground-secondary"
+            }`}
+          >
+            Mic Only
+          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => supportsSystemAudio && onRecordModeChange("meeting")}
+                disabled={!supportsSystemAudio}
+                className={`px-3 py-1.5 rounded-r-md transition-colors ${
+                  recordMode === "meeting"
+                    ? "bg-card-elevated text-foreground"
+                    : supportsSystemAudio
+                      ? "text-foreground-muted hover:text-foreground-secondary"
+                      : "text-foreground-muted opacity-40 cursor-not-allowed"
+                }`}
+              >
+                Mic + Meeting Audio
+              </button>
+            </TooltipTrigger>
+            {!supportsSystemAudio ? (
+              <TooltipContent>
+                Only supported on Chromium-based browsers like Google Chrome, Brave, or Edge
+              </TooltipContent>
+            ) : null}
+          </Tooltip>
+        </div>
+      )}
 
       {/* Mic selector */}
       {(isIdle || isSessionEnded) && devices.length >= 2 && (

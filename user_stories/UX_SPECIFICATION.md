@@ -121,6 +121,13 @@ This document defines all visual design decisions for the Next.js + shadcn/ui fr
 | **Gap between cards** | `16px` (`gap-4`) |
 | **Section gap** | `24px` (`gap-6`) between major blocks |
 
+### Vertical spacing between page sections (Standard mode)
+
+| Gap | Value | Notes |
+|-----|-------|-------|
+| Mode switcher → Step Indicator | `16px` (`mb-4` on switcher) | Step Indicator has `py-6` built-in |
+| Inner tabs (Upload/Record) → content card | `12px` (`space-y-3`) | Tighter than other gaps |
+
 ### Breakpoints
 
 | Name | Width | Behavior |
@@ -159,16 +166,28 @@ This document defines all visual design decisions for the Next.js + shadcn/ui fr
 
 - **Glow on active**: `box-shadow: 0 0 0 4px rgba(252, 82, 11, 0.2)`
 
+### 5.2.5 Mode Switcher
+
+The top-level **Standard / Realtime** switch uses a **pill-style segmented control**, not underlined tabs. This differentiates it visually from the inner Upload File / Record Audio tab bar.
+
+- **Container**: `inline-flex rounded-lg border border-border bg-card-elevated p-1`, centered horizontally below the header
+- **Each segment**: `rounded-md px-4 py-1.5 text-sm font-medium transition-colors`
+- **Active segment**: `bg-primary text-primary-foreground`
+- **Inactive segment**: `bg-transparent text-foreground-muted hover:text-foreground-secondary`
+- Persisted to localStorage (`aias:v1:app_mode`)
+
+---
+
 ### 5.3 Step 1 Input Area
 
-Step 1 has two modes toggled via a tab bar directly above the content zone:
+Step 1 has two modes toggled via a **tab bar** directly above the content zone:
 
 - **Tab bar**: Two text buttons — "Upload File" and "Record Audio"
 - **Active tab**: `--primary` bottom border (`border-b-2 border-primary`), `--foreground` text
 - **Inactive tab**: No border, `--foreground-muted` text, transitions to `--foreground-secondary` on hover
 - **Transition**: `150ms ease` color change
 
-Below the tab bar is the shared **"I already have a transcript — skip upload"** link, centered, `--foreground-muted` underlined text.
+The **"I already have a transcript — skip upload"** link is placed **inside the content card**, at the very bottom, separated from the card content by `border-t border-border pt-4`. It is centered, `text-sm text-foreground-muted underline`.
 
 #### 5.3.1 Upload File mode
 
@@ -191,14 +210,14 @@ Below the tab bar is the shared **"I already have a transcript — skip upload"*
 
 #### 5.3.2 Record Audio mode
 
-Same container style as Upload (`2px dashed --border`, `--card` bg, `240px` min height, `8px` border radius). The interior changes based on recorder state:
+Container uses a **solid** `1px` border (not dashed — dashed is reserved for Upload File drop zones). `--card` bg, `240px` min height, `8px` border radius. The interior changes based on recorder state:
 
 | State | Container border/bg | Interior content |
 |-------|---------------------|-----------------|
-| **Idle** | `--border` dashed / `--card` | `Mic` icon (48px, `--foreground-muted`), instruction text, usage hint, mode toggle (Chromium only), optional mic selector, start button |
-| **Recording** | `--border-accent` dashed / `--primary-muted` | Pulsing red dot + MM:SS timer (monospace, `text-lg`), live waveform canvas, "Pause" (secondary) + "Stop" (destructive) buttons |
-| **Paused** | `--border` dashed / `--card` | Gray dot + MM:SS timer + "Paused" label (`--foreground-muted`), static waveform, "Resume" (secondary) + "Stop" (destructive) buttons |
-| **Done** | `--border` dashed / `--card` | Final duration label, static waveform, AudioPlayer, "Record Again" (ghost) + "Download" (secondary) + "Use for Transcript" (primary) buttons |
+| **Idle** | `1px solid --border` / `--card` | `Mic` icon (48px), instruction text, usage hint, Audio Source label + toggle, optional mic selector, start button, skip link |
+| **Recording** | `1px solid --border-accent` / `--primary-muted` | Pulsing red dot + MM:SS timer (monospace, `text-lg`), live waveform canvas, "Pause" (secondary) + "Stop" (destructive) buttons |
+| **Paused** | `1px solid --border` / `--card` | Gray dot + MM:SS timer + "Paused" label (`--foreground-muted`), static waveform, "Resume" (secondary) + "Stop" (destructive) buttons |
+| **Done** | `1px solid --border` / `--card` | Final duration label, static waveform, AudioPlayer, "Record Again" (ghost) + "Download" (secondary) + "Use for Transcript" (primary) buttons |
 
 **Idle state layout** (top to bottom, center-aligned):
 1. `Mic` icon (48px, `--foreground-muted`)
@@ -208,9 +227,11 @@ Same container style as Upload (`2px dashed --border`, `--card` bg, `240px` min 
 3. Usage hint (`--foreground-muted`, `text-xs`) — changes per mode:
    - Mic Only: *"Best used when playing audio through speakers"*
    - Mic + Meeting Audio: *"Best used with headphones to avoid mic feedback"*
-4. **Recording mode toggle** (see below)
-5. Mic selector dropdown (when ≥ 2 devices)
-6. Start button (label changes per mode)
+4. **"Audio Source" label** (`text-xs font-medium text-foreground-muted`, centered above toggle)
+5. **Recording mode toggle** (see below)
+6. Mic selector dropdown (when ≥ 2 devices) — dropdown only, no prefix icon
+7. Start button — text only, no icon (label changes per mode)
+8. `border-t border-border` divider + **"I already have a transcript — skip upload"** link (centered, `--foreground-muted underline`)
 
 **Recording mode toggle** (segmented control, always visible):
 - Container: `flex rounded-md border border-border text-xs`
@@ -220,7 +241,7 @@ Same container style as Upload (`2px dashed --border`, `--card` bg, `240px` min 
 - Defaults to "Mic Only" on every page load (no persistence)
 - **"Mic + Meeting Audio"** is only enabled on Chromium-based browsers (Chrome, Brave, Edge). On other browsers (Firefox, Safari) it is rendered but visually disabled (`opacity-40 cursor-not-allowed`). Hovering the disabled segment shows a Radix `Tooltip` with the message: *"Only supported on Chromium-based browsers like Google Chrome, Brave, or Edge"*. Tooltip delay: `100ms`.
 
-**Start button label**:
+**Start button**: Text only, no icon.
 - Mic Only: "Start Recording"
 - Mic + Meeting Audio: "Share Screen & Record"
 
@@ -239,7 +260,7 @@ Same container style as Upload (`2px dashed --border`, `--card` bg, `240px` min 
 - In meeting mode, both mic and system audio feed the same `AnalyserNode`
 
 **Microphone selector** (shown in idle state only when ≥ 2 audio input devices are detected):
-- Layout: small `Mic` icon + shadcn `Select` dropdown, `max-w-xs`, sits between the mode toggle and the start button
+- Layout: shadcn `Select` dropdown, `w-52`, sits between the mode toggle and the start button — no prefix icon
 - Dropdown lists real device labels after mic permission is granted; falls back to "Microphone 1", "Microphone 2", etc. before permission
 - Updates automatically on `devicechange` events (plug/unplug)
 - Shown in both Mic Only and Mic + Meeting Audio modes
@@ -277,10 +298,60 @@ Custom dark-themed playback widget used in the AudioRecorder "done" state. Imple
 
 - **Layout**: Inline with the transcript, below it on both mobile and desktop
 - **Container**: Card with `--border` border
-- **"Detect Speakers" button**: Secondary variant (outline)
-- **Mapping rows**: Each row shows `Speaker Label → [Input Field]` inline
-- **Arrow**: `→` character or `ArrowRight` Lucide icon in `--foreground-muted`
-- **"Apply Names" button**: Primary variant (`--primary` background)
+
+#### Card header
+
+- **Title**: "Speaker Mapping" (`text-lg`)
+- **"Generate Key Points" button** (right-aligned, `variant="outline" size="sm"`):
+  - Hidden when the Key Points feature is disabled in Settings (`keyPointsEnabled=false`) or no speakers detected yet
+  - States:
+    - Idle (no key points yet): `Sparkles` icon + "Generate Key Points" text
+    - Loading: `Loader2` spinner (animate-spin) + "Generating..." text, button disabled
+    - After key points loaded: `RefreshCw` icon + "Regenerate" text
+  - On mobile (< 768px): icon only (no text label)
+- **"Expand All / Collapse All" link** (below the title, `variant="link" size="sm" text-xs text-foreground-muted`):
+  - Only visible after key points have been generated
+  - Toggles between "Expand All" and "Collapse All" based on current state
+  - "Expand All" expands all rows that have key points
+  - "Collapse All" collapses all rows
+
+#### Speaker rows (expandable)
+
+Each speaker row is an accordion item. Layout:
+
+```
+[👤 author-toggle]  Speaker A  →  [Enter name input]  [▸ chevron]
+┌──────────────────────────────────────────────────────────────────┐
+│  Key points text (when expanded)                                 │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+- **Author toggle** (`h-8 w-8` rounded-md): `User` Lucide icon; active state = `--primary` bg; inactive = `--card-elevated` bg, `--foreground-muted` icon
+- **Speaker label**: `min-w-[100px] text-sm font-medium text-foreground-secondary`
+- **Arrow**: `ArrowRight` in `--foreground-muted`
+- **Name input**: `flex-1`, `--card-elevated` background, placeholder "Enter name"
+- **Chevron** (`Button variant="ghost" size="icon" h-8 w-8`):
+  - Hidden when no key points exist and not loading (`showChevrons = false`)
+  - Disabled when key points are loading and this speaker has no points yet
+  - `ChevronRight` when collapsed, `ChevronDown` when expanded
+  - Color: `--foreground-muted`, transitions to `--foreground` on hover
+
+**Collapsible key points panel** (below the row, `transition-all duration-200` via CSS grid height animation):
+- Container: `rounded-md bg-card-elevated p-3 mx-2 mt-2 mb-1`
+- Text: `text-sm leading-relaxed text-foreground-secondary`
+- Text wraps naturally; no truncation or scroll
+
+#### Row state behavior
+
+| Situation | Chevrons | Rows | Content |
+|-----------|----------|------|---------|
+| No key points yet | Hidden | Collapsed | — |
+| Loading key points | Visible, disabled | Collapsed | — |
+| Key points received | Visible, enabled | **Auto-expand all** rows that have key points | Key points text |
+| User collapses a row | — | Collapsed | — |
+| User clicks "Regenerate" | Visible, disabled | All collapse | Loading then auto-expand again |
+
+- **"Apply Names" button**: Primary variant (`--primary` background), full width on mobile
 
 ### 5.6 Prompt Editor (Step 2, below transcript/speakers)
 
@@ -426,6 +497,7 @@ Step transition implementation:
 |-----------|------------------|-----------------|
 | **Header** | Full app name + settings icon | Same (app name may truncate) |
 | **Step indicator** | Icons + labels + lines | Icons + lines (labels abbreviated or hidden) |
+| **Mode switcher** | Centered segmented control (Standard / Realtime) | Same |
 | **Step 1 tab toggle** | "Upload File" / "Record Audio" tabs visible | Same |
 | **File upload** | Centered in content area | Full width |
 | **Audio recorder** | Centered in content area, mic selector visible when ≥2 mics | Full width, mic selector visible when ≥2 mics |

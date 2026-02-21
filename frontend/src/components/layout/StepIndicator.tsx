@@ -4,6 +4,8 @@ import { Upload, FileText, Sparkles } from "lucide-react";
 
 interface StepIndicatorProps {
   currentStep: 1 | 2 | 3;
+  maxReachedStep: 1 | 2 | 3;
+  onStepClick: (step: 1 | 2 | 3) => void;
 }
 
 const steps = [
@@ -12,20 +14,38 @@ const steps = [
   { label: "Summary", icon: Sparkles },
 ] as const;
 
-export function StepIndicator({ currentStep }: StepIndicatorProps) {
+export function StepIndicator({ currentStep, maxReachedStep, onStepClick }: StepIndicatorProps) {
   return (
     <div className="flex items-center justify-center gap-0 py-6">
       {steps.map((step, index) => {
         const stepNumber = (index + 1) as 1 | 2 | 3;
         const isCompleted = stepNumber < currentStep;
         const isActive = stepNumber === currentStep;
+        const isClickable = !isActive && stepNumber <= maxReachedStep;
         const Icon = step.icon;
 
         return (
           <div key={step.label} className="flex items-start">
             <div className="flex flex-col items-center gap-2">
               <div
+                role={isClickable ? "button" : undefined}
+                tabIndex={isClickable ? 0 : undefined}
+                onClick={isClickable ? () => onStepClick(stepNumber) : undefined}
+                onKeyDown={
+                  isClickable
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onStepClick(stepNumber);
+                        }
+                      }
+                    : undefined
+                }
                 className={`flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300 ${
+                  isClickable
+                    ? "cursor-pointer hover:opacity-80 hover:ring-2 hover:ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                    : ""
+                } ${
                   isCompleted
                     ? "bg-primary text-white"
                     : isActive

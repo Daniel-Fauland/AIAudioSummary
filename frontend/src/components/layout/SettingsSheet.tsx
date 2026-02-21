@@ -238,7 +238,6 @@ export function SettingsSheet({
             </SheetDescription>
           </SheetHeader>
 
-          <ScrollArea className="flex-1">
           <div className="mx-4 flex items-start gap-2 rounded-md bg-info-muted p-3">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />
             <p className="text-xs text-foreground-secondary">
@@ -246,7 +245,8 @@ export function SettingsSheet({
             </p>
           </div>
 
-          <div className="space-y-6 px-4 pb-6">
+          <ScrollArea className="flex-1 min-h-0">
+          <div className="space-y-6 px-4 pt-4 pb-6">
             <Collapsible open={apiKeysOpen} onOpenChange={handleApiKeysOpen}>
               <SectionHeader>API Keys</SectionHeader>
               <CollapsibleContent>
@@ -450,7 +450,7 @@ export function SettingsSheet({
             <Button variant="ghost" onClick={cancelPrompt}>
               Cancel
             </Button>
-            <Button onClick={savePrompt} className="hover:bg-primary/75">
+            <Button onClick={savePrompt}>
               Save
             </Button>
           </DialogFooter>
@@ -474,7 +474,7 @@ export function SettingsSheet({
             {promptEditorBody(true)}
           </div>
           <div className="flex flex-col gap-2 pb-2">
-            <Button onClick={savePrompt} className="hover:bg-primary/75">
+            <Button onClick={savePrompt}>
               Save
             </Button>
             <Button variant="ghost" onClick={cancelPrompt}>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Header } from "@/components/layout/Header";
@@ -15,6 +15,14 @@ import { PromptEditor } from "@/components/workflow/PromptEditor";
 import { SummaryView } from "@/components/workflow/SummaryView";
 import { RealtimeMode } from "@/components/realtime/RealtimeMode";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useConfig } from "@/hooks/useConfig";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { useCustomTemplates } from "@/hooks/useCustomTemplates";
@@ -97,6 +105,9 @@ export default function Home() {
 
   // Workflow state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [maxReachedStep, setMaxReachedStep] = useState<1 | 2 | 3>(1);
+  const [stepNavDialogOpen, setStepNavDialogOpen] = useState(false);
+  const [pendingStep, setPendingStep] = useState<1 | 2 | 3 | null>(null);
   const [step1Mode, setStep1Mode] = useState<"upload" | "record">("upload");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -335,6 +346,7 @@ export default function Home() {
 
       setIsUploading(true);
       setCurrentStep(2);
+      setMaxReachedStep((prev) => Math.max(prev, 2) as 1 | 2 | 3);
       setIsTranscribing(true);
       hasAutoExtractedKeyPointsRef.current = false;
       speakerRenamesRef.current = {};
@@ -359,6 +371,7 @@ export default function Home() {
   // Skip upload: go directly to step 2 with empty transcript
   const handleSkipUpload = useCallback(() => {
     setCurrentStep(2);
+    setMaxReachedStep((prev) => Math.max(prev, 2) as 1 | 2 | 3);
     setTranscript("");
     setSelectedFile(null);
   }, []);
@@ -373,6 +386,7 @@ export default function Home() {
     }
 
     setCurrentStep(3);
+    setMaxReachedStep((prev) => Math.max(prev, 3) as 1 | 2 | 3);
     setIsGenerating(true);
     setSummary("");
 
@@ -438,6 +452,7 @@ export default function Home() {
 
   const handleStartOver = useCallback(() => {
     setCurrentStep(1);
+    setMaxReachedStep(1);
     setSelectedFile(null);
     setTranscript("");
     setSummary("");
@@ -447,6 +462,45 @@ export default function Home() {
     setIsGenerating(false);
     setIsTranscribing(false);
     setAuthorSpeaker(null);
+  }, []);
+
+  const handleStepClick = useCallback(
+    (step: 1 | 2 | 3) => {
+      if (step === currentStep) return;
+      if (step > maxReachedStep) return;
+      setPendingStep(step);
+      setStepNavDialogOpen(true);
+    },
+    [currentStep, maxReachedStep],
+  );
+
+  const handleStepNavConfirm = useCallback(() => {
+    if (pendingStep === null) return;
+    if (pendingStep === 1) {
+      abortControllerRef.current?.abort();
+      setCurrentStep(1);
+      setMaxReachedStep(1);
+      setSelectedFile(null);
+      setTranscript("");
+      setSummary("");
+      setSpeakerKeyPoints({});
+      hasAutoExtractedKeyPointsRef.current = false;
+      speakerRenamesRef.current = {};
+      setIsGenerating(false);
+      setIsTranscribing(false);
+      setAuthorSpeaker(null);
+    } else if (pendingStep === 2) {
+      abortControllerRef.current?.abort();
+      setIsGenerating(false);
+      setCurrentStep(2);
+    }
+    setStepNavDialogOpen(false);
+    setPendingStep(null);
+  }, [pendingStep]);
+
+  const handleStepNavCancel = useCallback(() => {
+    setStepNavDialogOpen(false);
+    setPendingStep(null);
   }, []);
 
   const hasLlmKey = hasKey(selectedProvider);
@@ -517,30 +571,32 @@ export default function Home() {
       />
 
       <div className="mx-auto max-w-6xl px-4 md:px-6">
-        {/* Mode tab bar */}
-        <div className="flex border-b border-border mt-4 mb-2">
-          <button
-            type="button"
-            onClick={() => handleModeChange("standard")}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              appMode === "standard"
-                ? "border-b-2 border-primary text-foreground -mb-px"
-                : "text-foreground-muted hover:text-foreground-secondary"
-            }`}
-          >
-            Standard
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeChange("realtime")}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              appMode === "realtime"
-                ? "border-b-2 border-primary text-foreground -mb-px"
-                : "text-foreground-muted hover:text-foreground-secondary"
-            }`}
-          >
-            Realtime
-          </button>
+        {/* Mode segmented control */}
+        <div className="flex justify-center mt-4 mb-4">
+          <div className="inline-flex rounded-lg border border-border bg-card-elevated p-1">
+            <button
+              type="button"
+              onClick={() => handleModeChange("standard")}
+              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+                appMode === "standard"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-transparent text-foreground-muted hover:text-foreground-secondary"
+              }`}
+            >
+              Standard
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange("realtime")}
+              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+                appMode === "realtime"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-transparent text-foreground-muted hover:text-foreground-secondary"
+              }`}
+            >
+              Realtime
+            </button>
+          </div>
         </div>
 
         {appMode === "realtime" ? (
@@ -565,12 +621,16 @@ export default function Home() {
           </div>
         ) : (
           <>
-        <StepIndicator currentStep={currentStep} />
+        <StepIndicator
+          currentStep={currentStep}
+          maxReachedStep={maxReachedStep}
+          onStepClick={handleStepClick}
+        />
 
         <div className="step-content space-y-6 pb-8" key={currentStep}>
           {/* Step 1: Upload or Record */}
           {currentStep === 1 ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Mode toggle */}
               <div className="flex border-b border-border">
                 <button
@@ -637,6 +697,7 @@ export default function Home() {
                     onAuthorSpeakerChange={setAuthorSpeaker}
                     keyPoints={speakerKeyPoints}
                     isExtractingKeyPoints={isExtractingKeyPoints}
+                    keyPointsEnabled={autoKeyPointsEnabled}
                     onAutoExtractKeyPoints={handleAutoExtractKeyPoints}
                     onManualExtractKeyPoints={handleManualExtractKeyPoints}
                     onKeyPointsRemap={handleKeyPointsRemap}
@@ -698,6 +759,35 @@ export default function Home() {
           </>
         )}
       </div>
+
+      {/* Step navigation confirmation dialog */}
+      <Dialog open={stepNavDialogOpen} onOpenChange={(open) => { if (!open) handleStepNavCancel(); }}>
+        <DialogContent className="max-w-sm bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
+              {pendingStep === 1 ? "Return to Upload?" : "Return to Transcript?"}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingStep === 1
+                ? currentStep === 3
+                  ? "Your transcript and generated summary will be cleared. This cannot be undone."
+                  : "Your current transcript will be cleared. This cannot be undone."
+                : isGenerating
+                  ? "Summary generation is currently in progress and will be stopped."
+                  : "You'll return to the transcript view. Your summary will be discarded if you regenerate."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={handleStepNavCancel}>
+              Cancel
+            </Button>
+            <Button onClick={handleStepNavConfirm}>
+              {pendingStep === 1 ? "Clear & Return" : "Return to Transcript"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

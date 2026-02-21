@@ -52,6 +52,7 @@ export function RealtimeMode({
   const session = useRealtimeSession();
   const [mobileTab, setMobileTab] = useState<"transcript" | "summary">("transcript");
   const [micDeviceId, setMicDeviceId] = useState<string | undefined>(undefined);
+  const [recordMode, setRecordMode] = useState<"mic" | "meeting">("mic");
 
   const isActive = session.connectionStatus === "connected" || session.connectionStatus === "reconnecting";
 
@@ -99,7 +100,7 @@ export function RealtimeMode({
       return;
     }
 
-    session.startSession(getKey("assemblyai"), micDeviceId);
+    session.startSession(getKey("assemblyai"), micDeviceId, recordMode);
   }, [hasKey, selectedProvider, getKey, micDeviceId, onOpenSettings, session]);
 
   const handleCopyTranscript = useCallback(async () => {
@@ -123,12 +124,14 @@ export function RealtimeMode({
         isSummaryUpdating={session.isSummaryUpdating}
         hasTranscript={!!session.accumulatedTranscript}
         hasSummary={!!session.realtimeSummary}
+        recordMode={recordMode}
         onStart={handleStart}
         onPause={session.pauseSession}
         onResume={session.resumeSession}
         onStop={() => session.stopSession(realtimeFinalSummaryEnabled)}
         onManualSummary={session.triggerManualSummary}
         onMicChange={setMicDeviceId}
+        onRecordModeChange={setRecordMode}
       />
 
       {/* Desktop layout: two columns */}
@@ -192,7 +195,7 @@ export function RealtimeMode({
       {/* Session ended actions */}
       {session.isSessionEnded && (
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => session.resetSession()} className="hover:bg-primary/75">
+          <Button onClick={() => session.resetSession()}>
             Start New Session
           </Button>
         </div>

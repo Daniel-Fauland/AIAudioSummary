@@ -495,46 +495,41 @@ export function AudioRecorder({
 
   // The mic selector — only shown in idle state when multiple devices exist
   const micSelector = micDevices.length > 1 && (
-    <div className="flex items-center gap-2">
-      <Mic className="h-4 w-4 shrink-0 text-foreground-muted" />
-      <Select
-        value={resolveDeviceId(micDevices, selectedDeviceId)}
-        onValueChange={handleMicChange}
-        disabled={isDisabled}
-      >
-        <SelectTrigger className="h-9 w-52 text-sm">
-          <SelectValue placeholder="Select microphone" />
-        </SelectTrigger>
-        <SelectContent>
-          {micDevices.map((device, i) => (
-            <SelectItem key={device.deviceId} value={device.deviceId}>
-              {deviceLabel(device, i)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <Select
+      value={resolveDeviceId(micDevices, selectedDeviceId)}
+      onValueChange={handleMicChange}
+      disabled={isDisabled}
+    >
+      <SelectTrigger className="h-9 w-52 text-sm">
+        <SelectValue placeholder="Select microphone" />
+      </SelectTrigger>
+      <SelectContent>
+        {micDevices.map((device, i) => (
+          <SelectItem key={device.deviceId} value={device.deviceId}>
+            {deviceLabel(device, i)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 
   // --- No AssemblyAI key ---
   if (!hasAssemblyAiKey) {
     return (
-      <div className="space-y-3">
-        <div className="flex min-h-[240px] items-center justify-center rounded-lg border-2 border-dashed border-border bg-card p-6">
-          <p
-            className="text-sm text-warning cursor-pointer hover:underline"
-            onClick={onOpenSettings}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") onOpenSettings();
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            Please add your AssemblyAI API key in Settings before you can
-            record and transcribe audio.
-          </p>
-        </div>
-        <div className="flex justify-center">
+      <div className="flex min-h-[240px] flex-col items-center justify-center gap-4 rounded-lg border border-border bg-card p-6">
+        <p
+          className="text-sm text-warning cursor-pointer hover:underline"
+          onClick={onOpenSettings}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") onOpenSettings();
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          Please add your AssemblyAI API key in Settings before you can
+          record and transcribe audio.
+        </p>
+        <div className="mt-2 w-full border-t border-border pt-4 flex justify-center">
           <button
             type="button"
             onClick={onSkipUpload}
@@ -550,28 +545,25 @@ export function AudioRecorder({
   // --- Uploading state ---
   if (uploading) {
     return (
-      <div className="space-y-3">
-        <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-card p-6 opacity-50">
-          <Mic className="h-12 w-12 text-foreground-muted" />
-          <p className="text-sm text-foreground-secondary">
-            Uploading recording...
-          </p>
-        </div>
+      <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card p-6 opacity-50">
+        <Mic className="h-12 w-12 text-foreground-muted" />
+        <p className="text-sm text-foreground-secondary">
+          Uploading recording...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <div
-        className={`flex min-h-[240px] flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed p-6 transition-colors duration-150 ${
-          isDisabled
-            ? "border-border bg-card opacity-50"
-            : recorderState === "recording"
-              ? "border-border-accent bg-primary-muted"
-              : "border-border bg-card"
-        }`}
-      >
+    <div
+      className={`flex min-h-[240px] flex-col items-center justify-center gap-4 rounded-lg border p-6 transition-colors duration-150 ${
+        isDisabled
+          ? "border-border bg-card opacity-50"
+          : recorderState === "recording"
+            ? "border-border-accent bg-primary-muted"
+            : "border-border bg-card"
+      }`}
+    >
         {/* Idle */}
         {recorderState === "idle" && (
           <>
@@ -586,51 +578,61 @@ export function AudioRecorder({
                 ? "Best used with headphones to avoid mic feedback"
                 : "Best used when playing audio through speakers"}
             </p>
-            <div className="flex rounded-md border border-border text-xs">
-              <button
-                type="button"
-                onClick={() => setRecordMode("mic")}
-                className={`px-3 py-1.5 rounded-l-md transition-colors ${
-                  recordMode === "mic"
-                    ? "bg-card-elevated text-foreground"
-                    : "text-foreground-muted hover:text-foreground-secondary"
-                }`}
-              >
-                Mic Only
-              </button>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => supportsSystemAudio && setRecordMode("meeting")}
-                    disabled={!supportsSystemAudio}
-                    className={`px-3 py-1.5 rounded-r-md transition-colors ${
-                      recordMode === "meeting"
-                        ? "bg-card-elevated text-foreground"
-                        : supportsSystemAudio
-                          ? "text-foreground-muted hover:text-foreground-secondary"
-                          : "text-foreground-muted opacity-40 cursor-not-allowed"
-                    }`}
-                  >
-                    Mic + Meeting Audio
-                  </button>
-                </TooltipTrigger>
-                {!supportsSystemAudio ? (
-                  <TooltipContent>
-                    Only supported on Chromium-based browsers like Google Chrome, Brave, or Edge
-                  </TooltipContent>
-                ) : null}
-              </Tooltip>
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-xs font-medium text-foreground-muted">Audio Source</p>
+              <div className="flex rounded-md border border-border text-xs">
+                <button
+                  type="button"
+                  onClick={() => setRecordMode("mic")}
+                  className={`px-3 py-1.5 rounded-l-md transition-colors ${
+                    recordMode === "mic"
+                      ? "bg-card-elevated text-foreground"
+                      : "text-foreground-muted hover:text-foreground-secondary"
+                  }`}
+                >
+                  Mic Only
+                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => supportsSystemAudio && setRecordMode("meeting")}
+                      disabled={!supportsSystemAudio}
+                      className={`px-3 py-1.5 rounded-r-md transition-colors ${
+                        recordMode === "meeting"
+                          ? "bg-card-elevated text-foreground"
+                          : supportsSystemAudio
+                            ? "text-foreground-muted hover:text-foreground-secondary"
+                            : "text-foreground-muted opacity-40 cursor-not-allowed"
+                      }`}
+                    >
+                      Mic + Meeting Audio
+                    </button>
+                  </TooltipTrigger>
+                  {!supportsSystemAudio ? (
+                    <TooltipContent>
+                      Only supported on Chromium-based browsers like Google Chrome, Brave, or Edge
+                    </TooltipContent>
+                  ) : null}
+                </Tooltip>
+              </div>
             </div>
             {micSelector}
             <Button
               onClick={startRecording}
               disabled={isDisabled}
-              className="gap-2"
             >
-              <Mic className="h-4 w-4" />
               {recordMode === "meeting" ? "Share Screen & Record" : "Start Recording"}
             </Button>
+            <div className="w-full border-t border-border pt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={onSkipUpload}
+                className="text-sm text-foreground-muted hover:text-foreground-secondary underline underline-offset-4 transition-colors"
+              >
+                I already have a transcript — skip upload
+              </button>
+            </div>
           </>
         )}
 
@@ -730,17 +732,6 @@ export function AudioRecorder({
             </div>
           </>
         )}
-      </div>
-
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={onSkipUpload}
-          className="text-sm text-foreground-muted hover:text-foreground-secondary underline underline-offset-4 transition-colors"
-        >
-          I already have a transcript — skip upload
-        </button>
-      </div>
     </div>
   );
 }
