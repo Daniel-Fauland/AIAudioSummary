@@ -398,8 +398,8 @@ export function QuestionField({ question, value, onChange }: QuestionFieldProps)
             variant="secondary"
             className="text-xs font-normal"
             style={{
-              backgroundColor: "rgba(59, 130, 246, 0.15)",
-              color: "var(--info, #3B82F6)",
+              backgroundColor: "var(--color-info-muted)",
+              color: "var(--color-info)",
               border: "none",
             }}
           >

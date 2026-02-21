@@ -89,7 +89,7 @@ export function TranscriptView({
                   variant="ghost"
                   size="icon"
                   onClick={() => setClearDialogOpen(true)}
-                  className="hover:text-destructive"
+                  className="text-foreground-secondary hover:text-destructive"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -100,7 +100,12 @@ export function TranscriptView({
           {transcript ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={handleCopy}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleCopy}
+                  className="text-foreground-secondary hover:text-foreground"
+                >
                   <Copy className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -111,7 +116,7 @@ export function TranscriptView({
             <Button
               variant="ghost"
               size="icon"
-              className="hidden md:inline-flex"
+              className="hidden md:inline-flex text-foreground-secondary hover:text-foreground"
               onClick={() => setFullscreen(true)}
             >
               <Maximize2 className="h-4 w-4" />
@@ -130,7 +135,7 @@ export function TranscriptView({
           <Textarea
             value={transcript}
             onChange={(e) => onTranscriptChange?.(e.target.value)}
-            className="min-h-[300px] max-h-[500px] resize-none bg-card-elevated font-mono text-sm"
+            className="min-h-[300px] max-h-[500px] resize-none bg-card-elevated font-mono text-sm text-foreground"
             placeholder="Transcript will appear here..."
           />
         )}
@@ -172,7 +177,7 @@ export function TranscriptView({
             <Textarea
               value={transcript}
               onChange={(e) => onTranscriptChange?.(e.target.value)}
-              className="flex-1 resize-none bg-card-elevated font-mono text-sm"
+              className="flex-1 resize-none bg-card-elevated font-mono text-sm text-foreground"
               placeholder="Transcript will appear here..."
             />
           )}

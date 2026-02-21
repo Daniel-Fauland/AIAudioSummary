@@ -622,7 +622,7 @@ export default function Home() {
               className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                 appMode === "standard"
                   ? "bg-primary text-primary-foreground"
-                  : "bg-transparent text-foreground-muted hover:text-foreground-secondary"
+                  : "bg-transparent text-foreground-secondary hover:text-foreground"
               }`}
             >
               Standard
@@ -633,7 +633,7 @@ export default function Home() {
               className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                 appMode === "realtime"
                   ? "bg-primary text-primary-foreground"
-                  : "bg-transparent text-foreground-muted hover:text-foreground-secondary"
+                  : "bg-transparent text-foreground-secondary hover:text-foreground"
               }`}
             >
               Realtime

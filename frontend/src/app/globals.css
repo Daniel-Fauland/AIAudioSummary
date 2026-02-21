@@ -33,7 +33,90 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
 
-  /* Custom semantic colors */
+  /* Custom semantic colors — mapped from CSS vars set per-theme below */
+  --color-success: var(--color-success);
+  --color-success-muted: var(--color-success-muted);
+  --color-warning: var(--color-warning);
+  --color-warning-muted: var(--color-warning-muted);
+  --color-info: var(--color-info);
+  --color-info-muted: var(--color-info-muted);
+  --color-error: var(--color-error);
+  --color-error-muted: var(--color-error-muted);
+  --color-card-elevated: var(--color-card-elevated);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-active: var(--color-primary-active);
+  --color-primary-muted: var(--color-primary-muted);
+  --color-border-hover: var(--color-border-hover);
+  --color-border-accent: var(--color-border-accent);
+  --color-foreground-secondary: var(--color-foreground-secondary);
+  --color-foreground-muted: var(--color-foreground-muted);
+  --color-foreground-accent: var(--color-foreground-accent);
+}
+
+/* Light mode (default) */
+:root {
+  --radius: 0.5rem;
+  --background: #FAFAFA;
+  --foreground: #0A0A0A;
+  --card: #FFFFFF;
+  --card-foreground: #0A0A0A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0A0A0A;
+  --primary: #FC520B;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F5F5F5;
+  --secondary-foreground: #0A0A0A;
+  --muted: #F5F5F5;
+  --muted-foreground: #A1A1AA;
+  --accent: #F5F5F5;
+  --accent-foreground: #0A0A0A;
+  --destructive: #DC2626;
+  --border: #E5E5E5;
+  --input: #E5E5E5;
+  --ring: rgba(252, 82, 11, 0.3);
+
+  /* Custom semantic colors — light */
+  --color-success: #16A34A;
+  --color-success-muted: rgba(22, 163, 74, 0.10);
+  --color-warning: #D97706;
+  --color-warning-muted: rgba(217, 119, 6, 0.10);
+  --color-info: #2563EB;
+  --color-info-muted: rgba(37, 99, 235, 0.10);
+  --color-error: #DC2626;
+  --color-error-muted: rgba(220, 38, 38, 0.10);
+  --color-card-elevated: #F5F5F5;
+  --color-primary-hover: #E04A0A;
+  --color-primary-active: #C84209;
+  --color-primary-muted: rgba(252, 82, 11, 0.10);
+  --color-border-hover: #D4D4D4;
+  --color-border-accent: #FC520B;
+  --color-foreground-secondary: #52525B;
+  --color-foreground-muted: #A1A1AA;
+  --color-foreground-accent: #FC520B;
+}
+
+/* Dark mode */
+.dark {
+  --background: #0A0A0A;
+  --foreground: #FAFAFA;
+  --card: #141414;
+  --card-foreground: #FAFAFA;
+  --popover: #1A1A1A;
+  --popover-foreground: #FAFAFA;
+  --primary: #FC520B;
+  --primary-foreground: #FFFFFF;
+  --secondary: #141414;
+  --secondary-foreground: #FAFAFA;
+  --muted: #1A1A1A;
+  --muted-foreground: #71717A;
+  --accent: #1A1A1A;
+  --accent-foreground: #FAFAFA;
+  --destructive: #EF4444;
+  --border: #262626;
+  --input: #262626;
+  --ring: rgba(252, 82, 11, 0.4);
+
+  /* Custom semantic colors — dark */
   --color-success: #22C55E;
   --color-success-muted: rgba(34, 197, 94, 0.15);
   --color-warning: #F59E0B;
@@ -53,29 +136,6 @@
   --color-foreground-accent: #FC520B;
 }
 
-/* Dark-mode only: set variables directly on :root */
-:root {
-  --radius: 0.5rem;
-  --background: #0A0A0A;
-  --foreground: #FAFAFA;
-  --card: #141414;
-  --card-foreground: #FAFAFA;
-  --popover: #1A1A1A;
-  --popover-foreground: #FAFAFA;
-  --primary: #FC520B;
-  --primary-foreground: #FFFFFF;
-  --secondary: #141414;
-  --secondary-foreground: #FAFAFA;
-  --muted: #1A1A1A;
-  --muted-foreground: #71717A;
-  --accent: #1A1A1A;
-  --accent-foreground: #FAFAFA;
-  --destructive: #EF4444;
-  --border: #262626;
-  --input: #262626;
-  --ring: rgba(252, 82, 11, 0.4);
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -85,8 +145,12 @@
   }
 }
 
-/* Text selection — high contrast against all text colors in dark mode */
+/* Text selection — high contrast in both themes */
 ::selection {
+  background-color: rgba(252, 82, 11, 0.25);
+  color: #0A0A0A;
+}
+.dark ::selection {
   background-color: rgba(252, 82, 11, 0.35);
   color: #FAFAFA;
 }
@@ -95,7 +159,7 @@
 .markdown-prose {
   font-size: 0.875rem;
   line-height: 1.7;
-  color: #FAFAFA;
+  color: var(--foreground);
 }
 
 .markdown-prose h1 {
@@ -104,7 +168,7 @@
   margin-top: 0;
   margin-bottom: 0.75rem;
   line-height: 1.3;
-  color: #FAFAFA;
+  color: var(--foreground);
 }
 
 .markdown-prose h2 {
@@ -113,7 +177,7 @@
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
   line-height: 1.4;
-  color: #FAFAFA;
+  color: var(--foreground);
 }
 
 .markdown-prose h3 {
@@ -122,7 +186,7 @@
   margin-top: 1.25rem;
   margin-bottom: 0.4rem;
   line-height: 1.5;
-  color: #FAFAFA;
+  color: var(--foreground);
 }
 
 .markdown-prose h4 {
@@ -130,7 +194,7 @@
   font-weight: 600;
   margin-top: 1rem;
   margin-bottom: 0.35rem;
-  color: #FAFAFA;
+  color: var(--foreground);
 }
 
 .markdown-prose p {
@@ -165,7 +229,7 @@
 
 .markdown-prose strong {
   font-weight: 600;
-  color: #FAFAFA;
+  color: var(--foreground);
 }
 
 .markdown-prose em {
@@ -173,22 +237,22 @@
 }
 
 .markdown-prose blockquote {
-  border-left: 3px solid #3A3A3A;
+  border-left: 3px solid var(--border);
   padding-left: 1rem;
   margin: 0.75rem 0;
-  color: #A1A1AA;
+  color: var(--muted-foreground);
 }
 
 .markdown-prose code {
   font-size: 0.8em;
-  background: #1A1A1A;
+  background: var(--muted);
   padding: 0.15rem 0.35rem;
   border-radius: 0.25rem;
-  color: #FAFAFA;
+  color: var(--foreground);
 }
 
 .markdown-prose pre {
-  background: #1A1A1A;
+  background: var(--muted);
   padding: 0.75rem 1rem;
   border-radius: 0.375rem;
   overflow-x: auto;
@@ -202,7 +266,7 @@
 
 .markdown-prose hr {
   border: none;
-  border-top: 1px solid #262626;
+  border-top: 1px solid var(--border);
   margin: 1.5rem 0;
 }
 
@@ -217,23 +281,23 @@
   font-weight: 600;
   text-align: left;
   padding: 0.4rem 0.75rem;
-  border-bottom: 2px solid #3A3A3A;
-  color: #FAFAFA;
+  border-bottom: 2px solid var(--border);
+  color: var(--foreground);
 }
 
 .markdown-prose td {
   padding: 0.4rem 0.75rem;
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--border);
 }
 
 .markdown-prose a {
-  color: #FC520B;
+  color: var(--color-foreground-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .markdown-prose a:hover {
-  color: #E04A0A;
+  color: var(--color-primary-hover);
 }
 
 .markdown-prose > *:last-child {
@@ -271,7 +335,7 @@
 
 /* Partial transcript text (in-progress words) */
 .realtime-partial {
-  color: var(--foreground-muted);
+  color: var(--muted-foreground);
   font-style: italic;
 }
 
@@ -294,13 +358,13 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background-color: #262626; /* --border */
+  background-color: var(--border);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #3A3A3A; /* --border-hover */
+  background-color: var(--color-border-hover);
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
@@ -314,8 +378,8 @@
   display: inline-block;
   flex-shrink: 0;
 }
-.connection-dot.connected { background: var(--success); }
+.connection-dot.connected { background: var(--color-success); }
 .connection-dot.connecting,
-.connection-dot.reconnecting { background: var(--warning); animation: blink 1s step-end infinite; }
-.connection-dot.disconnected { background: var(--foreground-secondary); }
+.connection-dot.reconnecting { background: var(--color-warning); animation: blink 1s step-end infinite; }
+.connection-dot.disconnected { background: var(--color-foreground-secondary); }
 .connection-dot.error { background: var(--destructive); }

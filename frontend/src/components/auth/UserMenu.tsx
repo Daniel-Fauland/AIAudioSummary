@@ -3,6 +3,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function UserMenu() {
   const { data: session } = useSession();
@@ -28,15 +29,20 @@ export function UserMenu() {
           {initial.toUpperCase()}
         </div>
       )}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => signOut()}
-        className="text-foreground-secondary hover:text-foreground"
-        aria-label="Sign out"
-      >
-        <LogOut className="h-4 w-4" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => signOut()}
+            className="text-foreground-secondary hover:text-foreground"
+            aria-label="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Sign out</TooltipContent>
+      </Tooltip>
     </div>
   );
 }

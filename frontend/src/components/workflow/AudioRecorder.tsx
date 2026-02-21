@@ -100,9 +100,12 @@ function drawBars(
   ctx.clearRect(0, 0, W, H);
 
   const barWidth = (W - BAR_GAP * (BAR_COUNT - 1)) / BAR_COUNT;
+  const styles = getComputedStyle(document.documentElement);
+  const activeColor = styles.getPropertyValue("--primary").trim() || "#FC520B";
+  const inactiveColor = styles.getPropertyValue("--muted-foreground").trim() || "#71717A";
 
   if (active && analyser) {
-    ctx.fillStyle = "#FC520B";
+    ctx.fillStyle = activeColor;
     const data = new Uint8Array(analyser.frequencyBinCount);
     analyser.getByteFrequencyData(data);
     const step = Math.floor(data.length / BAR_COUNT);
@@ -114,7 +117,7 @@ function drawBars(
       ctx.fillRect(x, y, barWidth, barH);
     }
   } else {
-    ctx.fillStyle = "#71717A";
+    ctx.fillStyle = inactiveColor;
     for (let i = 0; i < BAR_COUNT; i++) {
       const barH = Math.max(4, STATIC_HEIGHTS[i % STATIC_HEIGHTS.length] * H);
       const x = i * (barWidth + BAR_GAP);

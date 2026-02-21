@@ -230,9 +230,9 @@ export function PromptAssistantModal({
             <div
               className="mb-4 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm"
               style={{
-                backgroundColor: "rgba(239, 68, 68, 0.1)",
-                borderColor: "rgba(239, 68, 68, 0.3)",
-                color: "var(--error, #EF4444)",
+                backgroundColor: "var(--color-error-muted)",
+                borderColor: "color-mix(in srgb, var(--color-error) 30%, transparent)",
+                color: "var(--color-error)",
               }}
             >
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />

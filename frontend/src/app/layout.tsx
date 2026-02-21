@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionWrapper } from "@/components/auth/SessionWrapper";
+import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
 const inter = Inter({
@@ -22,14 +23,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <SessionWrapper>
-          <TooltipProvider delayDuration={100}>
-            {children}
-            <Toaster position="top-right" offset="72px" duration={5000} />
-          </TooltipProvider>
-        </SessionWrapper>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+          storageKey="aias:v1:theme"
+        >
+          <SessionWrapper>
+            <TooltipProvider delayDuration={100}>
+              {children}
+              <Toaster position="top-right" offset="72px" duration={5000} />
+            </TooltipProvider>
+          </SessionWrapper>
+        </ThemeProvider>
       </body>
     </html>
   );
