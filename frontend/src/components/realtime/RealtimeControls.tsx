@@ -115,6 +115,12 @@ export function RealtimeControls({
     };
   }, [loadDevices]);
 
+  // Sync the resolved device to the parent whenever selectedDevice changes
+  // (including on mount, so the parent always has the correct initial device)
+  useEffect(() => {
+    onMicChange(selectedDevice);
+  }, [selectedDevice, onMicChange]);
+
   // On mount: if device labels are already available (permission previously granted),
   // just re-enumerate — no need to activate the mic. Only call getUserMedia when
   // labels are absent (Safari before first permission grant) to unlock them.
@@ -209,7 +215,7 @@ export function RealtimeControls({
       </div>
 
       {/* Recording mode toggle */}
-      {isIdle && (
+      {(isIdle || isSessionEnded) && (
         <div className="flex rounded-md border border-border text-xs">
           <button
             type="button"
@@ -289,8 +295,8 @@ export function RealtimeControls({
             onClick={onManualSummary}
             disabled={!hasTranscript || isSummaryUpdating}
           >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {hasSummary ? "Refresh Summary" : "Generate Summary"}
+            <RefreshCw className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">{hasSummary ? "Refresh Summary" : "Generate Summary"}</span>
           </Button>
         )}
       </div>

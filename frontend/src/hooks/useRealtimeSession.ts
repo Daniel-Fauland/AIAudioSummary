@@ -279,10 +279,17 @@ export function useRealtimeSession() {
         sysSource.connect(workletNode);
       } else {
         // 2a. Mic-only path
-        const constraints: MediaStreamConstraints = {
-          audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+        // Disable browser audio processing (echo cancellation, noise suppression, AGC)
+        // so audio is delivered cleanly to the AudioWorklet. These WebRTC processing
+        // pipelines can suppress or interfere with audio flowing into AudioWorkletNode
+        // in Chrome. For transcription, AssemblyAI handles noisy audio natively.
+        const audioConstraints: MediaTrackConstraints = {
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
         };
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
         streamRef.current = stream;
 
         const source = audioContext.createMediaStreamSource(stream);
