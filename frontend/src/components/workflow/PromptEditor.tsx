@@ -176,6 +176,42 @@ export function PromptEditor({
   const canUseAssistant = !!(llmProvider && llmApiKey && llmModel);
   const allTemplates = [...templates, ...customTemplates];
 
+  // "Other" language support
+  const [isOtherMode, setIsOtherMode] = useState(
+    () => !!selectedLanguage && !new Set(languages.map((l) => l.name)).has(selectedLanguage),
+  );
+  const [customLanguageInput, setCustomLanguageInput] = useState(
+    () => {
+      const knownNames = new Set(languages.map((l) => l.name));
+      return !knownNames.has(selectedLanguage) ? selectedLanguage : "";
+    },
+  );
+
+  const dropdownValue = isOtherMode ? "__other__" : selectedLanguage;
+
+  const handleLanguageSelect = useCallback(
+    (value: string) => {
+      if (value === "__other__") {
+        setIsOtherMode(true);
+        if (customLanguageInput) {
+          onLanguageChange(customLanguageInput);
+        }
+      } else {
+        setIsOtherMode(false);
+        onLanguageChange(value);
+      }
+    },
+    [customLanguageInput, onLanguageChange],
+  );
+
+  const handleCustomLanguageChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setCustomLanguageInput(e.target.value);
+      onLanguageChange(e.target.value);
+    },
+    [onLanguageChange],
+  );
+
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
     templates[0]?.id ?? "",
   );
@@ -372,7 +408,7 @@ export function PromptEditor({
               <Label className="text-sm font-medium text-foreground-secondary">
                 Language
               </Label>
-              <Select value={selectedLanguage} onValueChange={onLanguageChange}>
+              <Select value={dropdownValue} onValueChange={handleLanguageSelect}>
                 <SelectTrigger className="bg-card-elevated">
                   <SelectValue />
                 </SelectTrigger>
@@ -382,8 +418,19 @@ export function PromptEditor({
                       {l.name}
                     </SelectItem>
                   ))}
+                  <SelectSeparator />
+                  <SelectItem value="__other__">Other</SelectItem>
                 </SelectContent>
               </Select>
+              {isOtherMode ? (
+                <Input
+                  value={customLanguageInput}
+                  onChange={handleCustomLanguageChange}
+                  placeholder="Enter language…"
+                  className="bg-card-elevated mt-2"
+                  autoFocus
+                />
+              ) : null}
             </div>
 
             {isGerman ? (

@@ -32,6 +32,7 @@ export interface UsePromptAssistantReturn {
   error: string | null;
   setBasePrompt: (value: string) => void;
   submitBasePrompt: () => Promise<void>;
+  skipBasePrompt: () => Promise<void>;
   setAnswer: (questionId: string, value: string | string[]) => void;
   goToSummary: () => void;
   goToQuestions: () => void;
@@ -108,6 +109,43 @@ export function usePromptAssistant({
       setIsLoading(false);
     }
   }, [basePrompt, buildCredentials]);
+
+  const skipBasePrompt = useCallback(async () => {
+    setBasePrompt("");
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await analyzePrompt({
+        ...buildCredentials(),
+        base_prompt: undefined,
+      });
+
+      const qs = response.questions;
+      setQuestions(qs);
+
+      const defaultAnswers: Record<string, string | string[]> = {};
+      for (const q of qs) {
+        if (q.default !== undefined && q.default !== null) {
+          defaultAnswers[q.id] = q.default;
+        } else if (q.type === "multi_select") {
+          defaultAnswers[q.id] = [];
+        } else {
+          defaultAnswers[q.id] = "";
+        }
+      }
+      setAnswers(defaultAnswers);
+
+      if (qs.length === 0) {
+        setCurrentStep("summary");
+      } else {
+        setCurrentStep("questions");
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, "analyze"));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [buildCredentials]);
 
   const setAnswer = useCallback((questionId: string, value: string | string[]) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -193,6 +231,7 @@ export function usePromptAssistant({
     error,
     setBasePrompt,
     submitBasePrompt,
+    skipBasePrompt,
     setAnswer,
     goToSummary,
     goToQuestions,

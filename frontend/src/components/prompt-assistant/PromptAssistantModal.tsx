@@ -104,7 +104,7 @@ export function PromptAssistantModal({
           <>
             <Button
               variant="ghost"
-              onClick={() => assistant.submitBasePrompt()}
+              onClick={() => assistant.skipBasePrompt()}
               disabled={assistant.isLoading}
             >
               Skip

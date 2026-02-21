@@ -1,9 +1,11 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface StepBasePromptProps {
   basePrompt: string;
@@ -21,7 +23,7 @@ export function StepBasePrompt({
       <div className="space-y-4 py-2">
         <div className="flex items-center gap-3 text-sm text-foreground-muted">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          <span>Analyzing your prompt...</span>
+          <span>{basePrompt.trim() ? "Analyzing your prompt..." : "Generating questions..."}</span>
         </div>
         <div className="space-y-2">
           <Skeleton className="h-4 w-3/4" />
@@ -36,9 +38,26 @@ export function StepBasePrompt({
   return (
     <div className="space-y-3 py-2">
       <div className="space-y-1.5">
-        <Label className="text-sm font-medium text-foreground-secondary">
-          Existing Prompt (optional)
-        </Label>
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium text-foreground-secondary">
+            Existing Prompt (optional)
+          </Label>
+          {basePrompt && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onBasePromptChange("")}
+                  className="h-7 w-7 hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear prompt</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
         <Textarea
           value={basePrompt}
           onChange={(e) => onBasePromptChange(e.target.value)}

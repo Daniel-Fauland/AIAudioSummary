@@ -34,6 +34,15 @@ class AnalyzeRequest(BaseModel):
 
 class AnalyzeResponse(BaseModel):
     questions: list[AssistantQuestion] = Field(..., description="Structured questions for the user to answer")
+    suggested_target_system: str | None = Field(
+        None,
+        description=(
+            "If a base prompt was provided and you can confidently infer the intended output destination, "
+            "set this to the most likely option from: 'Email', 'Chat message (e.g. Teams, Slack)', "
+            "'Wiki article (e.g. Confluence, Notion)', 'User story (e.g. Jira, Linear)', 'Personal notes'. "
+            "Set to null if you cannot confidently infer it."
+        ),
+    )
 
 
 class GenerateRequest(BaseModel):

@@ -345,7 +345,7 @@ Key models:
 | `models/config.py`           | `ConfigResponse`, `ProviderInfo`, `PromptTemplate`, `LanguageOption`, speaker models             |
 | `models/assemblyai.py`       | `CreateTranscriptResponse`                                                                       |
 | `models/realtime.py`         | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                                        |
-| `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest/Response`, `GenerateRequest/Response` |
+| `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest`, `AnalyzeResponse` (incl. `suggested_target_system`), `GenerateRequest/Response` |
 
 ### Configuration & Environment
 
@@ -390,7 +390,7 @@ Prompt templates are Markdown files in `prompt_templates/`. They are loaded dyna
 
 > **Note**: The **realtime incremental summary** (`/createIncrementalSummary`) does **not** use the prompt template system. It uses a hardcoded stability-focused system prompt defined in `api/realtime/router.py` (`_REALTIME_SYSTEM_PROMPT`). The target language is auto-detected from the transcript using the `langdetect` library rather than being selected by the user.
 
-> **Note**: The **Prompt Assistant** (`/prompt-assistant/analyze` and `/prompt-assistant/generate`) also does **not** use the prompt template system. It uses two hardcoded system prompts defined in `service/prompt_assistant/core.py`. Key constraints baked into the analysis prompt: always assume GitHub-Flavored Markdown (never ask the user about it); never ask about target language (handled separately in Prompt Settings); never suggest "Links & references" as a section option (links from chats are not part of transcripts).
+> **Note**: The **Prompt Assistant** (`/prompt-assistant/analyze` and `/prompt-assistant/generate`) also does **not** use the prompt template system. It uses two hardcoded system prompts defined in `service/prompt_assistant/core.py`. Key constraints baked into the analysis prompt: always assume GitHub-Flavored Markdown (never ask the user about it); never ask about target language (handled separately in Prompt Settings); never ask about target system / output destination (injected programmatically — see below); never suggest "Links & references" as a section option (links from chats are not part of transcripts). The generation prompt includes explicit tailoring rules for each supported target system.
 
 ### Error Handling
 
@@ -955,7 +955,10 @@ PromptAssistantModal opens (Dialog)
     ▼
 Step 1 — StepBasePrompt
     ├── User pastes an existing prompt (optional)
-    ├── Clicks "Next" or "Skip"
+    ├── Clear (trash) icon next to the label clears the textarea (only shown when field has content)
+    ├── Clicks "Next" → analyzes the prompt as-is
+    ├── Clicks "Skip" → clears the field and calls analyze with no base_prompt
+    │   Loading text: "Analyzing your prompt..." (with text) / "Generating questions..." (empty)
     │
     ▼
 api.ts: analyzePrompt() → POST /prompt-assistant/analyze
@@ -965,9 +968,16 @@ api.ts: analyzePrompt() → POST /prompt-assistant/analyze
 PromptAssistantService.analyze():
     ├── _create_model() — same factory as LLMService
     ├── pydantic-ai Agent with output_type=AnalyzeResponse (structured output)
-    ├── System prompt constraints: assume GFM, skip language question, exclude "Links & references"
+    ├── System prompt constraints: assume GFM, skip language question, skip target system question,
+    │   exclude "Links & references"; when base prompt present, also infer suggested_target_system
     ├── Returns 3–5 AssistantQuestion objects (type: single_select | multi_select | free_text)
     │   with options, defaults, and inferred flags where answers derive from the base prompt
+    ├── Service injects "target_system" as the FIRST question (never delegated to the LLM):
+    │   options: Email | Chat message | Wiki article | User story | Personal notes | custom
+    │   default logic:
+    │     - No base prompt → default "Email"
+    │     - Base prompt + LLM inferred target → pre-selected + "Inferred from your prompt" badge
+    │     - Base prompt + LLM could not infer → no default (user must choose)
     │
     ▼
 Step 2 — StepQuestions
@@ -992,7 +1002,10 @@ api.ts: generatePrompt() → POST /prompt-assistant/generate
 PromptAssistantService.generate():
     ├── _create_model() — same factory as LLMService
     ├── pydantic-ai Agent (plain text output, temperature=0.4)
-    ├── System prompt: output ONLY the ready-to-use system prompt string
+    ├── System prompt: output ONLY the ready-to-use system prompt string;
+    │   target_system answer drives output format (email → subject/greeting/sign-off,
+    │   chat → short/direct/no ceremony, wiki → structured/contextual, user story → AC format,
+    │   personal notes → informal/abbreviations ok)
     ├── Returns GenerateResponse { generated_prompt }
     │
     ▼
@@ -1062,11 +1075,15 @@ Then import from `@/components/ui/<component-name>`.
 
 **Change what questions the LLM asks** (topics, constraints, option lists):
 
-- Edit `_ANALYZE_SYSTEM_PROMPT` in `service/prompt_assistant/core.py`. The LLM generates options freely from its training knowledge — add explicit allowed lists or exclusion rules to the prompt to constrain output (e.g., the current prompt already excludes "Links & references" as a section option and forbids asking about Markdown flavor or target language).
+- Edit `_ANALYZE_SYSTEM_PROMPT` in `service/prompt_assistant/core.py`. The LLM generates options freely from its training knowledge — add explicit allowed lists or exclusion rules to the prompt to constrain output (e.g., the current prompt already excludes "Links & references" as a section option and forbids asking about Markdown flavor, target language, or target system).
+
+**Add or change a programmatically injected question** (like `target_system`):
+
+- These questions are built in `service/prompt_assistant/core.py` as `AssistantQuestion` objects and inserted into the response after the LLM call (e.g., `response.questions.insert(0, _TARGET_SYSTEM_QUESTION)`). The LLM is explicitly told in `_ANALYZE_SYSTEM_PROMPT` never to generate these questions itself. Use this pattern for questions that must always appear, have fixed options, or require logic (like defaulting) that the LLM cannot reliably provide.
 
 **Change how the final prompt is generated**:
 
-- Edit `_GENERATE_SYSTEM_PROMPT` in `service/prompt_assistant/core.py`.
+- Edit `_GENERATE_SYSTEM_PROMPT` in `service/prompt_assistant/core.py`. The prompt includes a dedicated section for target system tailoring — update it if you add new target system options.
 
 ### Run the project locally
 

@@ -56,6 +56,8 @@ LANGUAGES = [
     LanguageOption(code="de", name="German"),
     LanguageOption(code="fr", name="French"),
     LanguageOption(code="es", name="Spanish"),
+    LanguageOption(code="hr", name="Croatian"),
+    LanguageOption(code="tr", name="Turkish"),
 ]
 
 
