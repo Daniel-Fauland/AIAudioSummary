@@ -8,6 +8,10 @@ import type {
   GetSpeakersResponse,
   IncrementalSummaryRequest,
   IncrementalSummaryResponse,
+  PromptAssistantAnalyzeRequest,
+  PromptAssistantAnalyzeResponse,
+  PromptAssistantGenerateRequest,
+  PromptAssistantGenerateResponse,
   UpdatedTranscriptResponse,
 } from "./types";
 
@@ -161,4 +165,26 @@ export async function createIncrementalSummary(
     body: JSON.stringify(request),
   });
   return handleResponse<IncrementalSummaryResponse>(response);
+}
+
+export async function analyzePrompt(
+  request: PromptAssistantAnalyzeRequest,
+): Promise<PromptAssistantAnalyzeResponse> {
+  const response = await fetch(`${API_BASE}/prompt-assistant/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<PromptAssistantAnalyzeResponse>(response);
+}
+
+export async function generatePrompt(
+  request: PromptAssistantGenerateRequest,
+): Promise<PromptAssistantGenerateResponse> {
+  const response = await fetch(`${API_BASE}/prompt-assistant/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<PromptAssistantGenerateResponse>(response);
 }

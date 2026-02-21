@@ -89,17 +89,20 @@ project-root/
 │   │   ├── assemblyai/router.py    #   POST /createTranscript
 │   │   ├── llm/router.py          #   POST /createSummary
 │   │   ├── misc/router.py         #   GET /getConfig, POST /getSpeakers, POST /updateSpeakers
-│   │   └── realtime/router.py    #   WS /ws/realtime, POST /createIncrementalSummary
+│   │   ├── realtime/router.py    #   WS /ws/realtime, POST /createIncrementalSummary
+│   │   └── prompt_assistant/router.py  #   POST /prompt-assistant/analyze, POST /prompt-assistant/generate
 │   ├── service/                    # Service layer (business logic)
 │   │   ├── assembly_ai/core.py    #   AssemblyAIService
 │   │   ├── llm/core.py            #   LLMService (multi-provider)
 │   │   ├── misc/core.py           #   MiscService (speakers, dates)
-│   │   └── realtime/             #   RealtimeTranscriptionService, SessionManager
+│   │   ├── realtime/             #   RealtimeTranscriptionService, SessionManager
+│   │   └── prompt_assistant/core.py  #   PromptAssistantService (analyze + generate)
 │   ├── models/                     # Pydantic request/response models
 │   │   ├── assemblyai.py
 │   │   ├── config.py
 │   │   ├── llm.py
-│   │   └── realtime.py            #   IncrementalSummaryRequest/Response
+│   │   ├── realtime.py            #   IncrementalSummaryRequest/Response
+│   │   └── prompt_assistant.py    #   AssistantQuestion, AnalyzeRequest/Response, GenerateRequest/Response
 │   ├── utils/
 │   │   ├── helper.py              # File listing & reading utilities
 │   │   └── logging.py             # Logger configuration
@@ -124,8 +127,9 @@ project-root/
 │   │   │   ├── auth/               # SessionWrapper, UserMenu
 │   │   │   ├── layout/             # Header, StepIndicator, SettingsSheet
 │   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm
-│   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor, SummaryView
+│   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor (+ Prompt Assistant trigger), SummaryView
 │   │   │   ├── realtime/          # RealtimeMode, RealtimeControls, RealtimeTranscriptView, RealtimeSummaryView, ConnectionStatus
+│   │   │   ├── prompt-assistant/  # PromptAssistantModal, StepBasePrompt, StepQuestions, StepSummary, StepResult, QuestionField, usePromptAssistant hook
 │   │   │   └── ui/                 # shadcn/ui primitives + AudioPlayer composite component
 │   │   ├── hooks/
 │   │   │   ├── useApiKeys.ts       # localStorage key management
@@ -335,12 +339,13 @@ HTTP Request
 
 Key models:
 
-| File                   | Key Classes                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------ |
-| `models/llm.py`        | `LLMProvider` (enum), `CreateSummaryRequest`, `CreateSummaryResponse`, `AzureConfig` |
-| `models/config.py`     | `ConfigResponse`, `ProviderInfo`, `PromptTemplate`, `LanguageOption`, speaker models |
-| `models/assemblyai.py` | `CreateTranscriptResponse`                                                           |
-| `models/realtime.py`   | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                            |
+| File                         | Key Classes                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `models/llm.py`              | `LLMProvider` (enum), `CreateSummaryRequest`, `CreateSummaryResponse`, `AzureConfig`             |
+| `models/config.py`           | `ConfigResponse`, `ProviderInfo`, `PromptTemplate`, `LanguageOption`, speaker models             |
+| `models/assemblyai.py`       | `CreateTranscriptResponse`                                                                       |
+| `models/realtime.py`         | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                                        |
+| `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest/Response`, `GenerateRequest/Response` |
 
 ### Configuration & Environment
 
@@ -384,6 +389,8 @@ Prompt templates are Markdown files in `prompt_templates/`. They are loaded dyna
 **To add a new template**: create a new `.md` file in `prompt_templates/`. It will automatically appear in the frontend template selector.
 
 > **Note**: The **realtime incremental summary** (`/createIncrementalSummary`) does **not** use the prompt template system. It uses a hardcoded stability-focused system prompt defined in `api/realtime/router.py` (`_REALTIME_SYSTEM_PROMPT`). The target language is auto-detected from the transcript using the `langdetect` library rather than being selected by the user.
+
+> **Note**: The **Prompt Assistant** (`/prompt-assistant/analyze` and `/prompt-assistant/generate`) also does **not** use the prompt template system. It uses two hardcoded system prompts defined in `service/prompt_assistant/core.py`. Key constraints baked into the analysis prompt: always assume GitHub-Flavored Markdown (never ask the user about it); never ask about target language (handled separately in Prompt Settings); never suggest "Links & references" as a section option (links from chats are not part of transcripts).
 
 ### Error Handling
 
@@ -553,6 +560,11 @@ RootLayout (layout.tsx)
         │   └── Step Content (conditional):
         │       ├── Step 1: tab toggle → FileUpload | AudioRecorder
         │       ├── Step 2: TranscriptView + SpeakerMapper + PromptEditor
+        │       │               └── PromptAssistantModal (Dialog, triggered by "Prompt Assistant" button)
+        │       │                   ├── StepBasePrompt   ← Step 1: optional existing prompt
+        │       │                   ├── StepQuestions    ← Step 2: dynamic QuestionField list
+        │       │                   ├── StepSummary      ← Step 3: answer review + additional notes
+        │       │                   └── StepResult       ← Step 4: editable generated prompt
         │       └── Step 3: TranscriptView (readonly) + SummaryView
         │
         └── (Realtime mode):
@@ -640,8 +652,12 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 | `extractKeyPoints()`           | POST   | `/extractKeyPoints`          | `ExtractKeyPointsResponse`                    |
 | `createSummary()`              | POST   | `/createSummary`             | `string` (full text, with streaming callback) |
 | `createIncrementalSummary()`   | POST   | `/createIncrementalSummary`  | `IncrementalSummaryResponse`                  |
+| `analyzePrompt()`              | POST   | `/prompt-assistant/analyze`  | `PromptAssistantAnalyzeResponse`              |
+| `generatePrompt()`             | POST   | `/prompt-assistant/generate` | `PromptAssistantGenerateResponse`             |
 
 Error handling: `ApiError` class with `status` and `message`. The `handleResponse<T>()` helper extracts `detail` from FastAPI error JSON. Use `getErrorMessage(error, context)` from `lib/errors.ts` in catch blocks to map `ApiError` status codes to user-friendly toast messages — never show raw backend error strings to the user.
+
+`ErrorContext` values: `"summary"` | `"keyPoints"` | `"transcript"` | `"speakers"` | `"analyze"` | `"generate"` | `"regenerate"`. The last three are used by the Prompt Assistant hook.
 
 **To add a new API call**: add a function in `api.ts`, add types in `types.ts`, call it from `page.tsx` or a component.
 
@@ -741,7 +757,7 @@ To add a new shadcn component:
 cd frontend && npx shadcn@latest add <component-name>
 ```
 
-Currently used: `badge`, `button`, `card`, `dialog`, `input`, `label`, `select`, `separator`, `sheet`, `slider`, `sonner`, `switch`, `tabs`, `textarea`.
+Currently used: `badge`, `button`, `card`, `checkbox`, `collapsible`, `dialog`, `input`, `label`, `scroll-area`, `select`, `separator`, `sheet`, `skeleton`, `slider`, `sonner`, `switch`, `tabs`, `textarea`, `tooltip`.
 
 `components/ui/audio-player.tsx` is a custom composite component (not generated by shadcn CLI) that combines `Button` and `Slider` into a dark-themed audio playback widget with play/pause, seek bar, time display, mute toggle, and volume control. It is used by `AudioRecorder` to preview recordings after they are stopped.
 
@@ -926,6 +942,71 @@ misc/router.py:
 Frontend: populates provider dropdown, template selector, language picker
 ```
 
+### Prompt Assistant Flow
+
+```
+User clicks "Prompt Assistant" button in PromptEditor (Step 2)
+    │  (button is disabled when no LLM API key is configured)
+    ▼
+PromptAssistantModal opens (Dialog)
+    │  LLM credentials (provider, api_key, model, azure_config) passed as props from page.tsx
+    │  usePromptAssistant hook initialises with currentPrompt pre-filled
+    │
+    ▼
+Step 1 — StepBasePrompt
+    ├── User pastes an existing prompt (optional)
+    ├── Clicks "Next" or "Skip"
+    │
+    ▼
+api.ts: analyzePrompt() → POST /prompt-assistant/analyze
+    │  Body: { provider, api_key, model, azure_config, base_prompt? }
+    │
+    ▼
+PromptAssistantService.analyze():
+    ├── _create_model() — same factory as LLMService
+    ├── pydantic-ai Agent with output_type=AnalyzeResponse (structured output)
+    ├── System prompt constraints: assume GFM, skip language question, exclude "Links & references"
+    ├── Returns 3–5 AssistantQuestion objects (type: single_select | multi_select | free_text)
+    │   with options, defaults, and inferred flags where answers derive from the base prompt
+    │
+    ▼
+Step 2 — StepQuestions
+    ├── QuestionField renders each question by type:
+    │   ├── single_select → Select dropdown + "Other (custom)..." option
+    │   │     Custom mode: inline Input with confirm/cancel; shown value with edit/clear buttons
+    │   ├── multi_select  → Checkbox list + "Add custom option" (create/edit/delete custom items)
+    │   └── free_text     → Textarea
+    ├── Inferred answers show "Inferred from your prompt" badge + explanation text
+    │
+    ▼
+Step 3 — StepSummary
+    ├── Key-value table of all answers for review
+    ├── "Anything else?" Textarea for additional notes
+    ├── Clicks "Create Prompt"
+    │
+    ▼
+api.ts: generatePrompt() → POST /prompt-assistant/generate
+    │  Body: { provider, api_key, model, azure_config, base_prompt?, answers, additional_notes? }
+    │
+    ▼
+PromptAssistantService.generate():
+    ├── _create_model() — same factory as LLMService
+    ├── pydantic-ai Agent (plain text output, temperature=0.4)
+    ├── System prompt: output ONLY the ready-to-use system prompt string
+    ├── Returns GenerateResponse { generated_prompt }
+    │
+    ▼
+Step 4 — StepResult
+    ├── Editable Textarea pre-filled with generated prompt
+    ├── Collapsible feedback section → "Regenerate" re-calls generate endpoint
+    │   (feedback appended to additional_notes)
+    ├── "Use this prompt" → calls onPromptGenerated(prompt) callback
+    │
+    ▼
+PromptEditor: onPromptChange(generatedPrompt) — populates the Prompt textarea
+    Modal closes, wizard resets on next open
+```
+
 ---
 
 ## Common Tasks
@@ -970,6 +1051,22 @@ cd frontend && npx shadcn@latest add <component-name>
 ```
 
 Then import from `@/components/ui/<component-name>`.
+
+### Extend the Prompt Assistant
+
+**Add a new question type** (e.g., `number_input`):
+
+1. **Backend**: Add the value to `QuestionType` enum in `models/prompt_assistant.py`
+2. **Frontend**: Add the type to the `QuestionType` union in `lib/types.ts`
+3. **Frontend**: Add a new `case` to `QuestionField.tsx`'s `renderInput()` switch
+
+**Change what questions the LLM asks** (topics, constraints, option lists):
+
+- Edit `_ANALYZE_SYSTEM_PROMPT` in `service/prompt_assistant/core.py`. The LLM generates options freely from its training knowledge — add explicit allowed lists or exclusion rules to the prompt to constrain output (e.g., the current prompt already excludes "Links & references" as a section option and forbids asking about Markdown flavor or target language).
+
+**Change how the final prompt is generated**:
+
+- Edit `_GENERATE_SYSTEM_PROMPT` in `service/prompt_assistant/core.py`.
 
 ### Run the project locally
 

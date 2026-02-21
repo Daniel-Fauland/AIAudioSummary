@@ -1,6 +1,6 @@
 import { ApiError } from "./api";
 
-export type ErrorContext = "summary" | "keyPoints" | "transcript" | "speakers";
+export type ErrorContext = "summary" | "keyPoints" | "transcript" | "speakers" | "analyze" | "generate" | "regenerate";
 
 export function getErrorMessage(error: unknown, context: ErrorContext): string {
   if (error instanceof ApiError) {
@@ -19,6 +19,12 @@ export function getErrorMessage(error: unknown, context: ErrorContext): string {
       }
       if (context === "transcript") {
         return "Transcription failed. Please check your AssemblyAI key and audio file.";
+      }
+      if (context === "analyze") {
+        return "Failed to analyze prompt. Try selecting a different model — not all models support structured output.";
+      }
+      if (context === "generate" || context === "regenerate") {
+        return "Failed to generate prompt. Please try again or select a different model.";
       }
     }
   }

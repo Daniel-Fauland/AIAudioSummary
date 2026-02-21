@@ -96,6 +96,49 @@ export interface UpdatedTranscriptResponse {
   transcript: string;
 }
 
+// === Prompt Assistant types ===
+
+export type QuestionType = "single_select" | "multi_select" | "free_text";
+
+export interface AssistantQuestion {
+  id: string;
+  question: string;
+  type: QuestionType;
+  options?: string[];
+  default?: string | string[];
+  placeholder?: string;
+  inferred?: boolean;
+  inferred_reason?: string;
+}
+
+export interface PromptAssistantAnalyzeRequest {
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  azure_config: AzureConfig | null;
+  langdock_config?: LangdockConfig;
+  base_prompt?: string;
+}
+
+export interface PromptAssistantAnalyzeResponse {
+  questions: AssistantQuestion[];
+}
+
+export interface PromptAssistantGenerateRequest {
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  azure_config: AzureConfig | null;
+  langdock_config?: LangdockConfig;
+  base_prompt?: string;
+  answers: Record<string, string | string[]>;
+  additional_notes?: string;
+}
+
+export interface PromptAssistantGenerateResponse {
+  generated_prompt: string;
+}
+
 // === Realtime types ===
 
 export type RealtimeConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting" | "error";

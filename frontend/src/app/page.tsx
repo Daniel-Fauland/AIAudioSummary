@@ -722,6 +722,11 @@ export default function Home() {
                     generating={isGenerating}
                     hasLlmKey={hasLlmKey}
                     onOpenSettings={() => setSettingsOpen(true)}
+                    llmProvider={selectedProvider}
+                    llmApiKey={hasLlmKey ? (getKey(selectedProvider) ?? "") : ""}
+                    llmModel={selectedModel}
+                    llmAzureConfig={azureConfig}
+                    llmLangdockConfig={langdockConfig}
                   />
                   <div className="flex gap-2">
                     <Button variant="ghost" onClick={handleStartOver}>
