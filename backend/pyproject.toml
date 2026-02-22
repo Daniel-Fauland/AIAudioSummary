@@ -14,4 +14,8 @@ dependencies = [
     "pydantic-ai>=1.59.0",
     "websockets>=15.0.1",
     "langdetect>=1.0.9",
+    "sqlalchemy[asyncio]>=2.0.46",
+    "asyncpg>=0.31.0",
+    "alembic>=1.18.4",
+    "pyjwt>=2.10.0",
 ]

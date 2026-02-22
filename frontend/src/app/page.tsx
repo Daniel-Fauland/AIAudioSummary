@@ -27,9 +27,10 @@ import {
 import { useConfig } from "@/hooks/useConfig";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { useCustomTemplates } from "@/hooks/useCustomTemplates";
+import { usePreferences } from "@/hooks/usePreferences";
 import { createTranscript, createSummary, extractKeyPoints } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse } from "@/lib/types";
 
 const PROVIDER_KEY = "aias:v1:selected_provider";
 const MODEL_KEY_PREFIX = "aias:v1:model:";
@@ -73,36 +74,72 @@ function safeSet(key: string, value: string): void {
   }
 }
 
-export default function Home() {
-  const { config, loading: configLoading, error: configError, refetch } = useConfig();
+// ─── Inner component ─────────────────────────────────────────────────────────
+// This component only mounts AFTER preferences have finished loading.
+// Server preferences are passed directly as props and used as the primary
+// source in useState initialisers, with localStorage as fallback. This avoids
+// relying on applyPreferences() writing to localStorage before mount.
+
+interface HomeInnerProps {
+  config: ConfigResponse | null;
+  savePreferences: () => void;
+  setStorageMode: (mode: "local" | "account") => void;
+  serverPreferences: import("@/lib/types").UserPreferences | null;
+}
+
+function HomeInner({ config, savePreferences, setStorageMode, serverPreferences }: HomeInnerProps) {
   const { getKey, hasKey, getAzureConfig, getLangdockConfig, setLangdockConfig } = useApiKeys();
   const {
     templates: customTemplates,
-    saveTemplate: saveCustomTemplate,
-    deleteTemplate: deleteCustomTemplate,
+    saveTemplate: rawSaveCustomTemplate,
+    deleteTemplate: rawDeleteCustomTemplate,
   } = useCustomTemplates();
+
+  const saveCustomTemplate = useCallback((name: string, content: string) => {
+    const result = rawSaveCustomTemplate(name, content);
+    savePreferences();
+    return result;
+  }, [rawSaveCustomTemplate, savePreferences]);
+
+  const deleteCustomTemplate = useCallback((id: string) => {
+    rawDeleteCustomTemplate(id);
+    savePreferences();
+  }, [rawDeleteCustomTemplate, savePreferences]);
 
   // Settings panel
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // App mode
   const [appMode, setAppMode] = useState<"standard" | "realtime">(
-    () => safeGet(APP_MODE_KEY, "standard") as "standard" | "realtime",
+    () => (serverPreferences?.app_mode as "standard" | "realtime") || safeGet(APP_MODE_KEY, "standard") as "standard" | "realtime",
   );
 
   const handleModeChange = useCallback((mode: "standard" | "realtime") => {
     setAppMode(mode);
     safeSet(APP_MODE_KEY, mode);
-  }, []);
+    savePreferences();
+  }, [savePreferences]);
 
   // Provider / model (persisted in localStorage)
+  const initProvider = serverPreferences?.selected_provider || safeGet(PROVIDER_KEY, "openai");
   const [selectedProvider, setSelectedProvider] = useState<LLMProvider>(
-    () => safeGet(PROVIDER_KEY, "openai") as LLMProvider,
+    () => (initProvider as LLMProvider),
   );
-  const [selectedModel, setSelectedModel] = useState<string>(() =>
-    safeGet(`${MODEL_KEY_PREFIX}${safeGet(PROVIDER_KEY, "openai")}`, "gpt-5.2"),
-  );
-  const [azureConfig, setAzureConfig] = useState<AzureConfig | null>(() => getAzureConfig());
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    const provider = initProvider;
+    const serverModel = serverPreferences?.models?.[provider];
+    return serverModel || safeGet(`${MODEL_KEY_PREFIX}${provider}`, "gpt-5.2");
+  });
+  const [azureConfig, setAzureConfig] = useState<AzureConfig | null>(() => {
+    if (serverPreferences?.azure?.endpoint || serverPreferences?.azure?.api_version || serverPreferences?.azure?.deployment_name) {
+      return {
+        azure_endpoint: serverPreferences.azure.endpoint ?? "",
+        api_version: serverPreferences.azure.api_version ?? "",
+        deployment_name: serverPreferences.azure.deployment_name ?? "",
+      };
+    }
+    return getAzureConfig();
+  });
   const [langdockConfig, setLangdockConfigState] = useState<LangdockConfig>(() => getLangdockConfig());
 
   // Workflow state
@@ -133,26 +170,29 @@ export default function Home() {
   const [speakerKeyPoints, setSpeakerKeyPoints] = useState<Record<string, string>>({});
   const [isExtractingKeyPoints, setIsExtractingKeyPoints] = useState(false);
   const [autoKeyPointsEnabled, setAutoKeyPointsEnabled] = useState(
-    () => safeGet(AUTO_KEY_POINTS_KEY, "true") !== "false",
+    () => serverPreferences?.auto_key_points !== undefined ? serverPreferences.auto_key_points : safeGet(AUTO_KEY_POINTS_KEY, "true") !== "false",
   );
   const [minSpeakers, setMinSpeakers] = useState<number>(
-    () => parseInt(safeGet(MIN_SPEAKERS_KEY, "1")) || 1,
+    () => serverPreferences?.min_speakers || parseInt(safeGet(MIN_SPEAKERS_KEY, "1")) || 1,
   );
   const [maxSpeakers, setMaxSpeakers] = useState<number>(
-    () => parseInt(safeGet(MAX_SPEAKERS_KEY, "10")) || 10,
+    () => serverPreferences?.max_speakers || parseInt(safeGet(MAX_SPEAKERS_KEY, "10")) || 10,
   );
   const [realtimeSummaryInterval, setRealtimeSummaryInterval] = useState<SummaryInterval>(
-    () => (parseInt(safeGet(REALTIME_INTERVAL_KEY, "2")) || 2) as SummaryInterval,
+    () => (serverPreferences?.realtime_interval || parseInt(safeGet(REALTIME_INTERVAL_KEY, "2")) || 2) as SummaryInterval,
   );
   const [realtimeFinalSummaryEnabled, setRealtimeFinalSummaryEnabled] = useState(
-    () => safeGet(REALTIME_FINAL_SUMMARY_KEY, "true") !== "false",
+    () => serverPreferences?.realtime_final_summary !== undefined ? serverPreferences.realtime_final_summary : safeGet(REALTIME_FINAL_SUMMARY_KEY, "true") !== "false",
   );
   const [realtimeSystemPrompt, setRealtimeSystemPrompt] = useState(
-    () => safeGet(REALTIME_SYSTEM_PROMPT_KEY, DEFAULT_REALTIME_SYSTEM_PROMPT),
+    () => serverPreferences?.realtime_system_prompt || safeGet(REALTIME_SYSTEM_PROMPT_KEY, DEFAULT_REALTIME_SYSTEM_PROMPT),
   );
   const [featureOverrides, setFeatureOverrides] = useState<
     Partial<Record<LLMFeature, FeatureModelOverride>>
   >(() => {
+    if (serverPreferences?.feature_overrides && Object.keys(serverPreferences.feature_overrides).length > 0) {
+      return serverPreferences.feature_overrides as Partial<Record<LLMFeature, FeatureModelOverride>>;
+    }
     try {
       if (typeof window === "undefined") return {};
       const stored = localStorage.getItem(FEATURE_OVERRIDES_KEY);
@@ -204,16 +244,18 @@ export default function Home() {
       const providerInfo = config?.providers.find((p) => p.id === provider);
       const defaultModel = safeGet(`${MODEL_KEY_PREFIX}${provider}`, "") || providerInfo?.models[0] || "";
       setSelectedModel(defaultModel);
+      savePreferences();
     },
-    [config],
+    [config, savePreferences],
   );
 
   const handleModelChange = useCallback(
     (model: string) => {
       setSelectedModel(model);
       safeSet(`${MODEL_KEY_PREFIX}${selectedProvider}`, model);
+      savePreferences();
     },
-    [selectedProvider],
+    [selectedProvider, savePreferences],
   );
 
   const handleLangdockConfigChange = useCallback((config: LangdockConfig) => {
@@ -224,32 +266,38 @@ export default function Home() {
   const handleAutoKeyPointsChange = useCallback((enabled: boolean) => {
     setAutoKeyPointsEnabled(enabled);
     safeSet(AUTO_KEY_POINTS_KEY, enabled ? "true" : "false");
-  }, []);
+    savePreferences();
+  }, [savePreferences]);
 
   const handleMinSpeakersChange = useCallback((value: number) => {
     setMinSpeakers(value);
     safeSet(MIN_SPEAKERS_KEY, String(value));
-  }, []);
+    savePreferences();
+  }, [savePreferences]);
 
   const handleMaxSpeakersChange = useCallback((value: number) => {
     setMaxSpeakers(value);
     safeSet(MAX_SPEAKERS_KEY, String(value));
-  }, []);
+    savePreferences();
+  }, [savePreferences]);
 
   const handleRealtimeSummaryIntervalChange = useCallback((interval: SummaryInterval) => {
     setRealtimeSummaryInterval(interval);
     safeSet(REALTIME_INTERVAL_KEY, String(interval));
-  }, []);
+    savePreferences();
+  }, [savePreferences]);
 
   const handleRealtimeFinalSummaryEnabledChange = useCallback((enabled: boolean) => {
     setRealtimeFinalSummaryEnabled(enabled);
     safeSet(REALTIME_FINAL_SUMMARY_KEY, enabled ? "true" : "false");
-  }, []);
+    savePreferences();
+  }, [savePreferences]);
 
   const handleRealtimeSystemPromptChange = useCallback((prompt: string) => {
     setRealtimeSystemPrompt(prompt);
     safeSet(REALTIME_SYSTEM_PROMPT_KEY, prompt);
-  }, []);
+    savePreferences();
+  }, [savePreferences]);
 
   const resolveModelConfig = useCallback(
     (feature: LLMFeature): { provider: LLMProvider; model: string } => {
@@ -263,8 +311,9 @@ export default function Home() {
     (overrides: Partial<Record<LLMFeature, FeatureModelOverride>>) => {
       setFeatureOverrides(overrides);
       safeSet(FEATURE_OVERRIDES_KEY, JSON.stringify(overrides));
+      savePreferences();
     },
-    [],
+    [savePreferences],
   );
 
   const applyRenames = useCallback((keyPoints: Record<string, string>): Record<string, string> => {
@@ -547,43 +596,10 @@ export default function Home() {
   const hasLlmKey = hasKey(resolvedSummaryConfig.provider);
   const hasAssemblyAiKey = hasKey("assemblyai");
 
-  // Config loading state
-  if (configLoading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="flex h-16 items-center border-b border-border bg-card px-4 md:px-6">
-          <div className="h-6 w-48 animate-pulse rounded bg-card-elevated" />
-        </div>
-        <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
-          <div className="flex justify-center gap-4 py-6">
-            {Array.from({ length: 3 }, (_, i) => (
-              <div key={i} className="h-10 w-10 animate-pulse rounded-full bg-card-elevated" />
-            ))}
-          </div>
-          <div className="h-60 animate-pulse rounded-lg bg-card-elevated" />
-        </div>
-      </div>
-    );
-  }
-
-  // Config error state
-  if (configError) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="space-y-4 text-center">
-          <p className="text-destructive">Failed to load configuration</p>
-          <p className="text-sm text-foreground-muted">{configError}</p>
-          <p className="text-xs text-foreground-muted">Make sure the backend is running and reachable</p>
-          <Button onClick={refetch}>Retry</Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="flex-1">
-      <Header onSettingsClick={() => setSettingsOpen(true)} />
+      <Header onSettingsClick={() => setSettingsOpen(true)} onStorageModeChange={setStorageMode} />
 
       <SettingsSheet
         open={settingsOpen}
@@ -843,5 +859,56 @@ export default function Home() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ─── Outer shell ──────────────────────────────────────────────────────────────
+// Handles the loading / error states.  HomeInner is only mounted once both
+// config and preferences have finished loading.  Server preferences are passed
+// directly as props so HomeInner's useState initialisers can use them as the
+// primary source, with localStorage as fallback.
+
+export default function Home() {
+  const { config, loading: configLoading, error: configError, refetch } = useConfig();
+  const { setStorageMode, isLoading: prefsLoading, savePreferences, serverPreferences } = usePreferences();
+
+  if (configLoading || prefsLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="flex h-16 items-center border-b border-border bg-card px-4 md:px-6">
+          <div className="h-6 w-48 animate-pulse rounded bg-card-elevated" />
+        </div>
+        <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+          <div className="flex justify-center gap-4 py-6">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="h-10 w-10 animate-pulse rounded-full bg-card-elevated" />
+            ))}
+          </div>
+          <div className="h-60 animate-pulse rounded-lg bg-card-elevated" />
+        </div>
+      </div>
+    );
+  }
+
+  if (configError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="space-y-4 text-center">
+          <p className="text-destructive">Failed to load configuration</p>
+          <p className="text-sm text-foreground-muted">{configError}</p>
+          <p className="text-xs text-foreground-muted">Make sure the backend is running and reachable</p>
+          <Button onClick={refetch}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <HomeInner
+      config={config}
+      savePreferences={savePreferences}
+      setStorageMode={setStorageMode}
+      serverPreferences={serverPreferences}
+    />
   );
 }

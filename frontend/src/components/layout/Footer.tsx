@@ -184,7 +184,46 @@ const privacyContent = (
       </div>
     </Section>
 
-    <Section title="3. Third-Party Services">
+    <Section title="3. Optional Account Storage">
+      <div className="space-y-4">
+        <p>
+          When you enable <span className="font-medium text-foreground">Account Storage</span> via
+          your profile menu, we store your app preferences on our server. This is strictly opt-in
+          and disabled by default. Legal basis: Art. 6(1)(a) GDPR — consent.
+        </p>
+        <div>
+          <p className="font-medium text-foreground mb-1">What is stored:</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>App settings (selected AI provider, model, realtime summary interval)</li>
+            <li>Prompt templates and language preferences</li>
+            <li>Theme preference (light / dark / system)</li>
+            <li>Feature-level model overrides</li>
+          </ul>
+        </div>
+        <div>
+          <p className="font-medium text-foreground mb-1">What is never stored:</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>
+              API keys (AssemblyAI, OpenAI, Anthropic, Google Gemini, Azure OpenAI) — these always
+              remain exclusively in your browser
+            </li>
+            <li>Audio recordings, transcripts, or summaries</li>
+          </ul>
+        </div>
+        <p>
+          <span className="font-medium text-foreground">How to delete:</span> Switch back to
+          &quot;Local Storage&quot; in your profile menu at any time. This immediately deletes all
+          server-side preference data.
+        </p>
+        <p>
+          <span className="font-medium text-foreground">Where data is stored:</span> Self-hosted
+          server in Nuremberg, Germany (Hetzner Cloud, EU). No cross-border data transfer for EU
+          users.
+        </p>
+      </div>
+    </Section>
+
+    <Section title="4. Third-Party Services">
       <p>
         The following third-party providers process data in connection with this
         service:
@@ -216,7 +255,7 @@ const privacyContent = (
       </div>
     </Section>
 
-    <Section title="4. Browser Storage (localStorage &amp; Cookies)">
+    <Section title="5. Browser Storage (localStorage &amp; Cookies)">
       <p>
         This service uses only technically necessary browser storage. No
         tracking, analytics, or advertising cookies are used. Under § 25 TDDDG,
@@ -225,7 +264,7 @@ const privacyContent = (
       </p>
     </Section>
 
-    <Section title="5. Your Rights">
+    <Section title="6. Your Rights">
       <p>Under the GDPR, you have the right to:</p>
       <ul className="list-disc list-inside mt-2 space-y-1">
         <li>
@@ -264,7 +303,7 @@ const privacyContent = (
       </p>
     </Section>
 
-    <Section title="6. Right to Lodge a Complaint">
+    <Section title="7. Right to Lodge a Complaint">
       <p>
         You have the right to lodge a complaint with the competent supervisory
         authority:
@@ -330,6 +369,32 @@ const cookiesContent = (
             <span className="text-muted-foreground">{desc}</span>
           </div>
         ))}
+      </div>
+    </Section>
+    <Section title="Account Storage (Optional)">
+      <div className="rounded-md border-l-2 border-[var(--color-info)] bg-[color-mix(in_srgb,var(--color-info)_8%,transparent)] px-4 py-3 space-y-3">
+        <p className="text-xs font-medium text-[var(--color-info)]">
+          Server-side database storage — not a cookie
+        </p>
+        <p>
+          This is separate from browser cookies and localStorage. It is{" "}
+          <span className="font-medium text-foreground">disabled by default</span> and only
+          activated when you explicitly enable{" "}
+          <span className="font-medium text-foreground">Account Storage</span> in your profile menu.
+        </p>
+        <div className="space-y-1">
+          <p className="font-medium text-foreground text-xs">What is stored:</p>
+          <p>App preferences — settings, theme, selected AI models, prompt templates.</p>
+        </div>
+        <div className="space-y-1">
+          <p className="font-medium text-foreground text-xs">What is never stored:</p>
+          <p>API keys — these always remain exclusively in your browser.</p>
+        </div>
+        <p>
+          To disable this and delete all server-side data, go to your{" "}
+          <span className="font-medium text-foreground">profile menu → Storage Mode → Switch to Local</span>
+          .
+        </p>
       </div>
     </Section>
     <Section title="Clearing Your Data">

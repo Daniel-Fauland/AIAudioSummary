@@ -29,6 +29,22 @@ class Settings(BaseSettings):
         description="The directory where the prompt templates are stored within the backend"
     )
 
+    # --- Database Settings ---
+    database_url: str = Field(
+        default="",
+        description="Full async SQLAlchemy connection string (postgresql+asyncpg://...)"
+    )
+
+    auth_secret: str = Field(
+        default="",
+        description="Shared secret for JWT validation (must match frontend AUTH_SECRET)"
+    )
+
+    initial_admins: str = Field(
+        default="",
+        description="Comma-separated list of admin emails to seed on startup"
+    )
+
     # --- Validation methods ---
     @field_validator("logging_level")
     @classmethod

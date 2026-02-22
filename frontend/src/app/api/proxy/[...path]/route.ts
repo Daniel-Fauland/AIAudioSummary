@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { SignJWT } from "jose";
 import { auth } from "@/auth";
 
 function getBackendUrl(): string {
@@ -7,6 +8,20 @@ function getBackendUrl(): string {
   if (raw.startsWith("localhost") || raw.startsWith("127.0.0.1"))
     return `http://${raw}`;
   return `https://${raw}`;
+}
+
+async function createBackendToken(session: { user: { email?: string | null; name?: string | null; [key: string]: unknown } }): Promise<string | null> {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret || !session.user.email) return null;
+  const secretBytes = new TextEncoder().encode(secret);
+  return new SignJWT({
+    email: session.user.email,
+    name: session.user.name ?? null,
+    role: (session.user as { role?: string }).role ?? "user",
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("2m")
+    .sign(secretBytes);
 }
 
 async function proxyRequest(request: NextRequest) {
@@ -31,6 +46,12 @@ async function proxyRequest(request: NextRequest) {
       headers.set(key, value);
     }
   });
+
+  // Add Authorization header with short-lived signed JWT
+  const backendToken = await createBackendToken(session as unknown as { user: { email?: string | null; name?: string | null; [key: string]: unknown } });
+  if (backendToken) {
+    headers.set("Authorization", `Bearer ${backendToken}`);
+  }
 
   const fetchOptions: RequestInit = {
     method: request.method,
@@ -72,10 +93,7 @@ async function proxyRequest(request: NextRequest) {
   }
 
   // For all other responses, pass through as-is
-  const body = await upstream.arrayBuffer();
   const responseHeaders = new Headers();
-  // Strip hop-by-hop headers and encoding headers (Node fetch auto-decompresses,
-  // so forwarding content-encoding/content-length would corrupt the response)
   const skipResponseHeaders = new Set([
     "transfer-encoding",
     "content-encoding",
@@ -87,6 +105,15 @@ async function proxyRequest(request: NextRequest) {
     }
   });
 
+  // 204 No Content must have a null body per the HTTP spec
+  if (upstream.status === 204) {
+    return new Response(null, {
+      status: 204,
+      headers: responseHeaders,
+    });
+  }
+
+  const body = await upstream.arrayBuffer();
   return new Response(body, {
     status: upstream.status,
     headers: responseHeaders,

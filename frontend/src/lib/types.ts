@@ -226,3 +226,41 @@ export interface QuestionEvaluation {
 export interface EvaluateQuestionsResponse {
   evaluations: QuestionEvaluation[];
 }
+
+// === User types ===
+
+export interface UserProfile {
+  id: number;
+  email: string;
+  name: string | null;
+  role: "user" | "admin";
+  storage_mode: "local" | "account";
+  created_at: string;
+}
+
+// === Preferences types ===
+
+export interface UserPreferences {
+  selected_provider?: string;
+  models?: Record<string, string>;
+  app_mode?: string;
+  realtime_interval?: number;
+  feature_overrides?: Record<string, unknown>;
+  theme?: string;
+  azure?: {
+    api_version?: string;
+    endpoint?: string;
+    deployment_name?: string;
+  };
+  auto_key_points?: boolean;
+  min_speakers?: number;
+  max_speakers?: number;
+  realtime_final_summary?: boolean;
+  realtime_system_prompt?: string;
+  custom_templates?: { id: string; name: string; content: string }[];
+}
+
+export interface PreferencesResponse {
+  storage_mode: "local" | "account";
+  preferences: UserPreferences | null;
+}

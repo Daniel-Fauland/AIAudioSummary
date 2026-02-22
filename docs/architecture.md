@@ -90,14 +90,20 @@ project-root/
 │   │   ├── misc/router.py         #   GET /getConfig, POST /getSpeakers, POST /updateSpeakers
 │   │   ├── realtime/router.py    #   WS /ws/realtime, POST /createIncrementalSummary
 │   │   ├── prompt_assistant/router.py  #   POST /prompt-assistant/analyze, POST /prompt-assistant/generate
-│   │   └── live_questions/router.py    #   POST /live-questions/evaluate
+│   │   ├── live_questions/router.py    #   POST /live-questions/evaluate
+│   │   ├── auth/router.py         #   GET /auth/verify (no auth required)
+│   │   └── users/router.py        #   GET /users/me, GET /users, POST /users, DELETE /users/{id}
 │   ├── service/                    # Service layer (business logic)
 │   │   ├── assembly_ai/core.py    #   AssemblyAIService
 │   │   ├── llm/core.py            #   LLMService (multi-provider)
 │   │   ├── misc/core.py           #   MiscService (speakers, dates)
 │   │   ├── realtime/             #   RealtimeTranscriptionService, SessionManager
 │   │   ├── prompt_assistant/core.py  #   PromptAssistantService (analyze + generate)
-│   │   └── live_questions/core.py    #   LiveQuestionsService (strict LLM evaluation)
+│   │   ├── live_questions/core.py    #   LiveQuestionsService (strict LLM evaluation)
+│   │   ├── auth/core.py           #   AuthService (email verification against DB)
+│   │   └── users/core.py          #   UsersService (CRUD, name sync)
+│   ├── dependencies/               # FastAPI dependencies
+│   │   └── auth.py                #   get_current_user (HS256 JWT validation), require_admin
 │   ├── models/                     # Pydantic request/response models
 │   │   ├── assemblyai.py
 │   │   ├── config.py
@@ -105,12 +111,21 @@ project-root/
 │   │   ├── realtime.py            #   IncrementalSummaryRequest/Response
 │   │   ├── prompt_assistant.py    #   AssistantQuestion, AnalyzeRequest/Response, GenerateRequest/Response
 │   │   └── live_questions.py      #   EvaluateQuestionsRequest/Response, QuestionInput, QuestionEvaluation
+│   ├── db/                         # Database layer (SQLAlchemy async)
+│   │   ├── engine.py              #   async_engine, AsyncSessionLocal, get_db(), Base
+│   │   └── models.py              #   User ORM model (id, email, name, role, preferences, storage_mode)
+│   ├── alembic/                    # Database migrations (Alembic)
+│   │   ├── env.py                 #   Async migration runner
+│   │   ├── script.py.mako         #   Migration file template
+│   │   └── versions/
+│   │       └── 0001_initial_users.py  #   Creates users table
 │   ├── utils/
 │   │   ├── helper.py              # File listing & reading utilities
 │   │   └── logging.py             # Logger configuration
 │   ├── prompt_templates/           # Markdown prompt files (loaded dynamically)
+│   ├── alembic.ini                 # Alembic configuration
 │   ├── config.py                   # Pydantic BaseSettings (from .env)
-│   ├── main.py                     # FastAPI app entry point
+│   ├── main.py                     # FastAPI app entry point (lifespan: runs migrations + seeds admins)
 │   └── pyproject.toml              # uv dependencies
 │
 ├── frontend/
@@ -121,12 +136,14 @@ project-root/
 │   │   │   ├── api/
 │   │   │   │   ├── auth/[...nextauth]/route.ts  # Auth.js route handler
 │   │   │   │   └── proxy/[...path]/route.ts     # API proxy to backend
-│   │   │   ├── login/page.tsx      # Google sign-in page
+│   │   │   ├── admin/page.tsx      # Admin panel (role-guarded, user management)
+│   │   ├── login/page.tsx      # Google sign-in page
 │   │   │   ├── layout.tsx          # Root layout (dark mode, font, toaster, SessionWrapper)
 │   │   │   ├── page.tsx            # Main orchestrator (all state lives here)
 │   │   │   └── globals.css         # Theme variables, animations
 │   │   ├── components/
-│   │   │   ├── auth/               # SessionWrapper, UserMenu
+│   │   │   ├── admin/              # AddUserDialog, DeleteUserDialog
+│   │   ├── auth/               # SessionWrapper, UserMenu
 │   │   │   ├── layout/             # Header, Footer, StepIndicator, SettingsSheet
 │   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm
 │   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor (+ Prompt Assistant trigger), SummaryView
@@ -137,6 +154,8 @@ project-root/
 │   │   ├── hooks/
 │   │   │   ├── useApiKeys.ts       # localStorage key management
 │   │   │   ├── useConfig.ts        # Backend config fetching
+│   │   │   ├── useCustomTemplates.ts # Custom prompt template CRUD (localStorage + server sync)
+│   │   │   ├── usePreferences.ts   # Server preference sync (loads on mount, fire-and-forget saves)
 │   │   │   └── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
@@ -148,7 +167,8 @@ project-root/
 │   ├── package.json
 │   └── next.config.ts
 │
-├── docker-compose.yml              # Docker Compose for local and self-hosted deployment
+├── docker-compose.yml              # Docker Compose for local and self-hosted deployment (includes postgres service)
+├── .env.example                    # Root env template for Docker Compose (POSTGRES_*, AUTH_SECRET, INITIAL_ADMINS)
 ├── docs/                           # Documentation
 ├── user_stories/                   # Feature specifications
 └── CLAUDE.md                       # AI assistant instructions
@@ -190,9 +210,10 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 | `src/app/api/auth/[...nextauth]/route.ts` | Auth.js route handler (GET/POST for OAuth callbacks)                                                 |
 | `src/app/login/page.tsx`                  | Server Component login page with "Sign in with Google" button                                        |
 | `src/components/auth/SessionWrapper.tsx`  | Client `<SessionProvider>` wrapper (needed because `layout.tsx` is a Server Component)               |
-| `src/components/auth/UserMenu.tsx`        | Client component showing user email, avatar, and sign-out button                                     |
+| `src/components/auth/UserMenu.tsx`        | Client component: dropdown with user avatar, storage mode toggle, admin panel link, and sign-out     |
+| `src/components/auth/StorageModeDialog.tsx` | Dialog for switching between local and account storage modes (uploads/downloads preferences)       |
 
-**Email allowlist**: The `ALLOWED_EMAILS` env var is a comma-separated list of emails. If empty, all authenticated Google users are allowed. The check happens in the `signIn` callback in `auth.ts`.
+**Database access control**: The `signIn` callback in `auth.ts` calls `GET {BACKEND_INTERNAL_URL}/auth/verify?email=...` server-side. Only emails that exist in the `users` DB table are allowed in. Denied users are redirected to `/login?error=AccessDenied`. The `jwt` callback fetches the user's `role` and stores it in the session token; the `session` callback exposes it as `session.user.role`.
 
 ### API Proxy Layer
 
@@ -200,9 +221,11 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 
 1. Checks the user's auth session (returns 401 if unauthenticated)
 2. Reads `BACKEND_INTERNAL_URL` env var (default `http://localhost:8080`)
-3. Forwards the request method, headers (stripping `host`, `cookie`, `connection`), query params, and body
-4. **Streaming**: Detects `content-type: text/plain` responses and passes the `ReadableStream` directly through — this preserves chunk-by-chunk delivery for `/createSummary`
-5. **File uploads**: Passes `request.body` as a raw stream with `duplex: "half"` for multipart/form-data
+3. Creates a short-lived HS256 JWT (2-minute expiry) signed with `AUTH_SECRET`, containing `{email, name, role}` from the session, and adds it as `Authorization: Bearer <token>` for the backend to validate
+4. Forwards the request method, headers (stripping `host`, `cookie`, `connection`), query params, and body
+5. **Streaming**: Detects `content-type: text/plain` responses and passes the `ReadableStream` directly through — this preserves chunk-by-chunk delivery for `/createSummary`
+6. **File uploads**: Passes `request.body` as a raw stream with `duplex: "half"` for multipart/form-data
+7. **204 No Content**: Returns `new Response(null, { status: 204 })` — the HTTP spec requires 204 responses to have a null body
 
 ### Route Protection
 
@@ -220,7 +243,7 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 | `AUTH_GOOGLE_ID`              | Frontend | —                       | Google OAuth client ID                                       |
 | `AUTH_GOOGLE_SECRET`   | Frontend | —                       | Google OAuth client secret                                   |
 | `AUTH_SECRET`          | Frontend | —                       | Random secret for session encryption                         |
-| `ALLOWED_EMAILS`       | Frontend | (empty = allow all)     | Comma-separated email allowlist                              |
+| ~~`ALLOWED_EMAILS`~~   | Frontend | (removed)               | Replaced by database-driven access control (US-04)           |
 | `AUTH_TRUST_HOST`      | Frontend | —                       | Set to `"true"` for non-Vercel deployments                   |
 | `ENVIRONMENT`          | Backend  | `development`           | `development` (enables reload) or `production`               |
 | `ALLOWED_ORIGINS`      | Backend  | `http://localhost:3000` | Comma-separated CORS origins                                 |
@@ -376,8 +399,51 @@ Environment variables (`.env`):
 | `PROMPT_TEMPLATE_DIRECTORY` | `./prompt_templates`    | Path to prompt markdown files              |
 | `ENVIRONMENT`               | `development`           | `development` (hot-reload) or `production` |
 | `ALLOWED_ORIGINS`           | `http://localhost:3000` | Comma-separated CORS origins               |
+| `DATABASE_URL`              | `""` (disabled)         | Async SQLAlchemy URL (`postgresql+asyncpg://...`); if empty, DB is skipped |
+| `AUTH_SECRET`               | `""` (disabled)         | Shared JWT secret (must match frontend `AUTH_SECRET`) |
+| `INITIAL_ADMINS`            | `""` (none)             | Comma-separated emails to seed as admin on startup |
 
 To add a new setting: add a field to `Settings` in `config.py`, add the corresponding variable to `.env` and `.env.example`.
+
+### Database Layer
+
+The backend uses **async SQLAlchemy 2.x** with **asyncpg** and **Alembic** for schema migrations.
+
+| File | Purpose |
+| ---- | ------- |
+| `db/engine.py` | `async_engine`, `AsyncSessionLocal`, `get_db()` FastAPI dependency, `Base` declarative base |
+| `db/models.py` | `User` ORM model |
+| `alembic/` | Migration scripts (run automatically on startup) |
+| `alembic.ini` | Alembic configuration |
+
+**`User` table** (`users`):
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `id` | `INTEGER` | Auto-increment primary key |
+| `email` | `VARCHAR(255)` | Unique, not null |
+| `name` | `VARCHAR(255)` | Nullable |
+| `role` | `VARCHAR(50)` | `'user'` or `'admin'`, default `'user'` |
+| `preferences` | `JSONB` | Nullable; server-side preference storage |
+| `storage_mode` | `VARCHAR(10)` | `'local'` or `'account'`, default `'local'` |
+| `created_at` | `TIMESTAMPTZ` | Server default `now()` |
+| `updated_at` | `TIMESTAMPTZ` | Server default `now()`, updated on write |
+
+**Startup behaviour** (in `main.py` lifespan):
+1. If `DATABASE_URL` is set: runs `alembic upgrade head` in a thread executor (keeps async event loop clean), then seeds any emails in `INITIAL_ADMINS` as `role='admin'`.
+2. If `DATABASE_URL` is empty: skips DB setup with a warning — existing functionality is unaffected.
+
+**Using the DB in a router**:
+```python
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from db.engine import get_db
+
+@router.get("/example")
+async def example(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User))
+    return result.scalars().all()
+```
 
 ### Prompt Template System
 
@@ -548,9 +614,11 @@ RootLayout (layout.tsx)
     │
     ├── /login ── LoginPage    ← Server Component, redirects to / if authenticated
     │
-    └── / ── Page (page.tsx) ─── All state lives here
+    └── / ── Home (page.tsx) ─── Outer shell: useConfig() + usePreferences(), loading gate
+        └── HomeInner ──────────── All state lives here (mounts after prefs loaded)
         ├── Header
-        │   ├── UserMenu       ← user email, avatar, sign-out button
+        │   ├── UserMenu       ← dropdown: avatar, storage mode, admin panel link, sign-out
+        │   │   └── StorageModeDialog ← upload/download prefs when switching storage modes
         │   └── Settings gear icon
         ├── SettingsSheet (right-side drawer, 380px)
         │   ├── ApiKeyManager          ← uses useApiKeys() hook
@@ -623,30 +691,38 @@ Key conventions:
 
 All application state lives in `page.tsx` using `useState`. There is no global state library.
 
-| State Category    | Persisted?         | Storage Key Pattern         |
-| ----------------- | ------------------ | --------------------------- |
-| API keys          | Yes (localStorage) | `aias:v1:apikey:{provider}` |
-| Azure config      | Yes (localStorage) | `aias:v1:azure:{field}`     |
-| Selected provider | Yes (localStorage) | `aias:v1:selected_provider` |
-| Selected model    | Yes (localStorage) | `aias:v1:model:{provider}`  |
-| App mode          | Yes (localStorage) | `aias:v1:app_mode`          |
-| Realtime interval | Yes (localStorage) | `aias:v1:realtime_interval` |
-| Feature overrides | Yes (localStorage) | `aias:v1:feature_overrides` |
-| Workflow state    | No                 | -                           |
-| Prompt/language   | No                 | -                           |
-| Realtime session  | No (hook state)    | -                           |
+| State Category      | Persisted?         | Synced to server? | Storage Key Pattern         |
+| ------------------- | ------------------ | ----------------- | --------------------------- |
+| API keys            | Yes (localStorage) | **Never**         | `aias:v1:apikey:{provider}` |
+| Azure config        | Yes (localStorage) | Yes               | `aias:v1:azure:{field}`     |
+| Selected provider   | Yes (localStorage) | Yes               | `aias:v1:selected_provider` |
+| Selected model      | Yes (localStorage) | Yes               | `aias:v1:model:{provider}`  |
+| App mode            | Yes (localStorage) | Yes               | `aias:v1:app_mode`          |
+| Realtime interval   | Yes (localStorage) | Yes               | `aias:v1:realtime_interval` |
+| Feature overrides   | Yes (localStorage) | Yes               | `aias:v1:feature_overrides` |
+| Auto key points     | Yes (localStorage) | Yes               | `aias:v1:auto_key_points`   |
+| Speaker count range | Yes (localStorage) | Yes               | `aias:v1:min_speakers`, `aias:v1:max_speakers` |
+| Final summary toggle| Yes (localStorage) | Yes               | `aias:v1:realtime_final_summary` |
+| Realtime sys prompt | Yes (localStorage) | Yes               | `aias:v1:realtime_system_prompt` |
+| Custom templates    | Yes (localStorage) | Yes               | `aias:v1:custom_templates`  |
+| Theme               | Yes (localStorage) | Yes               | `aias:v1:theme`             |
+| Workflow state      | No                 | No                | -                           |
+| Prompt/language     | No                 | No                | -                           |
+| Realtime session    | No (hook state)    | No                | -                           |
 
-Pattern for persisted state:
+Pattern for persisted state (in `HomeInner`, which receives `serverPreferences` as a prop):
 
 ```tsx
+// Prefer server preferences (account mode), fall back to localStorage
 const [selectedProvider, setSelectedProvider] = useState<LLMProvider>(
-  () => safeGet("aias:v1:selected_provider", "openai") as LLMProvider,
+  () => (serverPreferences?.selected_provider as LLMProvider) || safeGet("aias:v1:selected_provider", "openai") as LLMProvider,
 );
 
-const handleProviderChange = (provider: LLMProvider) => {
+const handleProviderChange = useCallback((provider: LLMProvider) => {
   setSelectedProvider(provider);
   safeSet("aias:v1:selected_provider", provider);
-};
+  savePreferences(); // fire-and-forget sync to server (only in account mode)
+}, [savePreferences]);
 ```
 
 ### API Client
@@ -665,6 +741,13 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 | `analyzePrompt()`              | POST   | `/prompt-assistant/analyze`  | `PromptAssistantAnalyzeResponse`              |
 | `generatePrompt()`             | POST   | `/prompt-assistant/generate` | `PromptAssistantGenerateResponse`             |
 | `evaluateLiveQuestions()`      | POST   | `/live-questions/evaluate`   | `EvaluateQuestionsResponse`                   |
+| `getMe()`                      | GET    | `/users/me`                  | `UserProfile`                                 |
+| `getUsers()`                   | GET    | `/users`                     | `UserProfile[]` (admin only)                  |
+| `createUser(email, name?)`     | POST   | `/users`                     | `UserProfile` (admin only)                    |
+| `deleteUser(id)`               | DELETE | `/users/{id}`                | `void` (admin only)                           |
+| `getPreferences()`             | GET    | `/users/me/preferences`      | `PreferencesResponse`                         |
+| `putPreferences(prefs)`        | PUT    | `/users/me/preferences`      | `PreferencesResponse`                         |
+| `deletePreferences()`          | DELETE | `/users/me/preferences`      | `void`                                        |
 
 Error handling: `ApiError` class with `status` and `message`. The `handleResponse<T>()` helper extracts `detail` from FastAPI error JSON. Use `getErrorMessage(error, context)` from `lib/errors.ts` in catch blocks to map `ApiError` status codes to user-friendly toast messages — never show raw backend error strings to the user.
 
@@ -717,21 +800,39 @@ const { getKey, setKey, hasKey, clearKey, getAzureConfig, setAzureConfig } = use
 
 Key prefix: `aias:v1:` — all localStorage operations use safe try/catch wrappers to handle SSR and disabled localStorage.
 
-| Key                             | Contents                        |
-| ------------------------------- | ------------------------------- |
-| `aias:v1:apikey:assemblyai`     | AssemblyAI API key              |
-| `aias:v1:apikey:openai`         | OpenAI API key                  |
-| `aias:v1:apikey:anthropic`      | Anthropic API key               |
-| `aias:v1:apikey:gemini`         | Gemini API key                  |
-| `aias:v1:apikey:azure_openai`   | Azure OpenAI API key            |
-| `aias:v1:azure:api_version`     | Azure API version               |
-| `aias:v1:azure:endpoint`        | Azure endpoint URL              |
-| `aias:v1:azure:deployment_name` | Azure deployment name           |
-| `aias:v1:selected_provider`     | Currently selected LLM provider |
-| `aias:v1:model:{provider}`      | Selected model per provider     |
-| `aias:v1:app_mode`              | App mode (`standard` or `realtime`) |
-| `aias:v1:realtime_interval`     | Realtime auto-summary interval (minutes: 1/2/3/5/10) |
-| `aias:v1:feature_overrides`     | JSON: per-feature model overrides (`Partial<Record<LLMFeature, FeatureModelOverride>>`); features: `summary_generation`, `realtime_summary`, `key_point_extraction`, `prompt_assistant`, `live_question_evaluation` |
+The `usePreferences` hook syncs non-API-key preferences between localStorage and the server:
+
+```tsx
+const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferences } = usePreferences();
+```
+
+- On mount (when the user is authenticated): fetches `GET /users/me` to determine `storage_mode`, then if `"account"` fetches `GET /users/me/preferences`, writes them to localStorage via `applyPreferences()`, and stores them in `serverPreferences` state. All state updates (`setStorageMode`, `setServerPreferences`, `setIsLoading`) are batched after async work completes to avoid mid-flight cancellation.
+- The outer `Home` component passes `serverPreferences` directly to `HomeInner` as a prop. `HomeInner`'s `useState` initialisers prefer `serverPreferences` over localStorage, ensuring correct values even if `applyPreferences()` fails.
+- `savePreferences()`: fire-and-forget `PUT /users/me/preferences` — collects current non-API-key values from localStorage and pushes them to the server. Called after every settings change handler in `page.tsx` (only actually sends if `storageMode === "account"`).
+- API keys are **never** included in the synced payload.
+- The `StorageModeDialog` handles initial upload (local → account) and download (account → local) of preferences, including all synced fields.
+
+| Key                             | Contents                        | Synced? |
+| ------------------------------- | ------------------------------- | ------- |
+| `aias:v1:apikey:assemblyai`     | AssemblyAI API key              | Never   |
+| `aias:v1:apikey:openai`         | OpenAI API key                  | Never   |
+| `aias:v1:apikey:anthropic`      | Anthropic API key               | Never   |
+| `aias:v1:apikey:gemini`         | Gemini API key                  | Never   |
+| `aias:v1:apikey:azure_openai`   | Azure OpenAI API key            | Never   |
+| `aias:v1:azure:api_version`     | Azure API version               | Yes     |
+| `aias:v1:azure:endpoint`        | Azure endpoint URL              | Yes     |
+| `aias:v1:azure:deployment_name` | Azure deployment name           | Yes     |
+| `aias:v1:selected_provider`     | Currently selected LLM provider | Yes     |
+| `aias:v1:model:{provider}`      | Selected model per provider     | Yes     |
+| `aias:v1:app_mode`              | App mode (`standard` or `realtime`) | Yes |
+| `aias:v1:realtime_interval`     | Realtime auto-summary interval (minutes: 1/2/3/5/10) | Yes |
+| `aias:v1:feature_overrides`     | JSON: per-feature model overrides (`Partial<Record<LLMFeature, FeatureModelOverride>>`); features: `summary_generation`, `realtime_summary`, `key_point_extraction`, `prompt_assistant`, `live_question_evaluation` | Yes |
+| `aias:v1:auto_key_points`       | Auto-extract key points toggle (`"true"`/`"false"`) | Yes |
+| `aias:v1:min_speakers`          | Minimum expected speakers (number) | Yes  |
+| `aias:v1:max_speakers`          | Maximum expected speakers (number) | Yes  |
+| `aias:v1:realtime_final_summary`| Generate final summary on stop (`"true"`/`"false"`) | Yes |
+| `aias:v1:realtime_system_prompt`| Custom realtime summary system prompt | Yes |
+| `aias:v1:custom_templates`      | JSON array of custom prompt templates (`PromptTemplate[]`) | Yes |
 
 ### Styling & Theme
 
@@ -775,7 +876,7 @@ To add a new shadcn component:
 cd frontend && npx shadcn@latest add <component-name>
 ```
 
-Currently used: `badge`, `button`, `card`, `checkbox`, `collapsible`, `dialog`, `input`, `label`, `scroll-area`, `select`, `separator`, `sheet`, `skeleton`, `slider`, `sonner`, `switch`, `tabs`, `textarea`, `tooltip`.
+Currently used: `badge`, `button`, `card`, `checkbox`, `collapsible`, `dialog`, `dropdown-menu`, `input`, `label`, `scroll-area`, `select`, `separator`, `sheet`, `skeleton`, `slider`, `sonner`, `switch`, `tabs`, `textarea`, `tooltip`.
 
 `components/ui/audio-player.tsx` is a custom composite component (not generated by shadcn CLI) that combines `Button` and `Slider` into a dark-themed audio playback widget with play/pause, seek bar, time display, mute toggle, and volume control. It is used by `AudioRecorder` to preview recordings after they are stopped.
 
