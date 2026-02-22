@@ -128,7 +128,7 @@ project-root/
 │   │   │   └── globals.css         # Theme variables, animations
 │   │   ├── components/
 │   │   │   ├── auth/               # SessionWrapper, UserMenu
-│   │   │   ├── layout/             # Header, StepIndicator, SettingsSheet
+│   │   │   ├── layout/             # Header, Footer, StepIndicator, SettingsSheet
 │   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm
 │   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor (+ Prompt Assistant trigger), SummaryView
 │   │   │   ├── realtime/          # RealtimeMode, RealtimeControls, RealtimeTranscriptView, RealtimeSummaryView, ConnectionStatus
@@ -150,6 +150,7 @@ project-root/
 │   └── next.config.ts
 │
 ├── render.yaml                     # Render Blueprint (IaC deployment config)
+├── docker-compose.yml              # Docker Compose for local containerised deployment
 ├── docs/                           # Documentation
 ├── user_stories/                   # Feature specifications
 └── CLAUDE.md                       # AI assistant instructions
@@ -575,12 +576,14 @@ RootLayout (layout.tsx)
         │       │                   └── StepResult       ← Step 4: editable generated prompt
         │       └── Step 3: TranscriptView (readonly) + SummaryView
         │
-        └── (Realtime mode):
-            └── RealtimeMode           ← orchestrator, uses useRealtimeSession() hook
-                ├── RealtimeControls   ← Start/Pause/Stop, mic selector, elapsed timer, countdown + Refresh button
-                │   └── ConnectionStatus
-                ├── RealtimeTranscriptView  ← live transcript with auto-scroll
-                └── RealtimeSummaryView     ← markdown summary with periodic updates
+        ├── (Realtime mode):
+        │   └── RealtimeMode           ← orchestrator, uses useRealtimeSession() hook
+        │       ├── RealtimeControls   ← Start/Pause/Stop, mic selector, elapsed timer, countdown + Refresh button
+        │       │   └── ConnectionStatus
+        │       ├── RealtimeTranscriptView  ← live transcript with auto-scroll
+        │       └── RealtimeSummaryView     ← markdown summary with periodic updates
+        │
+        └── Footer                     ← Imprint / Privacy Policy / Cookie Settings links (each opens a Dialog)
 ```
 
 ### Adding a New Frontend Component
@@ -1117,6 +1120,37 @@ cd frontend && npm run dev           # http://localhost:3000
 ```
 
 API docs: http://localhost:8080/docs
+
+### Run with Docker
+
+Docker Compose orchestrates both services. Authentication env vars (Google OAuth) must be provided separately.
+
+```bash
+# Build and start both services
+docker compose up --build
+
+# Backend:  http://localhost:8080
+# Frontend: http://localhost:3000
+
+# Build individual services
+docker compose build backend
+docker compose build frontend
+```
+
+**Environment variables for Docker:**
+
+| Variable | Where to set | Notes |
+|---|---|---|
+| `AUTH_GOOGLE_ID` | `frontend/.env.local` | Google OAuth client ID |
+| `AUTH_GOOGLE_SECRET` | `frontend/.env.local` | Google OAuth client secret |
+| `AUTH_SECRET` | `frontend/.env.local` | Random secret (`openssl rand -base64 32`) |
+| `ALLOWED_EMAILS` | `frontend/.env.local` | Comma-separated allowlist (empty = all) |
+| `NEXT_PUBLIC_BACKEND_WS_URL` | Build arg in `docker-compose.yml` | WebSocket URL reachable from browser; defaults to `ws://localhost:8080` |
+
+Docker file locations:
+- `backend/Dockerfile` — multi-stage (uv builder → slim runtime), Python 3.12
+- `frontend/Dockerfile` — multi-stage (npm build → Next.js standalone runtime), Node 20 Alpine
+- `docker-compose.yml` — root-level, sets `BACKEND_INTERNAL_URL=http://backend:8080` for internal networking
 
 For authentication to work locally, you need Google OAuth credentials configured (see [GCP Setup Guide](#gcp-setup-guide-google-oauth)) and the relevant env vars in `frontend/.env.local` (see `frontend/.env.local.example`).
 

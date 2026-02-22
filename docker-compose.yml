@@ -1,0 +1,37 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    restart: always
+    # Load backend/.env if it exists (optional — for LOGGING_LEVEL etc.)
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      ENVIRONMENT: production
+      # Allow requests from the frontend (browser-side origin)
+      ALLOWED_ORIGINS: http://localhost:3000
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # WebSocket URL must be reachable from the user's browser — use localhost for local Docker
+        NEXT_PUBLIC_BACKEND_WS_URL: ws://localhost:8080
+    ports:
+      - "3000:3000"
+    restart: always
+    # Load frontend/.env.local if it exists (for AUTH_GOOGLE_ID, AUTH_SECRET, etc.)
+    env_file:
+      - path: ./frontend/.env.local
+        required: false
+    environment:
+      # Server-side URL — uses Docker service name for internal networking
+      BACKEND_INTERNAL_URL: http://backend:8080
+      AUTH_TRUST_HOST: "true"
+    depends_on:
+      - backend
