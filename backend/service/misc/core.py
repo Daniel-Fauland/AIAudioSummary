@@ -21,8 +21,14 @@ class MiscService:
             speaker_pattern = r'^([A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F0-9 ]*?):'
             speaker_matches = re.findall(speaker_pattern, transcript, re.MULTILINE)
 
-            # Deduplicate, strip whitespace, and sort
-            speakers = sorted(set(match.strip() for match in speaker_matches))
+            # Deduplicate while preserving first-appearance order
+            seen: set[str] = set()
+            speakers: list[str] = []
+            for match in speaker_matches:
+                name = match.strip()
+                if name not in seen:
+                    seen.add(name)
+                    speakers.append(name)
             return speakers
         except Exception as e:
             logger.error(f"Error identifying speakers: {str(e)}")

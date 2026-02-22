@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { format, parse } from "date-fns";
-import { CalendarIcon, Loader2, Plus, Trash2, X } from "lucide-react";
+import { CalendarIcon, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -33,7 +33,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { PromptTemplate, LanguageOption } from "@/lib/types";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { PromptAssistantModal } from "@/components/prompt-assistant/PromptAssistantModal";
+import type { AzureConfig, LangdockConfig, LLMProvider, PromptTemplate, LanguageOption } from "@/lib/types";
 
 interface PromptEditorProps {
   templates: PromptTemplate[];
@@ -54,6 +56,12 @@ interface PromptEditorProps {
   generating?: boolean;
   hasLlmKey?: boolean;
   onOpenSettings?: () => void;
+  // LLM credentials for Prompt Assistant
+  llmProvider?: LLMProvider;
+  llmApiKey?: string;
+  llmModel?: string;
+  llmAzureConfig?: AzureConfig | null;
+  llmLangdockConfig?: LangdockConfig;
 }
 
 function DatePicker({
@@ -157,8 +165,52 @@ export function PromptEditor({
   generating,
   hasLlmKey,
   onOpenSettings,
+  llmProvider,
+  llmApiKey,
+  llmModel,
+  llmAzureConfig,
+  llmLangdockConfig,
 }: PromptEditorProps) {
+  const [assistantOpen, setAssistantOpen] = useState(false);
+
+  const canUseAssistant = !!(llmProvider && llmApiKey && llmModel);
   const allTemplates = [...templates, ...customTemplates];
+
+  // "Other" language support
+  const [isOtherMode, setIsOtherMode] = useState(
+    () => !!selectedLanguage && !new Set(languages.map((l) => l.name)).has(selectedLanguage),
+  );
+  const [customLanguageInput, setCustomLanguageInput] = useState(
+    () => {
+      const knownNames = new Set(languages.map((l) => l.name));
+      return !knownNames.has(selectedLanguage) ? selectedLanguage : "";
+    },
+  );
+
+  const dropdownValue = isOtherMode ? "__other__" : selectedLanguage;
+
+  const handleLanguageSelect = useCallback(
+    (value: string) => {
+      if (value === "__other__") {
+        setIsOtherMode(true);
+        if (customLanguageInput) {
+          onLanguageChange(customLanguageInput);
+        }
+      } else {
+        setIsOtherMode(false);
+        onLanguageChange(value);
+      }
+    },
+    [customLanguageInput, onLanguageChange],
+  );
+
+  const handleCustomLanguageChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setCustomLanguageInput(e.target.value);
+      onLanguageChange(e.target.value);
+    },
+    [onLanguageChange],
+  );
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
     templates[0]?.id ?? "",
@@ -287,22 +339,47 @@ export function PromptEditor({
               </Button>
             ) : null}
             {isCustomSelected ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setDeleteDialogOpen(true)}
-                title="Delete custom template"
-              >
-                <Trash2 className="h-4 w-4 text-foreground-muted" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4 text-foreground-muted" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete custom template</TooltipContent>
+              </Tooltip>
             ) : null}
           </div>
 
           {/* Prompt textarea */}
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground-secondary">
-              Prompt
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-foreground-secondary">
+                Prompt
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAssistantOpen(true)}
+                    disabled={!canUseAssistant}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Prompt Assistant
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {canUseAssistant
+                    ? "Use AI to help create or refine your prompt"
+                    : "Add an LLM API key in Settings to use Prompt Assistant"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <Textarea
               value={selectedPrompt}
               onChange={(e) => handlePromptEdit(e.target.value)}
@@ -331,7 +408,7 @@ export function PromptEditor({
               <Label className="text-sm font-medium text-foreground-secondary">
                 Language
               </Label>
-              <Select value={selectedLanguage} onValueChange={onLanguageChange}>
+              <Select value={dropdownValue} onValueChange={handleLanguageSelect}>
                 <SelectTrigger className="bg-card-elevated">
                   <SelectValue />
                 </SelectTrigger>
@@ -341,8 +418,19 @@ export function PromptEditor({
                       {l.name}
                     </SelectItem>
                   ))}
+                  <SelectSeparator />
+                  <SelectItem value="__other__">Other</SelectItem>
                 </SelectContent>
               </Select>
+              {isOtherMode ? (
+                <Input
+                  value={customLanguageInput}
+                  onChange={handleCustomLanguageChange}
+                  placeholder="Enter language…"
+                  className="bg-card-elevated mt-2"
+                  autoFocus
+                />
+              ) : null}
             </div>
 
             {isGerman ? (
@@ -375,7 +463,7 @@ export function PromptEditor({
             <Button
               onClick={onGenerate}
               disabled={generateDisabled || generating || !selectedPrompt.trim()}
-              className="h-11 w-full sm:w-auto hover:bg-primary/75"
+              className="h-11 w-full sm:w-auto"
             >
               {generating ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -398,6 +486,24 @@ export function PromptEditor({
           </div>
         </CardContent>
       </Card>
+
+      {/* Prompt Assistant modal */}
+      {llmProvider && llmApiKey && llmModel ? (
+        <PromptAssistantModal
+          open={assistantOpen}
+          onOpenChange={setAssistantOpen}
+          onPromptGenerated={(prompt) => {
+            onPromptChange(prompt);
+            setHasEdited(true);
+          }}
+          provider={llmProvider}
+          apiKey={llmApiKey}
+          model={llmModel}
+          azureConfig={llmAzureConfig ?? null}
+          langdockConfig={llmLangdockConfig}
+          currentPrompt={selectedPrompt}
+        />
+      ) : null}
 
       {/* Save template dialog */}
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>

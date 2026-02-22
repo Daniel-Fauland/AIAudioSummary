@@ -151,7 +151,7 @@ export function FileUpload({
   }
 
   return (
-    <div className="space-y-3">
+    <>
       {hasAssemblyAiKey ? (
         <div
           onDrop={handleDrop}
@@ -185,9 +185,21 @@ export function FileUpload({
             className="hidden"
             disabled={isDisabled}
           />
+          <div
+            className="mt-1 w-full border-t border-border pt-4 flex justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={onSkipUpload}
+              className="text-sm text-foreground-muted hover:text-foreground-secondary underline underline-offset-4 transition-colors"
+            >
+              I already have a transcript — skip upload
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="flex min-h-[240px] items-center justify-center rounded-lg border-2 border-dashed border-border bg-card p-6">
+        <div className="flex min-h-[240px] flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-border bg-card p-6">
           <p
             className="text-sm text-warning cursor-pointer hover:underline"
             onClick={onOpenSettings}
@@ -200,18 +212,17 @@ export function FileUpload({
             Please add your AssemblyAI API key in Settings before you can
             upload and transcribe an audio file.
           </p>
+          <div className="w-full border-t border-border pt-4 flex justify-center">
+            <button
+              type="button"
+              onClick={onSkipUpload}
+              className="text-sm text-foreground-muted hover:text-foreground-secondary underline underline-offset-4 transition-colors"
+            >
+              I already have a transcript — skip upload
+            </button>
+          </div>
         </div>
       )}
-
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={onSkipUpload}
-          className="text-sm text-foreground-muted hover:text-foreground-secondary underline underline-offset-4 transition-colors"
-        >
-          I already have a transcript — skip upload
-        </button>
-      </div>
-    </div>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import datetime
 from typing import Union, AsyncGenerator
 
+from pydantic import BaseModel as PydanticBaseModel, Field as PydanticField
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -11,15 +12,25 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
-from models.llm import LLMProvider, AzureConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse
+from models.llm import LLMProvider, AzureConfig, LangdockConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse
 from service.misc.core import MiscService
+
+
+class _SpeakerEntry(PydanticBaseModel):
+    speaker: str = PydanticField(..., description="Speaker label (e.g. 'Speaker A')")
+    summary: str = PydanticField(..., description="1-3 sentence key point summary for this speaker")
+
+
+class _SpeakerKeyPointsResult(PydanticBaseModel):
+    entries: list[_SpeakerEntry] = PydanticField(..., description="Key point summaries for each speaker")
 
 helper = MiscService()
 
 
 class LLMService:
     def _create_model(self, provider: LLMProvider, model_name: str, api_key: str,
-                      azure_config: AzureConfig | None = None):
+                      azure_config: AzureConfig | None = None,
+                      langdock_config: LangdockConfig | None = None):
         """Create the appropriate pydantic-ai model based on the provider."""
         if provider == LLMProvider.OPENAI:
             return OpenAIChatModel(
@@ -45,6 +56,31 @@ class LLMService:
                     api_key=api_key,
                 )
             )
+        elif provider == LLMProvider.LANGDOCK:
+            from anthropic import AsyncAnthropic
+            region = langdock_config.region if langdock_config else "eu"
+            if model_name.startswith("claude"):
+                client = AsyncAnthropic(
+                    base_url=f"https://api.langdock.com/anthropic/{region}/",
+                    api_key=api_key
+                )
+                return AnthropicModel(model_name, provider=AnthropicProvider(anthropic_client=client))
+            elif model_name.startswith("gemini"):
+                return GoogleModel(
+                    model_name,
+                    provider=GoogleProvider(
+                        api_key=api_key,
+                        base_url=f"https://api.langdock.com/google/{region}/"
+                    )
+                )
+            else:
+                return OpenAIChatModel(
+                    model_name,
+                    provider=OpenAIProvider(
+                        api_key=api_key,
+                        base_url=f"https://api.langdock.com/openai/{region}/v1"
+                    )
+                )
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
@@ -103,7 +139,8 @@ class LLMService:
             provider=request.provider,
             model_name=model_name,
             api_key=request.api_key,
-            azure_config=request.azure_config
+            azure_config=request.azure_config,
+            langdock_config=request.langdock_config
         )
 
         system_prompt, user_prompt = await self.build_prompt(
@@ -137,16 +174,16 @@ class LLMService:
             provider=request.provider,
             model_name=model_name,
             api_key=request.api_key,
-            azure_config=request.azure_config
+            azure_config=request.azure_config,
+            langdock_config=request.langdock_config
         )
 
         speakers_list = ", ".join(request.speakers)
         system_prompt = (
             "You are an assistant that analyzes meeting transcripts. "
-            "Given a transcript and a list of speaker labels, produce a JSON object mapping each speaker label "
-            "to a 1-3 sentence summary of their key points and contributions in the meeting. "
+            "For each speaker listed, provide a 1-3 sentence summary of their key points and contributions. "
             "Focus on what each speaker talked about, their main arguments, and any decisions they made. "
-            "Return ONLY the JSON object with speaker labels as keys and summary strings as values."
+            "Include an entry for every speaker in the list, even if they had minimal contributions."
         )
         user_prompt = (
             f"Speakers: {speakers_list}\n\n"
@@ -156,12 +193,13 @@ class LLMService:
         agent = Agent(
             model,
             system_prompt=system_prompt,
-            output_type=ExtractKeyPointsResponse,
+            output_type=_SpeakerKeyPointsResult,
             model_settings=ModelSettings(temperature=0.3)
         )
 
         result = await agent.run(user_prompt)
-        return result.output
+        key_points = {entry.speaker: entry.summary for entry in result.output.entries}
+        return ExtractKeyPointsResponse(key_points=key_points)
 
     async def _stream_response(self, agent: Agent, user_prompt: str) -> AsyncGenerator[str, None]:
         """Stream response chunks from the LLM agent."""

@@ -4,7 +4,9 @@ import { useState } from "react";
 import { Loader2, Copy, Maximize2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -81,26 +83,40 @@ export function TranscriptView({
         <CardTitle className="text-lg">Transcript</CardTitle>
         <div className="flex items-center gap-2">
           {transcript && !readOnly ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setClearDialogOpen(true)}
+                  className="text-foreground-secondary hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear transcript</TooltipContent>
+            </Tooltip>
+          ) : null}
+          {transcript ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleCopy}
+                  className="text-foreground-secondary hover:text-foreground"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Copy transcript</TooltipContent>
+            </Tooltip>
+          ) : null}
+          {transcript ? (
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setClearDialogOpen(true)}
-              title="Clear transcript"
-              className="hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          ) : null}
-          {transcript ? (
-            <Button variant="ghost" size="icon" onClick={handleCopy} title="Copy transcript">
-              <Copy className="h-4 w-4" />
-            </Button>
-          ) : null}
-          {transcript ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden md:inline-flex"
+              className="hidden md:inline-flex text-foreground-secondary hover:text-foreground"
               onClick={() => setFullscreen(true)}
             >
               <Maximize2 className="h-4 w-4" />
@@ -110,14 +126,16 @@ export function TranscriptView({
       </CardHeader>
       <CardContent>
         {readOnly ? (
-          <div className="max-h-[600px] min-h-[300px] overflow-y-auto whitespace-pre-wrap font-mono text-sm text-foreground">
-            {transcript || "Transcript will appear here..."}
-          </div>
+          <ScrollArea className="max-h-[600px] min-h-[300px]">
+            <div className="whitespace-pre-wrap font-mono text-sm text-foreground">
+              {transcript || "Transcript will appear here..."}
+            </div>
+          </ScrollArea>
         ) : (
           <Textarea
             value={transcript}
             onChange={(e) => onTranscriptChange?.(e.target.value)}
-            className="min-h-[300px] max-h-[500px] resize-none bg-card-elevated font-mono text-sm"
+            className="min-h-[300px] max-h-[500px] resize-none bg-card-elevated font-mono text-sm text-foreground"
             placeholder="Transcript will appear here..."
           />
         )}
@@ -150,14 +168,16 @@ export function TranscriptView({
             <DialogTitle>Transcript</DialogTitle>
           </DialogHeader>
           {readOnly ? (
-            <div className="flex-1 overflow-y-auto whitespace-pre-wrap font-mono text-sm text-foreground p-4">
-              {transcript}
-            </div>
+            <ScrollArea className="flex-1">
+              <div className="whitespace-pre-wrap font-mono text-sm text-foreground p-4">
+                {transcript}
+              </div>
+            </ScrollArea>
           ) : (
             <Textarea
               value={transcript}
               onChange={(e) => onTranscriptChange?.(e.target.value)}
-              className="flex-1 resize-none bg-card-elevated font-mono text-sm"
+              className="flex-1 resize-none bg-card-elevated font-mono text-sm text-foreground"
               placeholder="Transcript will appear here..."
             />
           )}

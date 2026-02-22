@@ -1,18 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ArrowRight, Info, Loader2, RefreshCw, User } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronRight, Loader2, RefreshCw, Sparkles, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getSpeakers, updateSpeakers } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import { toast } from "sonner";
 
 interface SpeakerMapperProps {
@@ -22,6 +17,7 @@ interface SpeakerMapperProps {
   onAuthorSpeakerChange: (speaker: string | null) => void;
   keyPoints: Record<string, string>;
   isExtractingKeyPoints: boolean;
+  keyPointsEnabled?: boolean;
   onAutoExtractKeyPoints: (transcript: string, speakers: string[]) => void;
   onManualExtractKeyPoints: (transcript: string, speakers: string[]) => void;
   onKeyPointsRemap: (mappings: Record<string, string>) => void;
@@ -35,6 +31,7 @@ export function SpeakerMapper({
   onAuthorSpeakerChange,
   keyPoints,
   isExtractingKeyPoints,
+  keyPointsEnabled = true,
   onAutoExtractKeyPoints,
   onManualExtractKeyPoints,
   onKeyPointsRemap,
@@ -44,7 +41,7 @@ export function SpeakerMapper({
   const [replacements, setReplacements] = useState<Record<string, string>>({});
   const [detecting, setDetecting] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
+  const [expandedSpeakers, setExpandedSpeakers] = useState<Set<string>>(new Set());
 
   const lastDetectedTranscript = useRef("");
   const onAutoExtractKeyPointsRef = useRef(onAutoExtractKeyPoints);
@@ -52,10 +49,9 @@ export function SpeakerMapper({
   const onTranscriptReplacedRef = useRef(onTranscriptReplaced);
   onTranscriptReplacedRef.current = onTranscriptReplaced;
 
-  // Tracks the last known speaker count to detect transcript replacements
   const previousSpeakerCountRef = useRef<number | null>(null);
-  // Set to true in handleApply so the useEffect knows to skip auto-extract
   const applyingNamesRef = useRef(false);
+  const wasExtractingRef = useRef(false);
 
   // Auto-detect speakers whenever the transcript changes (debounced 500ms)
   useEffect(() => {
@@ -78,28 +74,20 @@ export function SpeakerMapper({
           onAuthorSpeakerChange(null);
 
           if (applyingNamesRef.current) {
-            // Transcript changed because "Apply Names" was clicked — do not
-            // re-trigger key point extraction, just clear the flag.
             applyingNamesRef.current = false;
           } else if (prevCount === null) {
-            // First detection for this component instance (fresh transcript).
             if (result.length > 0) {
               onAutoExtractKeyPointsRef.current(transcript, result);
             }
           } else if (result.length !== prevCount) {
-            // Speaker count changed → treat as a replaced transcript.
             if (result.length > 0) {
               onTranscriptReplacedRef.current(transcript, result);
             }
           }
-          // else: same count, not Apply Names → transcript was edited in-place;
-          // do not re-trigger auto-extraction.
         }
       } catch (e) {
         if (!cancelled) {
-          toast.error(
-            e instanceof Error ? e.message : "Failed to detect speakers",
-          );
+          toast.error(getErrorMessage(e, "speakers"));
         }
       } finally {
         if (!cancelled) {
@@ -113,6 +101,17 @@ export function SpeakerMapper({
       clearTimeout(timeoutId);
     };
   }, [transcript, onAuthorSpeakerChange]);
+
+  // Auto-expand all rows when key points finish loading
+  useEffect(() => {
+    if (wasExtractingRef.current && !isExtractingKeyPoints) {
+      const speakersWithPoints = speakers.filter((s) => keyPoints[s]);
+      if (speakersWithPoints.length > 0) {
+        setExpandedSpeakers(new Set(speakersWithPoints));
+      }
+    }
+    wasExtractingRef.current = isExtractingKeyPoints;
+  }, [isExtractingKeyPoints, keyPoints, speakers]);
 
   const handleApply = async () => {
     const mappings: Record<string, string> = {};
@@ -131,24 +130,18 @@ export function SpeakerMapper({
     setApplying(true);
     try {
       const updated = await updateSpeakers(transcript, mappings);
-      // Signal the useEffect that the upcoming transcript change is only a
-      // label rename, not a new transcript — key point extraction must not fire.
       applyingNamesRef.current = true;
       onTranscriptUpdate(updated);
 
-      // Update author if the selected author's speaker label was renamed
       if (authorSpeaker && mappings[authorSpeaker]) {
         onAuthorSpeakerChange(mappings[authorSpeaker]);
       }
 
-      // Remap key points to use new speaker names
       onKeyPointsRemap(mappings);
 
       toast.success("Speaker names updated.");
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Failed to update speakers",
-      );
+      toast.error(getErrorMessage(e, "speakers"));
     } finally {
       setApplying(false);
     }
@@ -171,35 +164,62 @@ export function SpeakerMapper({
     (s) => (replacements[s]?.trim() ?? "").length > 0,
   );
 
-  const handleRefreshKeyPoints = () => {
+  const handleGenerateKeyPoints = () => {
     if (speakers.length > 0) {
+      setExpandedSpeakers(new Set());
       onManualExtractKeyPoints(transcript, speakers);
     }
   };
 
-  const renderSpeakerRow = (speaker: string, showKeyPoints: boolean) => {
+  const toggleExpanded = (speaker: string) => {
+    setExpandedSpeakers((prev) => {
+      const next = new Set(prev);
+      if (next.has(speaker)) {
+        next.delete(speaker);
+      } else {
+        next.add(speaker);
+      }
+      return next;
+    });
+  };
+
+  const hasKeyPoints = Object.keys(keyPoints).length > 0;
+  const showChevrons = hasKeyPoints || isExtractingKeyPoints;
+  const speakersWithPoints = speakers.filter((s) => keyPoints[s]);
+  const allExpanded =
+    speakersWithPoints.length > 0 &&
+    speakersWithPoints.every((s) => expandedSpeakers.has(s));
+
+  const expandAll = () => setExpandedSpeakers(new Set(speakersWithPoints));
+  const collapseAll = () => setExpandedSpeakers(new Set());
+
+  const renderSpeakerRow = (speaker: string) => {
     const displayName = getDisplayName(speaker);
     const isAuthor = authorSpeaker === displayName;
+    const isExpanded = expandedSpeakers.has(speaker);
+    const hasPoints = !!keyPoints[speaker];
 
     return (
-      <div key={speaker} className="space-y-1">
+      <div key={speaker}>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleAuthorToggle(speaker)}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors ${
-              isAuthor
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card-elevated text-foreground-muted hover:border-border-hover hover:text-foreground"
-            }`}
-            title={
-              isAuthor
-                ? "Remove as author/POV"
-                : "Set as author/POV"
-            }
-          >
-            <User className="h-4 w-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => handleAuthorToggle(speaker)}
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                  isAuthor
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card-elevated text-foreground-muted hover:border-border-hover hover:text-foreground"
+                }`}
+              >
+                <User className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isAuthor ? "Remove as author/POV" : "Set as author/POV"}
+            </TooltipContent>
+          </Tooltip>
           <span className="min-w-[100px] text-sm font-medium text-foreground-secondary">
             {speaker}
           </span>
@@ -208,131 +228,112 @@ export function SpeakerMapper({
             value={replacements[speaker] ?? ""}
             onChange={(e) => {
               const newValue = e.target.value;
-              setReplacements((prev) => ({
-                ...prev,
-                [speaker]: newValue,
-              }));
+              setReplacements((prev) => ({ ...prev, [speaker]: newValue }));
               if (isAuthor) {
                 const trimmed = newValue.trim();
                 onAuthorSpeakerChange(trimmed || speaker);
               }
             }}
             placeholder="Enter name"
-            className="bg-card-elevated"
+            className="flex-1 bg-card-elevated"
           />
+          {showChevrons ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-foreground-muted hover:text-foreground"
+              onClick={() => hasPoints && toggleExpanded(speaker)}
+              disabled={!hasPoints}
+            >
+              {isExpanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </Button>
+          ) : null}
         </div>
-        {showKeyPoints ? (
-          <div className="ml-10 pl-0.5">
-            {isExtractingKeyPoints && !keyPoints[speaker] ? (
-              <div className="h-3 w-3/4 animate-pulse rounded bg-card-elevated" />
-            ) : keyPoints[speaker] ? (
-              <p className="text-xs text-foreground-muted">
+
+        {/* Collapsible key points */}
+        <div
+          className={`grid transition-all duration-200 ${
+            isExpanded && hasPoints ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div className="mx-2 mb-1 mt-2 rounded-md bg-card-elevated p-3">
+              <p className="text-sm leading-relaxed text-foreground-secondary">
                 {keyPoints[speaker]}
               </p>
-            ) : null}
+            </div>
           </div>
-        ) : null}
+        </div>
       </div>
     );
   };
 
   return (
-    <>
-      <Card className="border-border">
-        <CardHeader>
-          <div className="flex items-center justify-between">
+    <Card className="border-border">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
             <CardTitle className="text-lg">Speaker Mapping</CardTitle>
-            <div className="flex items-center gap-2">
-              {isExtractingKeyPoints ? (
-                <Badge variant="outline" className="gap-1.5 text-xs border-primary text-primary">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Extracting key points...
-                </Badge>
-              ) : null}
-              {speakers.length > 0 ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setFullscreen(true)}
-                  className={`transition-colors hover:text-primary ${Object.keys(keyPoints).length > 0 ? "text-foreground" : "text-foreground-muted"}`}
-                  title="Speaker details"
-                >
-                  <Info className="h-4 w-4" />
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {detecting ? (
-            <div className="flex items-center gap-2 text-sm text-foreground-secondary">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Detecting speakers...
-            </div>
-          ) : null}
-
-          {!detecting && speakers.length === 0 && transcript ? (
-            <p className="text-sm text-foreground-muted">
-              No speakers detected in the transcript.
-            </p>
-          ) : null}
-
-          {speakers.length > 0 ? (
-            <div className="space-y-3">
-              {speakers.map((speaker) => renderSpeakerRow(speaker, false))}
-
-              {authorSpeaker ? (
-                <p className="text-xs text-foreground-muted">
-                  <User className="mr-1 inline h-3 w-3" />
-                  <span className="font-medium text-foreground-secondary">
-                    {authorSpeaker}
-                  </span>{" "}
-                  is set as author/POV for the summary.
-                </p>
-              ) : null}
-
+            {hasKeyPoints ? (
               <Button
-                onClick={handleApply}
-                disabled={applying || !hasAnyReplacement}
-                className="hover:bg-primary/75"
+                variant="link"
+                size="sm"
+                className="mt-1 h-auto p-0 text-xs text-foreground-muted hover:text-foreground-secondary"
+                onClick={allExpanded ? collapseAll : expandAll}
               >
-                {applying ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                Apply Names
+                {allExpanded ? "Collapse All" : "Expand All"}
               </Button>
-            </div>
+            ) : null}
+          </div>
+          {speakers.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGenerateKeyPoints}
+              disabled={isExtractingKeyPoints}
+              className="shrink-0"
+            >
+              {isExtractingKeyPoints ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin md:mr-1.5" />
+                  <span className="hidden md:inline">Generating...</span>
+                </>
+              ) : hasKeyPoints ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 md:mr-1.5" />
+                  <span className="hidden md:inline">Regenerate</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3.5 w-3.5 md:mr-1.5" />
+                  <span className="hidden md:inline">Generate Key Points</span>
+                </>
+              )}
+            </Button>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {detecting ? (
+          <div className="flex items-center gap-2 text-sm text-foreground-secondary">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Detecting speakers...
+          </div>
+        ) : null}
 
-      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
-        <DialogContent className="sm:max-w-[95vw] h-[90vh] flex flex-col">
-          <DialogHeader>
-            <div className="flex items-center justify-between pr-8">
-              <DialogTitle>Speaker Mapping</DialogTitle>
-              <div className="flex items-center gap-2">
-                {isExtractingKeyPoints ? (
-                  <Badge variant="secondary" className="gap-1.5 text-xs">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Extracting key points
-                  </Badge>
-                ) : null}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleRefreshKeyPoints}
-                  disabled={isExtractingKeyPoints || speakers.length === 0}
-                  className="text-foreground transition-colors hover:text-primary"
-                  title="Refresh key points"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-4">
-            {speakers.map((speaker) => renderSpeakerRow(speaker, true))}
+        {!detecting && speakers.length === 0 && transcript ? (
+          <p className="text-sm text-foreground-muted">
+            No speakers detected in the transcript.
+          </p>
+        ) : null}
+
+        {speakers.length > 0 ? (
+          <div className="space-y-3">
+            {speakers.map((speaker) => renderSpeakerRow(speaker))}
 
             {authorSpeaker ? (
               <p className="text-xs text-foreground-muted">
@@ -343,12 +344,10 @@ export function SpeakerMapper({
                 is set as author/POV for the summary.
               </p>
             ) : null}
-          </div>
-          <div className="pt-4 border-t border-border">
+
             <Button
               onClick={handleApply}
               disabled={applying || !hasAnyReplacement}
-              className="hover:bg-primary/75"
             >
               {applying ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -356,8 +355,8 @@ export function SpeakerMapper({
               Apply Names
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

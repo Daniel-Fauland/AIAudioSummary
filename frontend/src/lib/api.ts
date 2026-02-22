@@ -3,10 +3,21 @@ import type {
   CreateSummaryRequest,
   CreateSummaryResponse,
   CreateTranscriptResponse,
+  EvaluateQuestionsRequest,
+  EvaluateQuestionsResponse,
   ExtractKeyPointsRequest,
   ExtractKeyPointsResponse,
   GetSpeakersResponse,
+  IncrementalSummaryRequest,
+  IncrementalSummaryResponse,
+  PreferencesResponse,
+  PromptAssistantAnalyzeRequest,
+  PromptAssistantAnalyzeResponse,
+  PromptAssistantGenerateRequest,
+  PromptAssistantGenerateResponse,
   UpdatedTranscriptResponse,
+  UserPreferences,
+  UserProfile,
 } from "./types";
 
 const API_BASE = "/api/proxy";
@@ -148,4 +159,99 @@ export async function createSummary(
 
   const data = (await response.json()) as CreateSummaryResponse;
   return data.summary;
+}
+
+export async function createIncrementalSummary(
+  request: IncrementalSummaryRequest,
+): Promise<IncrementalSummaryResponse> {
+  const response = await fetch(`${API_BASE}/createIncrementalSummary`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<IncrementalSummaryResponse>(response);
+}
+
+export async function analyzePrompt(
+  request: PromptAssistantAnalyzeRequest,
+): Promise<PromptAssistantAnalyzeResponse> {
+  const response = await fetch(`${API_BASE}/prompt-assistant/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<PromptAssistantAnalyzeResponse>(response);
+}
+
+export async function generatePrompt(
+  request: PromptAssistantGenerateRequest,
+): Promise<PromptAssistantGenerateResponse> {
+  const response = await fetch(`${API_BASE}/prompt-assistant/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<PromptAssistantGenerateResponse>(response);
+}
+
+export async function evaluateLiveQuestions(
+  request: EvaluateQuestionsRequest,
+): Promise<EvaluateQuestionsResponse> {
+  const response = await fetch(`${API_BASE}/live-questions/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<EvaluateQuestionsResponse>(response);
+}
+
+export async function getMe(): Promise<UserProfile> {
+  const response = await fetch(`${API_BASE}/users/me`);
+  return handleResponse<UserProfile>(response);
+}
+
+export async function getUsers(): Promise<UserProfile[]> {
+  const response = await fetch(`${API_BASE}/users`);
+  return handleResponse<UserProfile[]>(response);
+}
+
+export async function createUser(email: string, name?: string): Promise<UserProfile> {
+  const response = await fetch(`${API_BASE}/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, name }),
+  });
+  return handleResponse<UserProfile>(response);
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/users/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok && response.status !== 204) {
+    await handleResponse<void>(response);
+  }
+}
+
+export async function getPreferences(): Promise<PreferencesResponse> {
+  const response = await fetch(`${API_BASE}/users/me/preferences`);
+  return handleResponse<PreferencesResponse>(response);
+}
+
+export async function putPreferences(prefs: UserPreferences): Promise<PreferencesResponse> {
+  const response = await fetch(`${API_BASE}/users/me/preferences`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(prefs),
+  });
+  return handleResponse<PreferencesResponse>(response);
+}
+
+export async function deletePreferences(): Promise<void> {
+  const response = await fetch(`${API_BASE}/users/me/preferences`, {
+    method: "DELETE",
+  });
+  if (!response.ok && response.status !== 204) {
+    await handleResponse<void>(response);
+  }
 }

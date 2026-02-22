@@ -9,7 +9,7 @@ This document defines all visual design decisions for the Next.js + shadcn/ui fr
 | Property | Value |
 |----------|-------|
 | **Tone** | Modern & Vibrant — polished but with personality |
-| **Theme** | Dark mode only (no light mode, no toggle) |
+| **Theme** | Light / Dark / System (three-way toggle). Defaults to System (follows OS preference). Persisted to `aias:v1:theme` in localStorage via `next-themes`. |
 | **Font** | Inter (loaded via `next/font/google`) |
 | **Icons** | Lucide React (`lucide-react`, ships with shadcn/ui) |
 | **Border radius** | `8px` (medium rounded, shadcn `--radius: 0.5rem`) |
@@ -18,56 +18,57 @@ This document defines all visual design decisions for the Next.js + shadcn/ui fr
 
 ## 2. Color Palette
 
-### Primary / Accent
+CSS variables are defined in `globals.css`. `:root` holds light mode values; `.dark` overrides them for dark mode. `next-themes` applies the `.dark` class to `<html>` when in dark mode.
 
-| Token | Hex | Usage |
-|-------|-----|-------|
+### Primary / Accent (same in both themes)
+
+| Token | Value | Usage |
+|-------|-------|-------|
 | `--primary` | `#FC520B` | Buttons, active step indicator, links, focus rings |
-| `--primary-hover` | `#E04A0A` | Button hover state (slightly darker) |
+| `--primary-hover` | `#E04A0A` | Button hover state |
 | `--primary-active` | `#C84209` | Button active/pressed state |
-| `--primary-muted` | `rgba(252, 82, 11, 0.15)` | Subtle accent backgrounds (badges, highlights) |
 | `--primary-foreground` | `#FFFFFF` | Text on primary-colored backgrounds |
 
 ### Backgrounds
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--background` | `#0A0A0A` | Page background |
-| `--card` | `#141414` | Cards, containers, panels |
-| `--card-elevated` | `#1A1A1A` | Nested elements inside cards (e.g., inputs, code blocks) |
-| `--popover` | `#1A1A1A` | Dropdowns, tooltips, popovers |
-| `--sheet` | `#141414` | Settings slide-out panel background |
+| Token | Light | Dark | Usage |
+|-------|-------|------|-------|
+| `--background` | `#FAFAFA` | `#0A0A0A` | Page background |
+| `--card` | `#FFFFFF` | `#141414` | Cards, containers, panels |
+| `--card-elevated` | `#F5F5F5` | `#1A1A1A` | Nested elements inside cards (inputs, code blocks) |
+| `--popover` | `#FFFFFF` | `#1A1A1A` | Dropdowns, tooltips, popovers |
 
 ### Borders
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--border` | `#262626` | Default borders (cards, inputs, dividers) |
-| `--border-hover` | `#3A3A3A` | Border on hover (inputs, interactive cards) |
-| `--border-accent` | `#FC520B` | Focused input border, active drag zone |
-| `--ring` | `rgba(252, 82, 11, 0.4)` | Focus ring (box-shadow) |
+| Token | Light | Dark | Usage |
+|-------|-------|------|-------|
+| `--border` | `#E5E5E5` | `#262626` | Default borders (cards, inputs, dividers) |
+| `--border-hover` | `#D4D4D4` | `#3A3A3A` | Border on hover (inputs, interactive cards) |
+| `--border-accent` | `#FC520B` | `#FC520B` | Focused input border, active drag zone |
+| `--ring` | `rgba(252,82,11,0.3)` | `rgba(252,82,11,0.4)` | Focus ring (box-shadow) |
 
 ### Text
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--foreground` | `#FAFAFA` | Primary text |
-| `--foreground-secondary` | `#A1A1AA` | Secondary text, labels, placeholders |
-| `--foreground-muted` | `#71717A` | Disabled text, hints, timestamps |
-| `--foreground-accent` | `#FC520B` | Accent-colored text (links, active labels) |
+| Token | Light | Dark | Usage |
+|-------|-------|------|-------|
+| `--foreground` | `#0A0A0A` | `#FAFAFA` | Primary text |
+| `--foreground-secondary` | `#3F3F46` | `#B4B4BB` | Secondary text, labels, placeholders |
+| `--foreground-muted` | `#71717A` | `#8A8A93` | Disabled text, hints, timestamps |
+| `--foreground-accent` | `#FC520B` | `#FC520B` | Accent-colored text (links, active labels) |
 
 ### Semantic Colors
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--success` | `#22C55E` | Success toasts, saved confirmations, completed steps |
-| `--success-muted` | `rgba(34, 197, 94, 0.15)` | Success badge backgrounds |
-| `--error` | `#EF4444` | Error toasts, validation errors, failed states |
-| `--error-muted` | `rgba(239, 68, 68, 0.15)` | Error badge backgrounds |
-| `--warning` | `#F59E0B` | Warning badges (missing API key), caution states |
-| `--warning-muted` | `rgba(245, 158, 11, 0.15)` | Warning badge backgrounds |
-| `--info` | `#3B82F6` | Informational notes, tips |
-| `--info-muted` | `rgba(59, 130, 246, 0.15)` | Info badge backgrounds |
+| Token | Light | Dark | Usage |
+|-------|-------|------|-------|
+| `--color-success` | `#16A34A` | `#22C55E` | Success toasts, saved confirmations, completed steps |
+| `--color-success-muted` | `rgba(22,163,74,0.10)` | `rgba(34,197,94,0.15)` | Success badge backgrounds |
+| `--color-error` | `#DC2626` | `#EF4444` | Error toasts, validation errors, failed states |
+| `--color-error-muted` | `rgba(220,38,38,0.10)` | `rgba(239,68,68,0.15)` | Error badge backgrounds |
+| `--color-warning` | `#D97706` | `#F59E0B` | Warning badges (missing API key), caution states |
+| `--color-warning-muted` | `rgba(217,119,6,0.10)` | `rgba(245,158,11,0.15)` | Warning badge backgrounds |
+| `--color-info` | `#2563EB` | `#3B82F6` | Informational notes, tips |
+| `--color-info-muted` | `rgba(37,99,235,0.10)` | `rgba(59,130,246,0.15)` | Info badge backgrounds |
+| `--primary-muted` | `rgba(252,82,11,0.10)` | `rgba(252,82,11,0.15)` | Subtle accent backgrounds (badges, drag-over zones) |
 
 ---
 
@@ -121,6 +122,13 @@ This document defines all visual design decisions for the Next.js + shadcn/ui fr
 | **Gap between cards** | `16px` (`gap-4`) |
 | **Section gap** | `24px` (`gap-6`) between major blocks |
 
+### Vertical spacing between page sections (Standard mode)
+
+| Gap | Value | Notes |
+|-----|-------|-------|
+| Mode switcher → Step Indicator | `16px` (`mb-4` on switcher) | Step Indicator has `py-6` built-in |
+| Inner tabs (Upload/Record) → content card | `12px` (`space-y-3`) | Tighter than other gaps |
+
 ### Breakpoints
 
 | Name | Width | Behavior |
@@ -135,11 +143,12 @@ This document defines all visual design decisions for the Next.js + shadcn/ui fr
 ### 5.1 Header
 
 - **Height**: `64px`
-- **Background**: `--card` (`#141414`)
+- **Background**: `--card`
 - **Bottom border**: `1px solid` `--border`
 - **Position**: Sticky top (`sticky top-0 z-50`)
-- **Content**: App name left-aligned, settings gear icon (`Settings` from Lucide) right-aligned
-- **Settings button**: Ghost variant, icon-only, `--foreground-secondary` color, `--foreground` on hover
+- **Content**: App name left-aligned; right side (left→right): `UserMenu` (avatar + sign-out), `ThemeToggle`, Settings gear icon
+- **ThemeToggle**: Ghost variant, icon-only button that cycles Light → Dark → System. Icons: `Sun` (light) / `Moon` (dark) / `Monitor` (system). Wrapped in a `Tooltip` showing the current mode name. `--foreground-secondary` color, `--foreground` on hover.
+- **Settings button**: Ghost variant, icon-only (`Settings` from Lucide), `--foreground-secondary` color, `--foreground` on hover
 
 ### 5.2 Step Indicator
 
@@ -159,16 +168,28 @@ This document defines all visual design decisions for the Next.js + shadcn/ui fr
 
 - **Glow on active**: `box-shadow: 0 0 0 4px rgba(252, 82, 11, 0.2)`
 
+### 5.2.5 Mode Switcher
+
+The top-level **Standard / Realtime** switch uses a **pill-style segmented control**, not underlined tabs. This differentiates it visually from the inner Upload File / Record Audio tab bar.
+
+- **Container**: `inline-flex rounded-lg border border-border bg-card-elevated p-1`, centered horizontally below the header
+- **Each segment**: `rounded-md px-4 py-1.5 text-sm font-medium transition-colors`
+- **Active segment**: `bg-primary text-primary-foreground`
+- **Inactive segment**: `bg-transparent text-foreground-muted hover:text-foreground-secondary`
+- Persisted to localStorage (`aias:v1:app_mode`)
+
+---
+
 ### 5.3 Step 1 Input Area
 
-Step 1 has two modes toggled via a tab bar directly above the content zone:
+Step 1 has two modes toggled via a **tab bar** directly above the content zone:
 
 - **Tab bar**: Two text buttons — "Upload File" and "Record Audio"
 - **Active tab**: `--primary` bottom border (`border-b-2 border-primary`), `--foreground` text
 - **Inactive tab**: No border, `--foreground-muted` text, transitions to `--foreground-secondary` on hover
 - **Transition**: `150ms ease` color change
 
-Below the tab bar is the shared **"I already have a transcript — skip upload"** link, centered, `--foreground-muted` underlined text.
+The **"I already have a transcript — skip upload"** link is placed **inside the content card**, at the very bottom, separated from the card content by `border-t border-border pt-4`. It is centered, `text-sm text-foreground-muted underline`.
 
 #### 5.3.1 Upload File mode
 
@@ -191,25 +212,60 @@ Below the tab bar is the shared **"I already have a transcript — skip upload"*
 
 #### 5.3.2 Record Audio mode
 
-Same container style as Upload (`2px dashed --border`, `--card` bg, `240px` min height, `8px` border radius). The interior changes based on recorder state:
+Container uses a **solid** `1px` border (not dashed — dashed is reserved for Upload File drop zones). `--card` bg, `240px` min height, `8px` border radius. The interior changes based on recorder state:
 
 | State | Container border/bg | Interior content |
 |-------|---------------------|-----------------|
-| **Idle** | `--border` dashed / `--card` | `Mic` icon (48px, `--foreground-muted`), instruction text, optional mic selector, "Start Recording" primary button |
-| **Recording** | `--border-accent` dashed / `--primary-muted` | Pulsing red dot + MM:SS timer (monospace, `text-lg`), live waveform canvas, "Pause" (secondary) + "Stop" (destructive) buttons |
-| **Paused** | `--border` dashed / `--card` | Gray dot + MM:SS timer + "Paused" label (`--foreground-muted`), static waveform, "Resume" (secondary) + "Stop" (destructive) buttons |
-| **Done** | `--border` dashed / `--card` | Final duration label, static waveform, AudioPlayer, "Record Again" (ghost) + "Download" (secondary) + "Use for Transcript" (primary) buttons |
+| **Idle** | `1px solid --border` / `--card` | `Mic` icon (48px), instruction text, usage hint, Audio Source label + toggle, optional mic selector, start button, skip link |
+| **Recording** | `1px solid --border-accent` / `--primary-muted` | Pulsing red dot + MM:SS timer (monospace, `text-lg`), live waveform canvas, "Pause" (secondary) + "Stop" (destructive) buttons |
+| **Paused** | `1px solid --border` / `--card` | Gray dot + MM:SS timer + "Paused" label (`--foreground-muted`), static waveform, "Resume" (secondary) + "Stop" (destructive) buttons |
+| **Done** | `1px solid --border` / `--card` | Final duration label, static waveform, AudioPlayer, "Record Again" (ghost) + "Download" (secondary) + "Use for Transcript" (primary) buttons |
+
+**Idle state layout** (top to bottom, center-aligned):
+1. `Mic` icon (48px, `--foreground-muted`)
+2. Instruction text (`--foreground-secondary`) — changes per mode:
+   - Mic Only: *"Click the button to start recording"*
+   - Mic + Meeting Audio: *"Share your entire screen and check 'Also share system audio' in the dialog"*
+3. Usage hint (`--foreground-muted`, `text-xs`) — changes per mode:
+   - Mic Only: *"Best used when playing audio through speakers"*
+   - Mic + Meeting Audio: *"Best used with headphones to avoid mic feedback"*
+4. **"Audio Source" label** (`text-xs font-medium text-foreground-muted`, centered above toggle)
+5. **Recording mode toggle** (see below)
+6. Mic selector dropdown (when ≥ 2 devices) — dropdown only, no prefix icon
+7. Start button — text only, no icon (label changes per mode)
+8. `border-t border-border` divider + **"I already have a transcript — skip upload"** link (centered, `--foreground-muted underline`)
+
+**Recording mode toggle** (segmented control, always visible):
+- Container: `flex rounded-md border border-border text-xs`
+- Two segments: "Mic Only" (left, `rounded-l-md`) and "Mic + Meeting Audio" (right, `rounded-r-md`)
+- **Active segment**: `bg-card-elevated text-foreground`
+- **Inactive segment**: `text-foreground-muted hover:text-foreground-secondary`
+- Defaults to "Mic Only" on every page load (no persistence)
+- **"Mic + Meeting Audio"** is only enabled on Chromium-based browsers (Chrome, Brave, Edge). On other browsers (Firefox, Safari) it is rendered but visually disabled (`opacity-40 cursor-not-allowed`). Hovering the disabled segment shows a Radix `Tooltip` with the message: *"Only supported on Chromium-based browsers like Google Chrome, Brave, or Edge"*. Tooltip delay: `100ms`.
+
+**Start button**: Text only, no icon.
+- Mic Only: "Start Recording"
+- Mic + Meeting Audio: "Share Screen & Record"
+
+**Meeting audio recording flow**:
+- Clicking "Share Screen & Record" opens the browser's native screen-share picker
+- If the user cancels the picker, nothing happens (no error toast)
+- If no audio track is included in the share, shows error toast: *"No audio was shared. Make sure to check 'Share audio' in the share dialog."*
+- Mic permission is requested after screen share is confirmed; if denied, the display stream is cleaned up and the standard mic-denied toast is shown
+- The mic and system audio are merged via `AudioContext` into a single `MediaRecorder` stream
 
 **Waveform visualization** (canvas element, `320×60px`, full width up to max):
 - 40 vertical bars, `2px` gap between bars
-- **Active (recording)**: bars driven by `AnalyserNode` frequency data, `--primary` fill (`#FC520B`)
-- **Inactive (paused / done)**: static decorative bars, `--foreground-muted` fill (`#71717A`)
+- **Active (recording)**: bars driven by `AnalyserNode` frequency data, `--primary` fill (reads CSS variable at draw time — adapts to theme)
+- **Inactive (paused / done)**: static decorative bars, `--foreground-muted` fill (reads CSS variable at draw time — adapts to theme)
 - Animated via `requestAnimationFrame` during recording; cancelled on pause/stop
+- In meeting mode, both mic and system audio feed the same `AnalyserNode`
 
 **Microphone selector** (shown in idle state only when ≥ 2 audio input devices are detected):
-- Layout: small `Mic` icon + shadcn `Select` dropdown, `max-w-xs`, sits between instruction text and "Start Recording" button
+- Layout: shadcn `Select` dropdown, `w-52`, sits between the mode toggle and the start button — no prefix icon
 - Dropdown lists real device labels after mic permission is granted; falls back to "Microphone 1", "Microphone 2", etc. before permission
 - Updates automatically on `devicechange` events (plug/unplug)
+- Shown in both Mic Only and Mic + Meeting Audio modes
 
 #### 5.3.3 Audio Player
 
@@ -244,10 +300,60 @@ Custom dark-themed playback widget used in the AudioRecorder "done" state. Imple
 
 - **Layout**: Inline with the transcript, below it on both mobile and desktop
 - **Container**: Card with `--border` border
-- **"Detect Speakers" button**: Secondary variant (outline)
-- **Mapping rows**: Each row shows `Speaker Label → [Input Field]` inline
-- **Arrow**: `→` character or `ArrowRight` Lucide icon in `--foreground-muted`
-- **"Apply Names" button**: Primary variant (`--primary` background)
+
+#### Card header
+
+- **Title**: "Speaker Mapping" (`text-lg`)
+- **"Generate Key Points" button** (right-aligned, `variant="outline" size="sm"`):
+  - Hidden when the Key Points feature is disabled in Settings (`keyPointsEnabled=false`) or no speakers detected yet
+  - States:
+    - Idle (no key points yet): `Sparkles` icon + "Generate Key Points" text
+    - Loading: `Loader2` spinner (animate-spin) + "Generating..." text, button disabled
+    - After key points loaded: `RefreshCw` icon + "Regenerate" text
+  - On mobile (< 768px): icon only (no text label)
+- **"Expand All / Collapse All" link** (below the title, `variant="link" size="sm" text-xs text-foreground-muted`):
+  - Only visible after key points have been generated
+  - Toggles between "Expand All" and "Collapse All" based on current state
+  - "Expand All" expands all rows that have key points
+  - "Collapse All" collapses all rows
+
+#### Speaker rows (expandable)
+
+Each speaker row is an accordion item. Layout:
+
+```
+[👤 author-toggle]  Speaker A  →  [Enter name input]  [▸ chevron]
+┌──────────────────────────────────────────────────────────────────┐
+│  Key points text (when expanded)                                 │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+- **Author toggle** (`h-8 w-8` rounded-md): `User` Lucide icon; active state = `--primary` bg; inactive = `--card-elevated` bg, `--foreground-muted` icon
+- **Speaker label**: `min-w-[100px] text-sm font-medium text-foreground-secondary`
+- **Arrow**: `ArrowRight` in `--foreground-muted`
+- **Name input**: `flex-1`, `--card-elevated` background, placeholder "Enter name"
+- **Chevron** (`Button variant="ghost" size="icon" h-8 w-8`):
+  - Hidden when no key points exist and not loading (`showChevrons = false`)
+  - Disabled when key points are loading and this speaker has no points yet
+  - `ChevronRight` when collapsed, `ChevronDown` when expanded
+  - Color: `--foreground-muted`, transitions to `--foreground` on hover
+
+**Collapsible key points panel** (below the row, `transition-all duration-200` via CSS grid height animation):
+- Container: `rounded-md bg-card-elevated p-3 mx-2 mt-2 mb-1`
+- Text: `text-sm leading-relaxed text-foreground-secondary`
+- Text wraps naturally; no truncation or scroll
+
+#### Row state behavior
+
+| Situation | Chevrons | Rows | Content |
+|-----------|----------|------|---------|
+| No key points yet | Hidden | Collapsed | — |
+| Loading key points | Visible, disabled | Collapsed | — |
+| Key points received | Visible, enabled | **Auto-expand all** rows that have key points | Key points text |
+| User collapses a row | — | Collapsed | — |
+| User clicks "Regenerate" | Visible, disabled | All collapse | Loading then auto-expand again |
+
+- **"Apply Names" button**: Primary variant (`--primary` background), full width on mobile
 
 ### 5.6 Prompt Editor (Step 2, below transcript/speakers)
 
@@ -281,9 +387,10 @@ Custom dark-themed playback widget used in the AudioRecorder "done" state. Imple
 - **Width**: `380px`
 - **Background**: `--card`
 - **Border left**: `1px solid` `--border`
-- **Overlay**: Semi-transparent black (`rgba(0, 0, 0, 0.6)`)
-- **Sections**: "API Keys" and "Provider & Model" separated by `Separator`
-- **Info note**: Small info banner at top with `--info-muted` background and `Info` Lucide icon
+- **Overlay**: Semi-transparent black — `rgba(0, 0, 0, 0.6)` in dark mode, `rgba(0, 0, 0, 0.4)` in light mode (handled by shadcn sheet component)
+- **Layout**: `flex flex-col` — header is fixed at top, body is wrapped in `ScrollArea` (Radix) so content scrolls without native browser scrollbar
+- **Sections**: "API Keys", "AI Model", and "Features" separated by `Separator`, each collapsible
+- **Info note**: Small info banner at top (above scroll area) with `--info-muted` background and `Info` Lucide icon
 - **API key inputs**: Password type with `Eye`/`EyeOff` toggle icon
 - **Key status badge**: Small dot — green (`--success`) if key saved, gray (`--foreground-muted`) if empty
 - **Warning badge**: `--warning` colored badge when selected provider has no key
@@ -328,10 +435,10 @@ Using shadcn/ui `sonner` integration:
 | **Warning** | `--warning` | `AlertTriangle` |
 | **Info** | `--info` | `Info` |
 
-- **Position**: Bottom-right
+- **Position**: Top-right, `72px` from the top (clears the `64px` sticky header)
 - **Background**: `--card`
 - **Border**: `1px solid --border`
-- **Duration**: 4 seconds (errors: 6 seconds)
+- **Duration**: 5 seconds, pauses on hover
 
 ---
 
@@ -392,6 +499,7 @@ Step transition implementation:
 |-----------|------------------|-----------------|
 | **Header** | Full app name + settings icon | Same (app name may truncate) |
 | **Step indicator** | Icons + labels + lines | Icons + lines (labels abbreviated or hidden) |
+| **Mode switcher** | Centered segmented control (Standard / Realtime) | Same |
 | **Step 1 tab toggle** | "Upload File" / "Record Audio" tabs visible | Same |
 | **File upload** | Centered in content area | Full width |
 | **Audio recorder** | Centered in content area, mic selector visible when ≥2 mics | Full width, mic selector visible when ≥2 mics |
@@ -405,12 +513,57 @@ Step transition implementation:
 
 ---
 
-## 12. Accessibility Notes
+## 12. Scrollable Areas
+
+All scrollable regions use the shadcn `ScrollArea` component (Radix UI `@radix-ui/react-scroll-area`) instead of native browser scrollbars. This provides a consistent, minimal custom scrollbar across all browsers and OS themes.
+
+| Component | Scroll area | Constraint |
+|-----------|-------------|------------|
+| **TranscriptView** (card, read-only) | Transcript text | `max-h-[600px] min-h-[300px]` |
+| **TranscriptView** (fullscreen dialog) | Transcript text | `flex-1` (fills dialog height) |
+| **SummaryView** (card) | Markdown summary | `max-h-[600px]` |
+| **SummaryView** (fullscreen dialog) | Markdown summary | `flex-1` |
+| **RealtimeTranscriptView** (card) | Live transcript | `min-h-[300px] max-h-[600px]` |
+| **RealtimeTranscriptView** (fullscreen) | Live transcript | `flex-1` |
+| **RealtimeSummaryView** (card) | Markdown summary | `max-h-[600px]` |
+| **RealtimeSummaryView** (fullscreen) | Markdown summary | `flex-1` |
+| **SpeakerMapper** (dialog) | Speaker rows | `flex-1` (dialog body minus header/footer) |
+| **SettingsSheet** | All settings content | `flex-1` (panel height minus sheet header) |
+
+**Scrollbar style**: thin (`w-2.5`), `--border` colored thumb, appears on hover/scroll, sits inside the component boundary.
+
+**Auto-scroll**: `SummaryView` scrolls to the bottom during streaming. `RealtimeTranscriptView` auto-scrolls as new transcript arrives and detects manual scroll-up to disable auto-scroll (re-enabled via the "Auto-scroll" button).
+
+---
+
+## 13. Tooltips
+
+Tooltips use the shadcn `Tooltip` component (Radix UI `@radix-ui/react-tooltip`). A single `TooltipProvider` with `delayDuration={100}` wraps the entire app in `layout.tsx`, giving a fast `100ms` hover delay globally (vs. the ~600ms browser-native `title` delay).
+
+Currently used for:
+
+| Location | Trigger | Content |
+|----------|---------|---------|
+| **AudioRecorder — "Mic + Meeting Audio" segment** | Hover on the disabled button (non-Chromium browsers) | *"Only supported on Chromium-based browsers like Google Chrome, Brave, or Edge"* |
+
+Tooltip placement defaults to the Radix default (above the trigger). Content uses `TooltipContent` with default shadcn styling (`--popover` background, `--border` border, `text-xs`).
+
+---
+
+## 14. Accessibility Notes
 
 - All interactive elements must have visible focus rings (`--ring`)
 - Color is never the sole indicator — always pair with icons or text
 - Inputs must have associated labels
 - Toast messages should use `aria-live` (handled by sonner)
 - Minimum contrast ratio: 4.5:1 for text, 3:1 for large text and UI components
-- `#FC520B` on `#0A0A0A` = ~5.2:1 contrast ratio (passes AA)
-- `#FAFAFA` on `#0A0A0A` = ~19.5:1 contrast ratio (passes AAA)
+
+**Dark mode contrast:**
+- `#FC520B` on `#0A0A0A` = ~5.2:1 (passes AA)
+- `#FAFAFA` on `#0A0A0A` = ~19.5:1 (passes AAA)
+
+**Light mode contrast:**
+- `#FC520B` on `#FAFAFA` = ~4.6:1 (passes AA)
+- `#0A0A0A` on `#FAFAFA` = ~19.5:1 (passes AAA)
+- `#52525B` on `#FAFAFA` = ~7.4:1 (passes AAA — secondary text)
+- `#A1A1AA` on `#FAFAFA` = ~3.0:1 (passes AA for large text / UI components; used for muted/hint text only)

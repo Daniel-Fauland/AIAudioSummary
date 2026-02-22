@@ -1,9 +1,16 @@
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/auth";
 
-export default async function LoginPage() {
+interface LoginPageProps {
+  searchParams: Promise<{ error?: string }>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await auth();
   if (session) redirect("/");
+
+  const params = await searchParams;
+  const isAccessDenied = params.error === "AccessDenied";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
@@ -14,6 +21,11 @@ export default async function LoginPage() {
         <p className="mb-6 text-center text-sm text-foreground-secondary">
           Sign in to continue
         </p>
+        {isAccessDenied && (
+          <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Access denied. Please contact an administrator to request access.
+          </div>
+        )}
         <form
           action={async () => {
             "use server";

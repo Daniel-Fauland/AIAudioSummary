@@ -37,6 +37,18 @@ PROVIDERS = [
         models=[],
         requires_azure_config=True,
     ),
+    ProviderInfo(
+        id="langdock",
+        name="Langdock",
+        models=[
+            # OpenAI-compatible
+            "gpt-5.2", "gpt-5.2-pro",
+            # Anthropic-compatible
+            "claude-sonnet-4-5-20250929", "claude-sonnet-4-6-default", "claude-opus-4-6-default",
+            # Google-compatible
+            "gemini-2.5-pro", "gemini-2.5-flash",
+        ],
+    ),
 ]
 
 LANGUAGES = [
@@ -44,6 +56,8 @@ LANGUAGES = [
     LanguageOption(code="de", name="German"),
     LanguageOption(code="fr", name="French"),
     LanguageOption(code="es", name="Spanish"),
+    LanguageOption(code="hr", name="Croatian"),
+    LanguageOption(code="tr", name="Turkish"),
 ]
 
 

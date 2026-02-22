@@ -43,20 +43,24 @@ Everything you need to know to implement a new feature or change an existing one
 - [End-to-End Data Flows](#end-to-end-data-flows)
 - [Common Tasks](#common-tasks)
 - [GCP Setup Guide (Google OAuth)](#gcp-setup-guide-google-oauth)
-- [Render Deployment Guide](#render-deployment-guide)
 
 ---
 
 ## Project Overview
 
-AIAudioSummary is a web app for uploading or recording audio files (meeting recordings) and generating transcripts + AI-powered summaries. It uses:
+AIAudioSummary is a web app for uploading or recording audio files (meeting recordings) and generating transcripts + AI-powered summaries. It supports two modes:
 
-- **AssemblyAI** for speech-to-text transcription
+- **Standard mode**: Upload/record audio → batch transcription → streaming summary generation
+- **Realtime mode**: Live microphone capture → streaming transcription via WebSocket → periodic incremental summaries
+
+It uses:
+
+- **AssemblyAI** for speech-to-text (batch SDK + streaming WebSocket API)
 - **Multi-provider LLM support** (OpenAI, Anthropic, Google Gemini, Azure OpenAI) via `pydantic-ai` for summarization
 - **Next.js 16** frontend with shadcn/ui
-- **FastAPI** backend
-- **Google OAuth** (via Auth.js v5) for authentication with email allowlist
-- **Render** for deployment (both services on free tier with API proxy)
+- **FastAPI** backend with WebSocket support
+- **Google OAuth** (via Auth.js v5) for authentication with database-driven access control
+- **Docker Compose** for self-hosted deployment (Hetzner)
 
 The key architectural decision is **BYOK (Bring Your Own Key)**: API keys are stored in the browser's localStorage and sent per-request. The backend never stores keys.
 
@@ -69,7 +73,8 @@ The key architectural decision is **BYOK (Bring Your Own Key)**: API keys are st
 | Backend  | Python 3.12+, FastAPI, pydantic-ai             | uv              |
 | Frontend | Next.js 16, React 19, TypeScript 5             | npm             |
 | UI       | shadcn/ui, Tailwind CSS v4                     | -               |
-| STT      | AssemblyAI SDK                                 | -               |
+| STT      | AssemblyAI SDK + Streaming WebSocket API       | -               |
+| Realtime | websockets (Python), AudioWorklet (browser)    | -               |
 | LLMs     | pydantic-ai (OpenAI, Anthropic, Gemini, Azure) | -               |
 
 ---
@@ -82,21 +87,45 @@ project-root/
 │   ├── api/                        # Router layer (HTTP endpoints)
 │   │   ├── assemblyai/router.py    #   POST /createTranscript
 │   │   ├── llm/router.py          #   POST /createSummary
-│   │   └── misc/router.py         #   GET /getConfig, POST /getSpeakers, POST /updateSpeakers
+│   │   ├── misc/router.py         #   GET /getConfig, POST /getSpeakers, POST /updateSpeakers
+│   │   ├── realtime/router.py    #   WS /ws/realtime, POST /createIncrementalSummary
+│   │   ├── prompt_assistant/router.py  #   POST /prompt-assistant/analyze, POST /prompt-assistant/generate
+│   │   ├── live_questions/router.py    #   POST /live-questions/evaluate
+│   │   ├── auth/router.py         #   GET /auth/verify (no auth required)
+│   │   └── users/router.py        #   GET /users/me, GET /users, POST /users, DELETE /users/{id}
 │   ├── service/                    # Service layer (business logic)
 │   │   ├── assembly_ai/core.py    #   AssemblyAIService
 │   │   ├── llm/core.py            #   LLMService (multi-provider)
-│   │   └── misc/core.py           #   MiscService (speakers, dates)
+│   │   ├── misc/core.py           #   MiscService (speakers, dates)
+│   │   ├── realtime/             #   RealtimeTranscriptionService, SessionManager
+│   │   ├── prompt_assistant/core.py  #   PromptAssistantService (analyze + generate)
+│   │   ├── live_questions/core.py    #   LiveQuestionsService (strict LLM evaluation)
+│   │   ├── auth/core.py           #   AuthService (email verification against DB)
+│   │   └── users/core.py          #   UsersService (CRUD, name sync)
+│   ├── dependencies/               # FastAPI dependencies
+│   │   └── auth.py                #   get_current_user (HS256 JWT validation), require_admin
 │   ├── models/                     # Pydantic request/response models
 │   │   ├── assemblyai.py
 │   │   ├── config.py
-│   │   └── llm.py
+│   │   ├── llm.py
+│   │   ├── realtime.py            #   IncrementalSummaryRequest/Response
+│   │   ├── prompt_assistant.py    #   AssistantQuestion, AnalyzeRequest/Response, GenerateRequest/Response
+│   │   └── live_questions.py      #   EvaluateQuestionsRequest/Response, QuestionInput, QuestionEvaluation
+│   ├── db/                         # Database layer (SQLAlchemy async)
+│   │   ├── engine.py              #   async_engine, AsyncSessionLocal, get_db(), Base
+│   │   └── models.py              #   User ORM model (id, email, name, role, preferences, storage_mode)
+│   ├── alembic/                    # Database migrations (Alembic)
+│   │   ├── env.py                 #   Async migration runner
+│   │   ├── script.py.mako         #   Migration file template
+│   │   └── versions/
+│   │       └── 0001_initial_users.py  #   Creates users table
 │   ├── utils/
 │   │   ├── helper.py              # File listing & reading utilities
 │   │   └── logging.py             # Logger configuration
 │   ├── prompt_templates/           # Markdown prompt files (loaded dynamically)
+│   ├── alembic.ini                 # Alembic configuration
 │   ├── config.py                   # Pydantic BaseSettings (from .env)
-│   ├── main.py                     # FastAPI app entry point
+│   ├── main.py                     # FastAPI app entry point (lifespan: runs migrations + seeds admins)
 │   └── pyproject.toml              # uv dependencies
 │
 ├── frontend/
@@ -107,27 +136,39 @@ project-root/
 │   │   │   ├── api/
 │   │   │   │   ├── auth/[...nextauth]/route.ts  # Auth.js route handler
 │   │   │   │   └── proxy/[...path]/route.ts     # API proxy to backend
-│   │   │   ├── login/page.tsx      # Google sign-in page
+│   │   │   ├── admin/page.tsx      # Admin panel (role-guarded, user management)
+│   │   ├── login/page.tsx      # Google sign-in page
 │   │   │   ├── layout.tsx          # Root layout (dark mode, font, toaster, SessionWrapper)
 │   │   │   ├── page.tsx            # Main orchestrator (all state lives here)
 │   │   │   └── globals.css         # Theme variables, animations
 │   │   ├── components/
-│   │   │   ├── auth/               # SessionWrapper, UserMenu
-│   │   │   ├── layout/             # Header, StepIndicator, SettingsSheet
+│   │   │   ├── admin/              # AddUserDialog, DeleteUserDialog
+│   │   ├── auth/               # SessionWrapper, UserMenu
+│   │   │   ├── layout/             # Header, Footer, StepIndicator, SettingsSheet
 │   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm
-│   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor, SummaryView
+│   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor (+ Prompt Assistant trigger), SummaryView
+│   │   │   ├── realtime/          # RealtimeMode, RealtimeControls, RealtimeTranscriptView, RealtimeSummaryView, ConnectionStatus
+│   │   │   ├── live-transcript/   # LiveQuestions, LiveQuestionItem, AddQuestionInput, useLiveQuestions hook
+│   │   │   ├── prompt-assistant/  # PromptAssistantModal, StepBasePrompt, StepQuestions, StepSummary, StepResult, QuestionField, usePromptAssistant hook
 │   │   │   └── ui/                 # shadcn/ui primitives + AudioPlayer composite component
 │   │   ├── hooks/
 │   │   │   ├── useApiKeys.ts       # localStorage key management
-│   │   │   └── useConfig.ts        # Backend config fetching
+│   │   │   ├── useConfig.ts        # Backend config fetching
+│   │   │   ├── useCustomTemplates.ts # Custom prompt template CRUD (localStorage + server sync)
+│   │   │   ├── usePreferences.ts   # Server preference sync (loads on mount, fire-and-forget saves)
+│   │   │   └── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
+│   │       ├── errors.ts           # getErrorMessage() — maps ApiError status codes to user-friendly strings
 │   │       ├── types.ts            # TypeScript types (mirrors backend models)
 │   │       └── utils.ts            # cn() Tailwind merge utility
+│   ├── public/
+│   │   └── pcm-worklet-processor.js  # AudioWorklet for PCM16 capture
 │   ├── package.json
 │   └── next.config.ts
 │
-├── render.yaml                     # Render Blueprint (IaC deployment config)
+├── docker-compose.yml              # Docker Compose for local and self-hosted deployment (includes postgres service)
+├── .env.example                    # Root env template for Docker Compose (POSTGRES_*, AUTH_SECRET, INITIAL_ADMINS)
 ├── docs/                           # Documentation
 ├── user_stories/                   # Feature specifications
 └── CLAUDE.md                       # AI assistant instructions
@@ -139,23 +180,25 @@ project-root/
 
 ### Request Flow
 
-In production (Render), both services are **public web services** on the free tier. All API calls from the browser go through a Next.js API proxy route which checks authentication before forwarding to the backend. The backend is technically reachable directly, but since it uses BYOK (users supply their own API keys per-request), there are no stored secrets to abuse.
+Both services run in Docker containers (orchestrated by Docker Compose). All API calls from the browser go through a Next.js API proxy route which checks authentication before forwarding to the backend. The backend is technically reachable directly, but since it uses BYOK (users supply their own API keys per-request), there are no stored secrets to abuse.
 
 ```
 Browser (client)
     │
-    ▼
-Next.js Frontend (public, Render web service)
-    ├── proxy.ts ── checks auth session, redirects to /login if unauthenticated
-    ├── /api/auth/* ── Auth.js handles Google OAuth flow
-    └── /api/proxy/* ── forwards requests to backend
-            │
-            ▼
-FastAPI Backend (public, Render web service)
-    └── /createTranscript, /createSummary, /getConfig, etc.
+    ├── HTTP ──► Next.js Frontend (Docker container)
+    │                ├── proxy.ts ── checks auth session, redirects to /login if unauthenticated
+    │                ├── /api/auth/* ── Auth.js handles Google OAuth flow
+    │                └── /api/proxy/* ── forwards requests to backend
+    │                        │
+    │                        ▼
+    │                FastAPI Backend (Docker container)
+    │                    └── /createTranscript, /createSummary, /getConfig, etc.
+    │
+    └── WebSocket ──► FastAPI Backend (direct, bypasses proxy)
+                         └── /ws/realtime (realtime transcription relay)
 ```
 
-Locally, the same proxy route forwards `localhost:3000/api/proxy/*` to `localhost:8080/*`.
+The HTTP proxy route forwards requests from the frontend container to the backend container via `BACKEND_INTERNAL_URL` (Docker internal network: `http://backend:8080`). The WebSocket connection goes directly from the browser to the backend — it bypasses the Next.js proxy because Auth.js session cookies are not sent over WebSocket connections. Authentication for the WebSocket is handled via the AssemblyAI API key sent in the init message.
 
 ### Authentication (Google OAuth)
 
@@ -167,9 +210,10 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 | `src/app/api/auth/[...nextauth]/route.ts` | Auth.js route handler (GET/POST for OAuth callbacks)                                                 |
 | `src/app/login/page.tsx`                  | Server Component login page with "Sign in with Google" button                                        |
 | `src/components/auth/SessionWrapper.tsx`  | Client `<SessionProvider>` wrapper (needed because `layout.tsx` is a Server Component)               |
-| `src/components/auth/UserMenu.tsx`        | Client component showing user email, avatar, and sign-out button                                     |
+| `src/components/auth/UserMenu.tsx`        | Client component: dropdown with user avatar, storage mode toggle, admin panel link, and sign-out     |
+| `src/components/auth/StorageModeDialog.tsx` | Dialog for switching between local and account storage modes (uploads/downloads preferences)       |
 
-**Email allowlist**: The `ALLOWED_EMAILS` env var is a comma-separated list of emails. If empty, all authenticated Google users are allowed. The check happens in the `signIn` callback in `auth.ts`.
+**Database access control**: The `signIn` callback in `auth.ts` calls `GET {BACKEND_INTERNAL_URL}/auth/verify?email=...` server-side. Only emails that exist in the `users` DB table are allowed in. Denied users are redirected to `/login?error=AccessDenied`. The `jwt` callback fetches the user's `role` and stores it in the session token; the `session` callback exposes it as `session.user.role`.
 
 ### API Proxy Layer
 
@@ -177,9 +221,11 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 
 1. Checks the user's auth session (returns 401 if unauthenticated)
 2. Reads `BACKEND_INTERNAL_URL` env var (default `http://localhost:8080`)
-3. Forwards the request method, headers (stripping `host`, `cookie`, `connection`), query params, and body
-4. **Streaming**: Detects `content-type: text/plain` responses and passes the `ReadableStream` directly through — this preserves chunk-by-chunk delivery for `/createSummary`
-5. **File uploads**: Passes `request.body` as a raw stream with `duplex: "half"` for multipart/form-data
+3. Creates a short-lived HS256 JWT (2-minute expiry) signed with `AUTH_SECRET`, containing `{email, name, role}` from the session, and adds it as `Authorization: Bearer <token>` for the backend to validate
+4. Forwards the request method, headers (stripping `host`, `cookie`, `connection`), query params, and body
+5. **Streaming**: Detects `content-type: text/plain` responses and passes the `ReadableStream` directly through — this preserves chunk-by-chunk delivery for `/createSummary`
+6. **File uploads**: Passes `request.body` as a raw stream with `duplex: "half"` for multipart/form-data
+7. **204 No Content**: Returns `new Response(null, { status: 204 })` — the HTTP spec requires 204 responses to have a null body
 
 ### Route Protection
 
@@ -192,11 +238,12 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 
 | Variable               | Service  | Default                 | Description                                                  |
 | ---------------------- | -------- | ----------------------- | ------------------------------------------------------------ |
-| `BACKEND_INTERNAL_URL` | Frontend | `http://localhost:8080` | Backend URL (auto-populated on Render via service discovery) |
-| `AUTH_GOOGLE_ID`       | Frontend | —                       | Google OAuth client ID                                       |
+| `BACKEND_INTERNAL_URL`        | Frontend | `http://localhost:8080` | Backend URL for HTTP proxy (set to `http://backend:8080` in Docker)  |
+| `NEXT_PUBLIC_BACKEND_WS_URL` | Frontend | `ws://localhost:8080`   | Backend WebSocket URL for realtime transcription (direct)    |
+| `AUTH_GOOGLE_ID`              | Frontend | —                       | Google OAuth client ID                                       |
 | `AUTH_GOOGLE_SECRET`   | Frontend | —                       | Google OAuth client secret                                   |
 | `AUTH_SECRET`          | Frontend | —                       | Random secret for session encryption                         |
-| `ALLOWED_EMAILS`       | Frontend | (empty = allow all)     | Comma-separated email allowlist                              |
+| ~~`ALLOWED_EMAILS`~~   | Frontend | (removed)               | Replaced by database-driven access control (US-04)           |
 | `AUTH_TRUST_HOST`      | Frontend | —                       | Set to `"true"` for non-Vercel deployments                   |
 | `ENVIRONMENT`          | Backend  | `development`           | `development` (enables reload) or `production`               |
 | `ALLOWED_ORIGINS`      | Backend  | `http://localhost:3000` | Comma-separated CORS origins                                 |
@@ -282,8 +329,9 @@ HTTP Request
 
 ### Router Conventions
 
-- **Endpoint paths**: camelCase (`/createTranscript`, `/getSpeakers`)
+- **Endpoint paths**: camelCase (`/createTranscript`, `/getSpeakers`); WebSocket paths use `/ws/` prefix (`/ws/realtime`)
 - **HTTP methods**: `POST` for operations, `GET` for data retrieval
+- **WebSocket**: `@router.websocket("/ws/path")` for persistent connections
 - **All handlers are `async def`**
 - **Services instantiated at module level**: `service = MyService()` (no DI framework)
 - **Response model declared in decorator**: `@router.post("/path", response_model=MyResponse)`
@@ -294,6 +342,10 @@ HTTP Request
 - All methods are `async def`
 - Services are plain classes (no base class, no DI)
 - Error handling: raise exceptions, let the router catch and convert to HTTP responses
+- The **realtime service** (`service/realtime/`) contains:
+  - `RealtimeTranscriptionService` (`core.py`): manages WebSocket connections to AssemblyAI's streaming API (connect, send audio, terminate)
+  - `SessionManager` (`session.py`): in-memory session state with asyncio Lock for thread safety — tracks accumulated transcript, current partial, and timestamps per session
+  - `SessionState` dataclass: `session_id`, `accumulated_transcript`, `current_partial`, `created_at`, `last_activity`
 - The LLM service uses a factory method `_create_model()` to instantiate the correct pydantic-ai provider:
 
   | Provider       | Model Class       | Provider Class      |
@@ -313,11 +365,14 @@ HTTP Request
 
 Key models:
 
-| File                   | Key Classes                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------ |
-| `models/llm.py`        | `LLMProvider` (enum), `CreateSummaryRequest`, `CreateSummaryResponse`, `AzureConfig` |
-| `models/config.py`     | `ConfigResponse`, `ProviderInfo`, `PromptTemplate`, `LanguageOption`, speaker models |
-| `models/assemblyai.py` | `CreateTranscriptResponse`                                                           |
+| File                         | Key Classes                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `models/llm.py`              | `LLMProvider` (enum), `CreateSummaryRequest`, `CreateSummaryResponse`, `AzureConfig`             |
+| `models/config.py`           | `ConfigResponse`, `ProviderInfo`, `PromptTemplate`, `LanguageOption`, speaker models             |
+| `models/assemblyai.py`       | `CreateTranscriptResponse`                                                                       |
+| `models/realtime.py`         | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                                        |
+| `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest`, `AnalyzeResponse` (incl. `suggested_target_system`), `GenerateRequest/Response` |
+| `models/live_questions.py`   | `QuestionInput`, `EvaluateQuestionsRequest`, `QuestionEvaluation`, `EvaluateQuestionsResponse`                                                    |
 
 ### Configuration & Environment
 
@@ -344,8 +399,51 @@ Environment variables (`.env`):
 | `PROMPT_TEMPLATE_DIRECTORY` | `./prompt_templates`    | Path to prompt markdown files              |
 | `ENVIRONMENT`               | `development`           | `development` (hot-reload) or `production` |
 | `ALLOWED_ORIGINS`           | `http://localhost:3000` | Comma-separated CORS origins               |
+| `DATABASE_URL`              | `""` (disabled)         | Async SQLAlchemy URL (`postgresql+asyncpg://...`); if empty, DB is skipped |
+| `AUTH_SECRET`               | `""` (disabled)         | Shared JWT secret (must match frontend `AUTH_SECRET`) |
+| `INITIAL_ADMINS`            | `""` (none)             | Comma-separated emails to seed as admin on startup |
 
 To add a new setting: add a field to `Settings` in `config.py`, add the corresponding variable to `.env` and `.env.example`.
+
+### Database Layer
+
+The backend uses **async SQLAlchemy 2.x** with **asyncpg** and **Alembic** for schema migrations.
+
+| File | Purpose |
+| ---- | ------- |
+| `db/engine.py` | `async_engine`, `AsyncSessionLocal`, `get_db()` FastAPI dependency, `Base` declarative base |
+| `db/models.py` | `User` ORM model |
+| `alembic/` | Migration scripts (run automatically on startup) |
+| `alembic.ini` | Alembic configuration |
+
+**`User` table** (`users`):
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `id` | `INTEGER` | Auto-increment primary key |
+| `email` | `VARCHAR(255)` | Unique, not null |
+| `name` | `VARCHAR(255)` | Nullable |
+| `role` | `VARCHAR(50)` | `'user'` or `'admin'`, default `'user'` |
+| `preferences` | `JSONB` | Nullable; server-side preference storage |
+| `storage_mode` | `VARCHAR(10)` | `'local'` or `'account'`, default `'local'` |
+| `created_at` | `TIMESTAMPTZ` | Server default `now()` |
+| `updated_at` | `TIMESTAMPTZ` | Server default `now()`, updated on write |
+
+**Startup behaviour** (in `main.py` lifespan):
+1. If `DATABASE_URL` is set: runs `alembic upgrade head` in a thread executor (keeps async event loop clean), then seeds any emails in `INITIAL_ADMINS` as `role='admin'`.
+2. If `DATABASE_URL` is empty: skips DB setup with a warning — existing functionality is unaffected.
+
+**Using the DB in a router**:
+```python
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from db.engine import get_db
+
+@router.get("/example")
+async def example(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User))
+    return result.scalars().all()
+```
 
 ### Prompt Template System
 
@@ -359,6 +457,10 @@ Prompt templates are Markdown files in `prompt_templates/`. They are loaded dyna
 3. Templates use `{{Day of the week}}` and `{{YYYY-MM-DD}}` as placeholders, replaced by `LLMService.build_prompt()`
 
 **To add a new template**: create a new `.md` file in `prompt_templates/`. It will automatically appear in the frontend template selector.
+
+> **Note**: The **realtime incremental summary** (`/createIncrementalSummary`) does **not** use the prompt template system. It uses a hardcoded stability-focused system prompt defined in `api/realtime/router.py` (`_REALTIME_SYSTEM_PROMPT`). The target language is auto-detected from the transcript using the `langdetect` library rather than being selected by the user.
+
+> **Note**: The **Prompt Assistant** (`/prompt-assistant/analyze` and `/prompt-assistant/generate`) also does **not** use the prompt template system. It uses two hardcoded system prompts defined in `service/prompt_assistant/core.py`. Key constraints baked into the analysis prompt: always assume GitHub-Flavored Markdown (never ask the user about it); never ask about target language (handled separately in Prompt Settings); never ask about target system / output destination (injected programmatically — see below); never suggest "Links & references" as a section option (links from chats are not part of transcripts). The generation prompt includes explicit tailoring rules for each supported target system.
 
 ### Error Handling
 
@@ -427,7 +529,7 @@ app.add_middleware(
 )
 ```
 
-CORS origins are configured via the `ALLOWED_ORIGINS` env var (comma-separated). Defaults to `http://localhost:3000` for local development. In production, set this to your frontend's Render URL (e.g., `https://aias-frontend.onrender.com`).
+CORS origins are configured via the `ALLOWED_ORIGINS` env var (comma-separated). Defaults to `http://localhost:3000` for local development. In production, set this to your frontend's public domain (e.g., `https://klartextai.com`).
 
 ### Logging
 
@@ -450,12 +552,16 @@ Format: `timestamp | level | filename:line | function | message`
 - **`"use client"`** — the main page is a client component (all interactivity)
 - **Authentication**: Google OAuth via Auth.js v5. `layout.tsx` wraps all children in `<SessionWrapper>` for client-side session access. `proxy.ts` redirects unauthenticated users to `/login`.
 - **API proxy**: All API calls go through `/api/proxy/*` which forwards to the backend. The frontend never calls the backend directly.
-- **Toast notifications**: Sonner, positioned bottom-right
+- **Toast notifications**: Sonner, positioned top-right (72px from top, clearing the 64px header), 5-second auto-dismiss with hover-pause
 - **Style Guide**: Always follow [UX_SPECIFICATION.md](../user_stories/UX_SPECIFICATION.md) when implementing any frontend feature!
 
-### 3-Step Workflow
+### App Modes
 
-The app follows a linear workflow managed by `currentStep` state (1, 2, or 3):
+The app has two top-level modes controlled by `appMode` state (`"standard"` | `"realtime"`), toggled via a tab bar below the header. The selected mode is persisted to localStorage (`aias:v1:app_mode`).
+
+### Standard Mode (3-Step Workflow)
+
+The standard mode follows a linear workflow managed by `currentStep` state (1, 2, or 3):
 
 ```
 Step 1: Input                 Step 2: Transcript              Step 3: Summary
@@ -477,6 +583,29 @@ Transitions:
 - **3 -> 2**: "Back to Transcript" button
 - **3 -> 1**: "Start Over" resets all state
 
+### Realtime Mode
+
+The realtime mode provides live transcription and incremental summarization:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  RealtimeControls                                            │
+│  [Start/Pause/Stop]  [Mic]  [Status]  [00:00]  [mm:ss] [↻] │
+│                                     elapsed  countdown  btn  │
+├──────────────────────────┬───────────────────────────────────┤
+│  RealtimeTranscriptView  │  RealtimeSummaryView              │
+│  (live, auto-scrolling)  │  (markdown, periodic updates)     │
+│  Final text + partials   │  "Updating..." badge + timestamp  │
+└──────────────────────────┴───────────────────────────────────┘
+         Desktop: two-column grid / Mobile: tabbed
+```
+
+The `useRealtimeSession` hook manages the entire lifecycle:
+1. **Start**: getUserMedia → AudioContext → AudioWorklet (PCM16 @ 16kHz, buffered in 100ms chunks) → WebSocket to backend → relay to AssemblyAI
+2. **During session**: transcript accumulates from WS `turn` events; summary timer fires at configurable interval (1-10 min, set in Settings panel) calling `POST /createIncrementalSummary`; countdown timer (`mm:ss`) shown in controls bar; timer pauses when recording is paused and restarts on resume
+3. **Manual summary**: "Refresh Summary" button in controls triggers immediate summary and resets the auto-timer from that point
+4. **Stop**: sends stop message → closes WS → triggers final full-transcript summary → shows copy buttons
+
 ### Component Hierarchy
 
 ```
@@ -485,21 +614,42 @@ RootLayout (layout.tsx)
     │
     ├── /login ── LoginPage    ← Server Component, redirects to / if authenticated
     │
-    └── / ── Page (page.tsx) ─── All state lives here
+    └── / ── Home (page.tsx) ─── Outer shell: useConfig() + usePreferences(), loading gate
+        └── HomeInner ──────────── All state lives here (mounts after prefs loaded)
         ├── Header
-        │   ├── UserMenu       ← user email, avatar, sign-out button
+        │   ├── UserMenu       ← dropdown: avatar, storage mode, admin panel link, sign-out
+        │   │   └── StorageModeDialog ← upload/download prefs when switching storage modes
         │   └── Settings gear icon
         ├── SettingsSheet (right-side drawer, 380px)
         │   ├── ApiKeyManager          ← uses useApiKeys() hook
-        │   ├── ProviderSelector
-        │   ├── ModelSelector           ← dropdown or free-text input
-        │   └── AzureConfigForm        ← only if provider is azure_openai
-        ├── StepIndicator              ← visual 3-step progress bar
+        │   ├── ProviderSelector       ← "Default AI Model" section
+        │   ├── ModelSelector          ← dropdown or free-text input
+        │   ├── AzureConfigForm        ← only if provider is azure_openai
+        │   └── FeatureModelOverrides  ← collapsible per-feature model overrides
+        │       ├── FeatureModelRow    ← one row per LLMFeature
+        │       └── FeatureModelConfigModal ← dialog: ProviderSelector + ModelSelector + config form
+        ├── Mode Tab Bar               ← [Standard] [Realtime] toggle
         │
-        └── Step Content (conditional):
-            ├── Step 1: tab toggle → FileUpload | AudioRecorder
-            ├── Step 2: TranscriptView + SpeakerMapper + PromptEditor
-            └── Step 3: TranscriptView (readonly) + SummaryView
+        ├── (Standard mode):
+        │   ├── StepIndicator          ← visual 3-step progress bar
+        │   └── Step Content (conditional):
+        │       ├── Step 1: tab toggle → FileUpload | AudioRecorder
+        │       ├── Step 2: TranscriptView + SpeakerMapper + PromptEditor
+        │       │               └── PromptAssistantModal (Dialog, triggered by "Prompt Assistant" button)
+        │       │                   ├── StepBasePrompt   ← Step 1: optional existing prompt
+        │       │                   ├── StepQuestions    ← Step 2: dynamic QuestionField list
+        │       │                   ├── StepSummary      ← Step 3: answer review + additional notes
+        │       │                   └── StepResult       ← Step 4: editable generated prompt
+        │       └── Step 3: TranscriptView (readonly) + SummaryView
+        │
+        ├── (Realtime mode):
+        │   └── RealtimeMode           ← orchestrator, uses useRealtimeSession() hook
+        │       ├── RealtimeControls   ← Start/Pause/Stop, mic selector, elapsed timer, countdown + Refresh button
+        │       │   └── ConnectionStatus
+        │       ├── RealtimeTranscriptView  ← live transcript with auto-scroll
+        │       └── RealtimeSummaryView     ← markdown summary with periodic updates
+        │
+        └── Footer                     ← Imprint / Privacy Policy / Cookie Settings links (each opens a Dialog)
 ```
 
 ### Adding a New Frontend Component
@@ -508,7 +658,8 @@ RootLayout (layout.tsx)
    - `components/auth/` — authentication-related components (SessionWrapper, UserMenu)
    - `components/layout/` — structural/layout components
    - `components/settings/` — settings panel sub-components
-   - `components/workflow/` — step-specific workflow components
+   - `components/workflow/` — standard mode step-specific workflow components
+   - `components/realtime/` — realtime mode components (RealtimeMode, Controls, TranscriptView, SummaryView, ConnectionStatus)
 
 2. **Define a props interface**:
 
@@ -540,41 +691,67 @@ Key conventions:
 
 All application state lives in `page.tsx` using `useState`. There is no global state library.
 
-| State Category    | Persisted?         | Storage Key Pattern         |
-| ----------------- | ------------------ | --------------------------- |
-| API keys          | Yes (localStorage) | `aias:v1:apikey:{provider}` |
-| Azure config      | Yes (localStorage) | `aias:v1:azure:{field}`     |
-| Selected provider | Yes (localStorage) | `aias:v1:selected_provider` |
-| Selected model    | Yes (localStorage) | `aias:v1:model:{provider}`  |
-| Workflow state    | No                 | -                           |
-| Prompt/language   | No                 | -                           |
+| State Category      | Persisted?         | Synced to server? | Storage Key Pattern         |
+| ------------------- | ------------------ | ----------------- | --------------------------- |
+| API keys            | Yes (localStorage) | **Never**         | `aias:v1:apikey:{provider}` |
+| Azure config        | Yes (localStorage) | Yes               | `aias:v1:azure:{field}`     |
+| Selected provider   | Yes (localStorage) | Yes               | `aias:v1:selected_provider` |
+| Selected model      | Yes (localStorage) | Yes               | `aias:v1:model:{provider}`  |
+| App mode            | Yes (localStorage) | Yes               | `aias:v1:app_mode`          |
+| Realtime interval   | Yes (localStorage) | Yes               | `aias:v1:realtime_interval` |
+| Feature overrides   | Yes (localStorage) | Yes               | `aias:v1:feature_overrides` |
+| Auto key points     | Yes (localStorage) | Yes               | `aias:v1:auto_key_points`   |
+| Speaker count range | Yes (localStorage) | Yes               | `aias:v1:min_speakers`, `aias:v1:max_speakers` |
+| Final summary toggle| Yes (localStorage) | Yes               | `aias:v1:realtime_final_summary` |
+| Realtime sys prompt | Yes (localStorage) | Yes               | `aias:v1:realtime_system_prompt` |
+| Custom templates    | Yes (localStorage) | Yes               | `aias:v1:custom_templates`  |
+| Theme               | Yes (localStorage) | Yes               | `aias:v1:theme`             |
+| Workflow state      | No                 | No                | -                           |
+| Prompt/language     | No                 | No                | -                           |
+| Realtime session    | No (hook state)    | No                | -                           |
 
-Pattern for persisted state:
+Pattern for persisted state (in `HomeInner`, which receives `serverPreferences` as a prop):
 
 ```tsx
+// Prefer server preferences (account mode), fall back to localStorage
 const [selectedProvider, setSelectedProvider] = useState<LLMProvider>(
-  () => safeGet("aias:v1:selected_provider", "openai") as LLMProvider,
+  () => (serverPreferences?.selected_provider as LLMProvider) || safeGet("aias:v1:selected_provider", "openai") as LLMProvider,
 );
 
-const handleProviderChange = (provider: LLMProvider) => {
+const handleProviderChange = useCallback((provider: LLMProvider) => {
   setSelectedProvider(provider);
   safeSet("aias:v1:selected_provider", provider);
-};
+  savePreferences(); // fire-and-forget sync to server (only in account mode)
+}, [savePreferences]);
 ```
 
 ### API Client
 
 All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which routes all requests through the Next.js API proxy layer (`src/app/api/proxy/[...path]/route.ts`). The proxy forwards to the backend using `BACKEND_INTERNAL_URL`.
 
-| Function             | Method | Endpoint            | Returns                                       |
-| -------------------- | ------ | ------------------- | --------------------------------------------- |
-| `getConfig()`        | GET    | `/getConfig`        | `ConfigResponse`                              |
-| `createTranscript()` | POST   | `/createTranscript` | `string` (transcript)                         |
-| `getSpeakers()`      | POST   | `/getSpeakers`      | `string[]` (speaker labels)                   |
-| `updateSpeakers()`   | POST   | `/updateSpeakers`   | `string` (updated transcript)                 |
-| `createSummary()`    | POST   | `/createSummary`    | `string` (full text, with streaming callback) |
+| Function                       | Method | Endpoint                     | Returns                                       |
+| ------------------------------ | ------ | ---------------------------- | --------------------------------------------- |
+| `getConfig()`                  | GET    | `/getConfig`                 | `ConfigResponse`                              |
+| `createTranscript()`           | POST   | `/createTranscript`          | `string` (transcript)                         |
+| `getSpeakers()`                | POST   | `/getSpeakers`               | `string[]` (speaker labels)                   |
+| `updateSpeakers()`             | POST   | `/updateSpeakers`            | `string` (updated transcript)                 |
+| `extractKeyPoints()`           | POST   | `/extractKeyPoints`          | `ExtractKeyPointsResponse`                    |
+| `createSummary()`              | POST   | `/createSummary`             | `string` (full text, with streaming callback) |
+| `createIncrementalSummary()`   | POST   | `/createIncrementalSummary`  | `IncrementalSummaryResponse`                  |
+| `analyzePrompt()`              | POST   | `/prompt-assistant/analyze`  | `PromptAssistantAnalyzeResponse`              |
+| `generatePrompt()`             | POST   | `/prompt-assistant/generate` | `PromptAssistantGenerateResponse`             |
+| `evaluateLiveQuestions()`      | POST   | `/live-questions/evaluate`   | `EvaluateQuestionsResponse`                   |
+| `getMe()`                      | GET    | `/users/me`                  | `UserProfile`                                 |
+| `getUsers()`                   | GET    | `/users`                     | `UserProfile[]` (admin only)                  |
+| `createUser(email, name?)`     | POST   | `/users`                     | `UserProfile` (admin only)                    |
+| `deleteUser(id)`               | DELETE | `/users/{id}`                | `void` (admin only)                           |
+| `getPreferences()`             | GET    | `/users/me/preferences`      | `PreferencesResponse`                         |
+| `putPreferences(prefs)`        | PUT    | `/users/me/preferences`      | `PreferencesResponse`                         |
+| `deletePreferences()`          | DELETE | `/users/me/preferences`      | `void`                                        |
 
-Error handling: `ApiError` class with `status` and `message`. The `handleResponse<T>()` helper extracts `detail` from FastAPI error JSON.
+Error handling: `ApiError` class with `status` and `message`. The `handleResponse<T>()` helper extracts `detail` from FastAPI error JSON. Use `getErrorMessage(error, context)` from `lib/errors.ts` in catch blocks to map `ApiError` status codes to user-friendly toast messages — never show raw backend error strings to the user.
+
+`ErrorContext` values: `"summary"` | `"keyPoints"` | `"transcript"` | `"speakers"` | `"analyze"` | `"generate"` | `"regenerate"`. The last three are used by the Prompt Assistant hook.
 
 **To add a new API call**: add a function in `api.ts`, add types in `types.ts`, call it from `page.tsx` or a component.
 
@@ -623,41 +800,71 @@ const { getKey, setKey, hasKey, clearKey, getAzureConfig, setAzureConfig } = use
 
 Key prefix: `aias:v1:` — all localStorage operations use safe try/catch wrappers to handle SSR and disabled localStorage.
 
-| Key                             | Contents                        |
-| ------------------------------- | ------------------------------- |
-| `aias:v1:apikey:assemblyai`     | AssemblyAI API key              |
-| `aias:v1:apikey:openai`         | OpenAI API key                  |
-| `aias:v1:apikey:anthropic`      | Anthropic API key               |
-| `aias:v1:apikey:gemini`         | Gemini API key                  |
-| `aias:v1:apikey:azure_openai`   | Azure OpenAI API key            |
-| `aias:v1:azure:api_version`     | Azure API version               |
-| `aias:v1:azure:endpoint`        | Azure endpoint URL              |
-| `aias:v1:azure:deployment_name` | Azure deployment name           |
-| `aias:v1:selected_provider`     | Currently selected LLM provider |
-| `aias:v1:model:{provider}`      | Selected model per provider     |
+The `usePreferences` hook syncs non-API-key preferences between localStorage and the server:
+
+```tsx
+const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferences } = usePreferences();
+```
+
+- On mount (when the user is authenticated): fetches `GET /users/me` to determine `storage_mode`, then if `"account"` fetches `GET /users/me/preferences`, writes them to localStorage via `applyPreferences()`, and stores them in `serverPreferences` state. All state updates (`setStorageMode`, `setServerPreferences`, `setIsLoading`) are batched after async work completes to avoid mid-flight cancellation.
+- The outer `Home` component passes `serverPreferences` directly to `HomeInner` as a prop. `HomeInner`'s `useState` initialisers prefer `serverPreferences` over localStorage, ensuring correct values even if `applyPreferences()` fails.
+- `savePreferences()`: fire-and-forget `PUT /users/me/preferences` — collects current non-API-key values from localStorage and pushes them to the server. Called after every settings change handler in `page.tsx` (only actually sends if `storageMode === "account"`).
+- API keys are **never** included in the synced payload.
+- The `StorageModeDialog` handles initial upload (local → account) and download (account → local) of preferences, including all synced fields.
+
+| Key                             | Contents                        | Synced? |
+| ------------------------------- | ------------------------------- | ------- |
+| `aias:v1:apikey:assemblyai`     | AssemblyAI API key              | Never   |
+| `aias:v1:apikey:openai`         | OpenAI API key                  | Never   |
+| `aias:v1:apikey:anthropic`      | Anthropic API key               | Never   |
+| `aias:v1:apikey:gemini`         | Gemini API key                  | Never   |
+| `aias:v1:apikey:azure_openai`   | Azure OpenAI API key            | Never   |
+| `aias:v1:azure:api_version`     | Azure API version               | Yes     |
+| `aias:v1:azure:endpoint`        | Azure endpoint URL              | Yes     |
+| `aias:v1:azure:deployment_name` | Azure deployment name           | Yes     |
+| `aias:v1:selected_provider`     | Currently selected LLM provider | Yes     |
+| `aias:v1:model:{provider}`      | Selected model per provider     | Yes     |
+| `aias:v1:app_mode`              | App mode (`standard` or `realtime`) | Yes |
+| `aias:v1:realtime_interval`     | Realtime auto-summary interval (minutes: 1/2/3/5/10) | Yes |
+| `aias:v1:feature_overrides`     | JSON: per-feature model overrides (`Partial<Record<LLMFeature, FeatureModelOverride>>`); features: `summary_generation`, `realtime_summary`, `key_point_extraction`, `prompt_assistant`, `live_question_evaluation` | Yes |
+| `aias:v1:auto_key_points`       | Auto-extract key points toggle (`"true"`/`"false"`) | Yes |
+| `aias:v1:min_speakers`          | Minimum expected speakers (number) | Yes  |
+| `aias:v1:max_speakers`          | Maximum expected speakers (number) | Yes  |
+| `aias:v1:realtime_final_summary`| Generate final summary on stop (`"true"`/`"false"`) | Yes |
+| `aias:v1:realtime_system_prompt`| Custom realtime summary system prompt | Yes |
+| `aias:v1:custom_templates`      | JSON array of custom prompt templates (`PromptTemplate[]`) | Yes |
 
 ### Styling & Theme
 
-- **Dark mode only** — no light mode support
-- **Accent color**: `#FC520B` (orange)
-- **Background**: `#0A0A0A` (near-black)
-- **Cards**: `#141414` (slightly lighter)
-- **Borders**: `#262626`
+- **Theme support**: Light / Dark / System (follows OS preference). Managed by `next-themes` (`ThemeProvider` in `layout.tsx`, stored as `aias:v1:theme` in localStorage).
+- **Theme toggle**: `ThemeToggle` button in the header (between UserMenu and Settings) cycles Light → Dark → System.
+- **Dark mode background**: `#0A0A0A` (near-black); **Light mode background**: `#FAFAFA`
+- **Accent color**: `#FC520B` (orange) — same in both themes
+- **Dark cards**: `#141414`; **Light cards**: `#FFFFFF`
 
-Custom CSS variables are defined in `globals.css` under `:root`. Semantic colors:
+CSS variables are structured in `globals.css`:
+- `:root` — light mode values
+- `.dark` — dark mode overrides (class applied to `<html>` by `next-themes`)
 
-| Variable        | Color     | Usage              |
-| --------------- | --------- | ------------------ |
-| `--primary`     | `#FC520B` | Buttons, accents   |
-| `--success`     | `#22C55E` | Saved indicators   |
-| `--warning`     | `#F59E0B` | Missing key badges |
-| `--destructive` | `#EF4444` | Error states       |
-| `--info`        | `#3B82F6` | Info messages      |
+All components use Tailwind utility classes that reference CSS variables (e.g., `bg-card`, `text-foreground`, `border-border`). No hardcoded hex colors in component files.
+
+Semantic colors (differ per theme):
+
+| Variable        | Dark Value | Light Value | Usage              |
+| --------------- | ---------- | ----------- | ------------------ |
+| `--primary`     | `#FC520B`  | `#FC520B`   | Buttons, accents   |
+| `--color-success`     | `#22C55E`  | `#16A34A`   | Saved indicators   |
+| `--color-warning`     | `#F59E0B`  | `#D97706`   | Missing key badges |
+| `--destructive` | `#EF4444`  | `#DC2626`   | Error states       |
+| `--color-info`        | `#3B82F6`  | `#2563EB`   | Info messages      |
 
 Custom animations:
 
 - `.streaming-cursor` — blinking orange cursor during streaming
 - `.step-content` — fade-in + slide-up on step transitions
+- `.summary-fade-enter` — 400ms fade-in on realtime summary updates
+- `.connection-dot` — colored status dots (green/amber/gray/red) with blink animation for connecting/reconnecting states
+- `.realtime-partial` — muted italic style for in-progress transcript text
 
 ### shadcn/ui Components
 
@@ -669,9 +876,13 @@ To add a new shadcn component:
 cd frontend && npx shadcn@latest add <component-name>
 ```
 
-Currently used: `badge`, `button`, `card`, `dialog`, `input`, `label`, `select`, `separator`, `sheet`, `slider`, `sonner`, `switch`, `tabs`, `textarea`.
+Currently used: `badge`, `button`, `card`, `checkbox`, `collapsible`, `dialog`, `dropdown-menu`, `input`, `label`, `scroll-area`, `select`, `separator`, `sheet`, `skeleton`, `slider`, `sonner`, `switch`, `tabs`, `textarea`, `tooltip`.
 
 `components/ui/audio-player.tsx` is a custom composite component (not generated by shadcn CLI) that combines `Button` and `Slider` into a dark-themed audio playback widget with play/pause, seek bar, time display, mute toggle, and volume control. It is used by `AudioRecorder` to preview recordings after they are stopped.
+
+`components/ui/theme-toggle.tsx` is a custom component that renders a ghost icon button cycling through Light / Dark / System themes using `useTheme` from `next-themes`. Placed in the header between UserMenu and Settings.
+
+`components/ui/Logo.tsx` is a custom component that renders the branded wordmark: an `AudioLines` Lucide icon + "AI" (orange accent, bold) + "Audio Summary" (foreground, semibold, hidden on mobile). Wrapped in a `<Link href="/">` with a hover opacity effect.
 
 The `cn()` utility from `lib/utils.ts` merges Tailwind classes without conflicts:
 
@@ -782,6 +993,59 @@ api.ts: reads stream with ReadableStream API
 SummaryView: re-renders with updated summary, auto-scrolls, shows cursor
 ```
 
+### Realtime Transcription Flow
+
+```
+User clicks "Start" in Realtime mode
+    │
+    ▼
+RealtimeMode: validates API keys (AssemblyAI + LLM provider)
+    │
+    ▼
+useRealtimeSession.startSession():
+    ├── getUserMedia() → microphone stream
+    ├── AudioContext (48kHz) → AudioWorklet (pcm-worklet-processor)
+    │   └── Downsamples to 16kHz, converts Float32 → Int16 PCM
+    │       Buffers 1600 samples (100ms) before posting — AAI requires 50-1000ms chunks
+    ├── Opens WebSocket to backend: ws://localhost:8080/ws/realtime
+    ├── Sends init JSON: {api_key, session_id, sample_rate}
+    │
+    ▼
+Backend /ws/realtime handler:
+    ├── Creates SessionState via SessionManager
+    ├── Connects to AssemblyAI: wss://streaming.eu.assemblyai.com/v3/ws
+    │   └── Auth header, params: pcm_s16le, 16kHz, universal-streaming-multilingual, format_turns=true
+    ├── Sends {type: "session_started"} to browser
+    ├── Runs two concurrent asyncio tasks:
+    │   ├── browser_to_aai: forwards binary audio frames
+    │   └── aai_to_browser: parses PascalCase turn events (Turn/Begin/Termination)
+    │       └── format_turns=true → AAI sends two Turn events per sentence:
+    │           1. end_of_turn=true, turn_is_formatted=false → skipped
+    │           2. turn_is_formatted=true → used as final transcript
+    │
+    ▼
+Browser receives {type: "turn", transcript, is_final}:
+    ├── is_final=true → accumulatedTranscript += transcript
+    ├── is_final=false → currentPartial = transcript (live partial display)
+    │
+    ▼
+Summary timer (configurable interval via Settings, default 2 min):
+    ├── Pauses automatically when recording is paused; restarts on resume
+    ├── Countdown shown as mm:ss in controls bar; manual "Refresh Summary" resets it
+    ├── Calls POST /createIncrementalSummary via api.ts
+    ├── Language auto-detected from transcript via langdetect (Python)
+    ├── Hardcoded system prompt (stability-focused, not from prompt_templates/)
+    ├── Incremental: sends previous_summary + new_transcript_chunk, temperature=0.1
+    ├── Every 10th call: full recompute for consistency
+    ├── Response: {summary, updated_at} → updates RealtimeSummaryView
+    │
+    ▼
+User clicks "Stop":
+    ├── Sends {type: "stop"} over WS → backend terminates AAI connection
+    ├── Cleans up: WS, AudioContext, MediaStream, timers
+    └── Triggers final full-transcript summary
+```
+
 ### Config Flow
 
 ```
@@ -799,6 +1063,84 @@ misc/router.py:
     │
     ▼
 Frontend: populates provider dropdown, template selector, language picker
+```
+
+### Prompt Assistant Flow
+
+```
+User clicks "Prompt Assistant" button in PromptEditor (Step 2)
+    │  (button is disabled when no LLM API key is configured)
+    ▼
+PromptAssistantModal opens (Dialog)
+    │  LLM credentials (provider, api_key, model, azure_config) passed as props from page.tsx
+    │  usePromptAssistant hook initialises with currentPrompt pre-filled
+    │
+    ▼
+Step 1 — StepBasePrompt
+    ├── User pastes an existing prompt (optional)
+    ├── Clear (trash) icon next to the label clears the textarea (only shown when field has content)
+    ├── Clicks "Next" → analyzes the prompt as-is
+    ├── Clicks "Skip" → clears the field and calls analyze with no base_prompt
+    │   Loading text: "Analyzing your prompt..." (with text) / "Generating questions..." (empty)
+    │
+    ▼
+api.ts: analyzePrompt() → POST /prompt-assistant/analyze
+    │  Body: { provider, api_key, model, azure_config, base_prompt? }
+    │
+    ▼
+PromptAssistantService.analyze():
+    ├── _create_model() — same factory as LLMService
+    ├── pydantic-ai Agent with output_type=AnalyzeResponse (structured output)
+    ├── System prompt constraints: assume GFM, skip language question, skip target system question,
+    │   exclude "Links & references"; when base prompt present, also infer suggested_target_system
+    ├── Returns 3–5 AssistantQuestion objects (type: single_select | multi_select | free_text)
+    │   with options, defaults, and inferred flags where answers derive from the base prompt
+    ├── Service injects "target_system" as the FIRST question (never delegated to the LLM):
+    │   options: Email | Chat message | Wiki article | User story | Personal notes | custom
+    │   default logic:
+    │     - No base prompt → default "Email"
+    │     - Base prompt + LLM inferred target → pre-selected + "Inferred from your prompt" badge
+    │     - Base prompt + LLM could not infer → no default (user must choose)
+    │
+    ▼
+Step 2 — StepQuestions
+    ├── QuestionField renders each question by type:
+    │   ├── single_select → Select dropdown + "Other (custom)..." option
+    │   │     Custom mode: inline Input with confirm/cancel; shown value with edit/clear buttons
+    │   ├── multi_select  → Checkbox list + "Add custom option" (create/edit/delete custom items)
+    │   └── free_text     → Textarea
+    ├── Inferred answers show "Inferred from your prompt" badge + explanation text
+    │
+    ▼
+Step 3 — StepSummary
+    ├── Key-value table of all answers for review
+    ├── "Anything else?" Textarea for additional notes
+    ├── Clicks "Create Prompt"
+    │
+    ▼
+api.ts: generatePrompt() → POST /prompt-assistant/generate
+    │  Body: { provider, api_key, model, azure_config, base_prompt?, answers, additional_notes? }
+    │
+    ▼
+PromptAssistantService.generate():
+    ├── _create_model() — same factory as LLMService
+    ├── pydantic-ai Agent (plain text output, temperature=0.4)
+    ├── System prompt: output ONLY the ready-to-use system prompt string;
+    │   target_system answer drives output format (email → subject/greeting/sign-off,
+    │   chat → short/direct/no ceremony, wiki → structured/contextual, user story → AC format,
+    │   personal notes → informal/abbreviations ok)
+    ├── Returns GenerateResponse { generated_prompt }
+    │
+    ▼
+Step 4 — StepResult
+    ├── Editable Textarea pre-filled with generated prompt
+    ├── Collapsible feedback section → "Regenerate" re-calls generate endpoint
+    │   (feedback appended to additional_notes)
+    ├── "Use this prompt" → calls onPromptGenerated(prompt) callback
+    │
+    ▼
+PromptEditor: onPromptChange(generatedPrompt) — populates the Prompt textarea
+    Modal closes, wizard resets on next open
 ```
 
 ---
@@ -846,6 +1188,26 @@ cd frontend && npx shadcn@latest add <component-name>
 
 Then import from `@/components/ui/<component-name>`.
 
+### Extend the Prompt Assistant
+
+**Add a new question type** (e.g., `number_input`):
+
+1. **Backend**: Add the value to `QuestionType` enum in `models/prompt_assistant.py`
+2. **Frontend**: Add the type to the `QuestionType` union in `lib/types.ts`
+3. **Frontend**: Add a new `case` to `QuestionField.tsx`'s `renderInput()` switch
+
+**Change what questions the LLM asks** (topics, constraints, option lists):
+
+- Edit `_ANALYZE_SYSTEM_PROMPT` in `service/prompt_assistant/core.py`. The LLM generates options freely from its training knowledge — add explicit allowed lists or exclusion rules to the prompt to constrain output (e.g., the current prompt already excludes "Links & references" as a section option and forbids asking about Markdown flavor, target language, or target system).
+
+**Add or change a programmatically injected question** (like `target_system`):
+
+- These questions are built in `service/prompt_assistant/core.py` as `AssistantQuestion` objects and inserted into the response after the LLM call (e.g., `response.questions.insert(0, _TARGET_SYSTEM_QUESTION)`). The LLM is explicitly told in `_ANALYZE_SYSTEM_PROMPT` never to generate these questions itself. Use this pattern for questions that must always appear, have fixed options, or require logic (like defaulting) that the LLM cannot reliably provide.
+
+**Change how the final prompt is generated**:
+
+- Edit `_GENERATE_SYSTEM_PROMPT` in `service/prompt_assistant/core.py`. The prompt includes a dedicated section for target system tailoring — update it if you add new target system options.
+
 ### Run the project locally
 
 ```bash
@@ -857,6 +1219,37 @@ cd frontend && npm run dev           # http://localhost:3000
 ```
 
 API docs: http://localhost:8080/docs
+
+### Run with Docker
+
+Docker Compose orchestrates both services. Authentication env vars (Google OAuth) must be provided separately.
+
+```bash
+# Build and start both services
+docker compose up --build
+
+# Backend:  http://localhost:8080
+# Frontend: http://localhost:3000
+
+# Build individual services
+docker compose build backend
+docker compose build frontend
+```
+
+**Environment variables for Docker:**
+
+| Variable | Where to set | Notes |
+|---|---|---|
+| `AUTH_GOOGLE_ID` | `frontend/.env.local` | Google OAuth client ID |
+| `AUTH_GOOGLE_SECRET` | `frontend/.env.local` | Google OAuth client secret |
+| `AUTH_SECRET` | `frontend/.env.local` | Random secret (`openssl rand -base64 32`) |
+| `ALLOWED_EMAILS` | `frontend/.env.local` | Comma-separated allowlist (empty = all) |
+| `NEXT_PUBLIC_BACKEND_WS_URL` | Build arg in `docker-compose.yml` | WebSocket URL reachable from browser; defaults to `ws://localhost:8080` |
+
+Docker file locations:
+- `backend/Dockerfile` — multi-stage (uv builder → slim runtime), Python 3.12
+- `frontend/Dockerfile` — multi-stage (npm build → Next.js standalone runtime), Node 20 Alpine
+- `docker-compose.yml` — root-level, sets `BACKEND_INTERNAL_URL=http://backend:8080` for internal networking
 
 For authentication to work locally, you need Google OAuth credentials configured (see [GCP Setup Guide](#gcp-setup-guide-google-oauth)) and the relevant env vars in `frontend/.env.local` (see `frontend/.env.local.example`).
 
@@ -899,10 +1292,10 @@ Step-by-step instructions to create Google OAuth credentials for the app.
 4. Name: `AIAudioSummary` (or anything descriptive)
 5. **Authorized JavaScript origins**:
    - `http://localhost:3000` (for local development)
-   - `https://your-frontend-domain.onrender.com` (for production — add after deploying)
+   - `https://your-production-domain.com` (for production — add after deploying)
 6. **Authorized redirect URIs**:
    - `http://localhost:3000/api/auth/callback/google` (local)
-   - `https://your-frontend-domain.onrender.com/api/auth/callback/google` (production — add after deploying)
+   - `https://your-production-domain.com/api/auth/callback/google` (production — add after deploying)
 7. Click **Create**
 8. Copy the **Client ID** and **Client Secret**
 
@@ -914,13 +1307,12 @@ Add the credentials to `frontend/.env.local`:
 AUTH_GOOGLE_ID=<your-client-id>.apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=<your-client-secret>
 AUTH_SECRET=<generate with: openssl rand -base64 32>
-ALLOWED_EMAILS=user1@gmail.com,user2@gmail.com
 AUTH_TRUST_HOST=true
 ```
 
 ### 5. Publish the OAuth consent screen (for production)
 
-While in "Testing" mode, only the test users you added can sign in. To allow any Google account (filtered by `ALLOWED_EMAILS`):
+While in "Testing" mode, only the test users you added can sign in. To allow any Google account (access is controlled by the user database — see the admin panel):
 
 1. Go to **APIs & Services → OAuth consent screen**
 2. Click **Publish App**
@@ -930,80 +1322,6 @@ While in "Testing" mode, only the test users you added can sign in. To allow any
 
 ---
 
-## Render Deployment Guide
+## Self-Hosted Deployment Guide
 
-Step-by-step instructions to deploy the app on Render using the `render.yaml` Blueprint.
-
-### 1. Push your code to GitHub
-
-Make sure the repository (with `render.yaml` at the root) is pushed to GitHub.
-
-### 2. Create a Render account
-
-1. Go to [Render](https://render.com/) and sign up (GitHub sign-in recommended)
-
-### 3. Deploy via Blueprint
-
-1. In the Render dashboard, click **New → Blueprint**
-2. Connect your GitHub repository
-3. Render will detect the `render.yaml` and show the two services:
-   - **aias-backend** (Web Service, free tier)
-   - **aias-frontend** (Web Service, free tier)
-4. Click **Apply**
-
-### 4. Configure environment variables
-
-After the Blueprint creates the services, some env vars need manual values:
-
-**Frontend service (`aias-frontend`)**:
-
-1. Go to the frontend service → **Environment**
-2. Set these variables:
-   - `AUTH_GOOGLE_ID` — your Google OAuth Client ID
-   - `AUTH_GOOGLE_SECRET` — your Google OAuth Client Secret
-   - `ALLOWED_EMAILS` — comma-separated list of allowed emails (leave empty to allow all)
-3. `AUTH_SECRET` is auto-generated by the Blueprint
-4. `AUTH_TRUST_HOST` is pre-set to `true`
-5. `BACKEND_INTERNAL_URL` is auto-populated from the backend service's external URL
-
-**Backend service (`aias-backend`)**:
-
-1. Go to the backend service → **Environment**
-2. Set:
-   - `ALLOWED_ORIGINS` — your frontend's public URL, e.g., `https://aias-frontend.onrender.com`
-
-### 5. Update Google OAuth redirect URIs
-
-After deployment, copy your frontend's public URL from Render and go back to GCP:
-
-1. Go to **APIs & Services → Credentials** → click your OAuth client
-2. Add to **Authorized JavaScript origins**:
-   - `https://aias-frontend.onrender.com` (your actual Render URL)
-3. Add to **Authorized redirect URIs**:
-   - `https://aias-frontend.onrender.com/api/auth/callback/google`
-4. Click **Save**
-
-### 6. Trigger a redeploy
-
-After setting all env vars and updating GCP, trigger a manual deploy for both services:
-
-1. Go to each service in Render → **Manual Deploy → Deploy latest commit**
-
-### 7. Verify
-
-1. Visit your frontend URL (e.g., `https://aias-frontend.onrender.com`)
-2. You should be redirected to the login page
-3. Sign in with a Google account that's in your `ALLOWED_EMAILS` list
-4. You should be redirected to the main app
-5. Test the full workflow: upload a file, generate a transcript, generate a summary
-6. Verify streaming works (summary text appears incrementally)
-
-### Troubleshooting
-
-| Issue                         | Solution                                                                                                                                 |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| "redirect_uri_mismatch" error | Ensure the redirect URI in GCP exactly matches `https://<your-domain>/api/auth/callback/google`                                          |
-| 401 errors on API calls       | Check that `BACKEND_INTERNAL_URL` is set correctly on the frontend service                                                               |
-| Backend unreachable           | Verify the backend is running (check Render logs). Check that `BACKEND_INTERNAL_URL` on the frontend service points to the backend's URL |
-| "Access denied" on sign-in    | Check `ALLOWED_EMAILS` — the signing-in user's email must be in the list (or the list must be empty)                                     |
-| OAuth consent screen errors   | Make sure the consent screen is published if using External user type in production                                                      |
+> Deployment guide coming soon — see `docker-compose.yml` for the current local/self-hosted setup. The application is deployed on a self-hosted Hetzner Ubuntu server using Docker Compose.

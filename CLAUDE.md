@@ -1,6 +1,7 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+When I say something like "push to git" use git add -A by default to push everything unless explicitly specified differently.
 Make sure you always know the codebase if a user asks you a code or feature related question. In this case read [architecture.md](./docs/architecture.md) file.
 
 ## Skills
