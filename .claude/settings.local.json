@@ -43,7 +43,10 @@
       "Bash(python:*)",
       "Bash(timeout 5 uv run:*)",
       "Bash(npx tsc:*)",
-      "WebFetch(domain:docs.langdock.com)"
+      "WebFetch(domain:docs.langdock.com)",
+      "Bash(docker compose build:*)",
+      "Bash(docker run:*)",
+      "Bash(docker stop:*)"
     ]
   }
 }

@@ -43,7 +43,6 @@ Everything you need to know to implement a new feature or change an existing one
 - [End-to-End Data Flows](#end-to-end-data-flows)
 - [Common Tasks](#common-tasks)
 - [GCP Setup Guide (Google OAuth)](#gcp-setup-guide-google-oauth)
-- [Render Deployment Guide](#render-deployment-guide)
 
 ---
 
@@ -60,8 +59,8 @@ It uses:
 - **Multi-provider LLM support** (OpenAI, Anthropic, Google Gemini, Azure OpenAI) via `pydantic-ai` for summarization
 - **Next.js 16** frontend with shadcn/ui
 - **FastAPI** backend with WebSocket support
-- **Google OAuth** (via Auth.js v5) for authentication with email allowlist
-- **Render** for deployment (both services on free tier with API proxy)
+- **Google OAuth** (via Auth.js v5) for authentication with database-driven access control
+- **Docker Compose** for self-hosted deployment (Hetzner)
 
 The key architectural decision is **BYOK (Bring Your Own Key)**: API keys are stored in the browser's localStorage and sent per-request. The backend never stores keys.
 
@@ -149,8 +148,7 @@ project-root/
 │   ├── package.json
 │   └── next.config.ts
 │
-├── render.yaml                     # Render Blueprint (IaC deployment config)
-├── docker-compose.yml              # Docker Compose for local containerised deployment
+├── docker-compose.yml              # Docker Compose for local and self-hosted deployment
 ├── docs/                           # Documentation
 ├── user_stories/                   # Feature specifications
 └── CLAUDE.md                       # AI assistant instructions
@@ -162,25 +160,25 @@ project-root/
 
 ### Request Flow
 
-In production (Render), both services are **public web services** on the free tier. All API calls from the browser go through a Next.js API proxy route which checks authentication before forwarding to the backend. The backend is technically reachable directly, but since it uses BYOK (users supply their own API keys per-request), there are no stored secrets to abuse.
+Both services run in Docker containers (orchestrated by Docker Compose). All API calls from the browser go through a Next.js API proxy route which checks authentication before forwarding to the backend. The backend is technically reachable directly, but since it uses BYOK (users supply their own API keys per-request), there are no stored secrets to abuse.
 
 ```
 Browser (client)
     │
-    ├── HTTP ──► Next.js Frontend (public, Render web service)
+    ├── HTTP ──► Next.js Frontend (Docker container)
     │                ├── proxy.ts ── checks auth session, redirects to /login if unauthenticated
     │                ├── /api/auth/* ── Auth.js handles Google OAuth flow
     │                └── /api/proxy/* ── forwards requests to backend
     │                        │
     │                        ▼
-    │                FastAPI Backend (public, Render web service)
+    │                FastAPI Backend (Docker container)
     │                    └── /createTranscript, /createSummary, /getConfig, etc.
     │
     └── WebSocket ──► FastAPI Backend (direct, bypasses proxy)
                          └── /ws/realtime (realtime transcription relay)
 ```
 
-Locally, the HTTP proxy route forwards `localhost:3000/api/proxy/*` to `localhost:8080/*`. The WebSocket connection goes directly from the browser to the backend (`ws://localhost:8080/ws/realtime`) — it bypasses the Next.js proxy because Auth.js session cookies are not sent over WebSocket connections. Authentication for the WebSocket is handled via the AssemblyAI API key sent in the init message.
+The HTTP proxy route forwards requests from the frontend container to the backend container via `BACKEND_INTERNAL_URL` (Docker internal network: `http://backend:8080`). The WebSocket connection goes directly from the browser to the backend — it bypasses the Next.js proxy because Auth.js session cookies are not sent over WebSocket connections. Authentication for the WebSocket is handled via the AssemblyAI API key sent in the init message.
 
 ### Authentication (Google OAuth)
 
@@ -217,7 +215,7 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 
 | Variable               | Service  | Default                 | Description                                                  |
 | ---------------------- | -------- | ----------------------- | ------------------------------------------------------------ |
-| `BACKEND_INTERNAL_URL`        | Frontend | `http://localhost:8080` | Backend URL for HTTP proxy (auto-populated on Render)        |
+| `BACKEND_INTERNAL_URL`        | Frontend | `http://localhost:8080` | Backend URL for HTTP proxy (set to `http://backend:8080` in Docker)  |
 | `NEXT_PUBLIC_BACKEND_WS_URL` | Frontend | `ws://localhost:8080`   | Backend WebSocket URL for realtime transcription (direct)    |
 | `AUTH_GOOGLE_ID`              | Frontend | —                       | Google OAuth client ID                                       |
 | `AUTH_GOOGLE_SECRET`   | Frontend | —                       | Google OAuth client secret                                   |
@@ -465,7 +463,7 @@ app.add_middleware(
 )
 ```
 
-CORS origins are configured via the `ALLOWED_ORIGINS` env var (comma-separated). Defaults to `http://localhost:3000` for local development. In production, set this to your frontend's Render URL (e.g., `https://aias-frontend.onrender.com`).
+CORS origins are configured via the `ALLOWED_ORIGINS` env var (comma-separated). Defaults to `http://localhost:3000` for local development. In production, set this to your frontend's public domain (e.g., `https://klartextai.com`).
 
 ### Logging
 
@@ -1193,10 +1191,10 @@ Step-by-step instructions to create Google OAuth credentials for the app.
 4. Name: `AIAudioSummary` (or anything descriptive)
 5. **Authorized JavaScript origins**:
    - `http://localhost:3000` (for local development)
-   - `https://your-frontend-domain.onrender.com` (for production — add after deploying)
+   - `https://your-production-domain.com` (for production — add after deploying)
 6. **Authorized redirect URIs**:
    - `http://localhost:3000/api/auth/callback/google` (local)
-   - `https://your-frontend-domain.onrender.com/api/auth/callback/google` (production — add after deploying)
+   - `https://your-production-domain.com/api/auth/callback/google` (production — add after deploying)
 7. Click **Create**
 8. Copy the **Client ID** and **Client Secret**
 
@@ -1208,13 +1206,12 @@ Add the credentials to `frontend/.env.local`:
 AUTH_GOOGLE_ID=<your-client-id>.apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=<your-client-secret>
 AUTH_SECRET=<generate with: openssl rand -base64 32>
-ALLOWED_EMAILS=user1@gmail.com,user2@gmail.com
 AUTH_TRUST_HOST=true
 ```
 
 ### 5. Publish the OAuth consent screen (for production)
 
-While in "Testing" mode, only the test users you added can sign in. To allow any Google account (filtered by `ALLOWED_EMAILS`):
+While in "Testing" mode, only the test users you added can sign in. To allow any Google account (access is controlled by the user database — see the admin panel):
 
 1. Go to **APIs & Services → OAuth consent screen**
 2. Click **Publish App**
@@ -1224,80 +1221,6 @@ While in "Testing" mode, only the test users you added can sign in. To allow any
 
 ---
 
-## Render Deployment Guide
+## Self-Hosted Deployment Guide
 
-Step-by-step instructions to deploy the app on Render using the `render.yaml` Blueprint.
-
-### 1. Push your code to GitHub
-
-Make sure the repository (with `render.yaml` at the root) is pushed to GitHub.
-
-### 2. Create a Render account
-
-1. Go to [Render](https://render.com/) and sign up (GitHub sign-in recommended)
-
-### 3. Deploy via Blueprint
-
-1. In the Render dashboard, click **New → Blueprint**
-2. Connect your GitHub repository
-3. Render will detect the `render.yaml` and show the two services:
-   - **aias-backend** (Web Service, free tier)
-   - **aias-frontend** (Web Service, free tier)
-4. Click **Apply**
-
-### 4. Configure environment variables
-
-After the Blueprint creates the services, some env vars need manual values:
-
-**Frontend service (`aias-frontend`)**:
-
-1. Go to the frontend service → **Environment**
-2. Set these variables:
-   - `AUTH_GOOGLE_ID` — your Google OAuth Client ID
-   - `AUTH_GOOGLE_SECRET` — your Google OAuth Client Secret
-   - `ALLOWED_EMAILS` — comma-separated list of allowed emails (leave empty to allow all)
-3. `AUTH_SECRET` is auto-generated by the Blueprint
-4. `AUTH_TRUST_HOST` is pre-set to `true`
-5. `BACKEND_INTERNAL_URL` is auto-populated from the backend service's external URL
-
-**Backend service (`aias-backend`)**:
-
-1. Go to the backend service → **Environment**
-2. Set:
-   - `ALLOWED_ORIGINS` — your frontend's public URL, e.g., `https://aias-frontend.onrender.com`
-
-### 5. Update Google OAuth redirect URIs
-
-After deployment, copy your frontend's public URL from Render and go back to GCP:
-
-1. Go to **APIs & Services → Credentials** → click your OAuth client
-2. Add to **Authorized JavaScript origins**:
-   - `https://aias-frontend.onrender.com` (your actual Render URL)
-3. Add to **Authorized redirect URIs**:
-   - `https://aias-frontend.onrender.com/api/auth/callback/google`
-4. Click **Save**
-
-### 6. Trigger a redeploy
-
-After setting all env vars and updating GCP, trigger a manual deploy for both services:
-
-1. Go to each service in Render → **Manual Deploy → Deploy latest commit**
-
-### 7. Verify
-
-1. Visit your frontend URL (e.g., `https://aias-frontend.onrender.com`)
-2. You should be redirected to the login page
-3. Sign in with a Google account that's in your `ALLOWED_EMAILS` list
-4. You should be redirected to the main app
-5. Test the full workflow: upload a file, generate a transcript, generate a summary
-6. Verify streaming works (summary text appears incrementally)
-
-### Troubleshooting
-
-| Issue                         | Solution                                                                                                                                 |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| "redirect_uri_mismatch" error | Ensure the redirect URI in GCP exactly matches `https://<your-domain>/api/auth/callback/google`                                          |
-| 401 errors on API calls       | Check that `BACKEND_INTERNAL_URL` is set correctly on the frontend service                                                               |
-| Backend unreachable           | Verify the backend is running (check Render logs). Check that `BACKEND_INTERNAL_URL` on the frontend service points to the backend's URL |
-| "Access denied" on sign-in    | Check `ALLOWED_EMAILS` — the signing-in user's email must be in the list (or the list must be empty)                                     |
-| OAuth consent screen errors   | Make sure the consent screen is published if using External user type in production                                                      |
+> Deployment guide coming soon — see `docker-compose.yml` for the current local/self-hosted setup. The application is deployed on a self-hosted Hetzner Ubuntu server using Docker Compose.

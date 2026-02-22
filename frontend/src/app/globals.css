@@ -90,8 +90,8 @@
   --color-primary-muted: rgba(252, 82, 11, 0.10);
   --color-border-hover: #D4D4D4;
   --color-border-accent: #FC520B;
-  --color-foreground-secondary: #52525B;
-  --color-foreground-muted: #A1A1AA;
+  --color-foreground-secondary: #3F3F46;
+  --color-foreground-muted: #71717A;
   --color-foreground-accent: #FC520B;
 }
 
@@ -131,8 +131,8 @@
   --color-primary-muted: rgba(252, 82, 11, 0.15);
   --color-border-hover: #3A3A3A;
   --color-border-accent: #FC520B;
-  --color-foreground-secondary: #A1A1AA;
-  --color-foreground-muted: #71717A;
+  --color-foreground-secondary: #B4B4BB;
+  --color-foreground-muted: #8A8A93;
   --color-foreground-accent: #FC520B;
 }
 

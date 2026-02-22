@@ -5,6 +5,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Header } from "@/components/layout/Header";
+import { Footer } from "@/components/layout/Footer";
 import { StepIndicator } from "@/components/layout/StepIndicator";
 import { SettingsSheet } from "@/components/layout/SettingsSheet";
 import { FileUpload } from "@/components/workflow/FileUpload";
@@ -580,7 +581,8 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1">
       <Header onSettingsClick={() => setSettingsOpen(true)} />
 
       <SettingsSheet
@@ -612,7 +614,7 @@ export default function Home() {
         onFeatureOverridesChange={handleFeatureOverridesChange}
       />
 
-      <div className="mx-auto max-w-6xl px-4 md:px-6">
+      <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
         {/* Mode segmented control */}
         <div className="flex justify-center mt-4 mb-4">
           <div className="inline-flex rounded-lg border border-border bg-card-elevated p-1">
@@ -808,6 +810,9 @@ export default function Home() {
           </>
         )}
       </div>
+      </div>{/* end flex-1 */}
+
+      <Footer />
 
       {/* Step navigation confirmation dialog */}
       <Dialog open={stepNavDialogOpen} onOpenChange={(open) => { if (!open) handleStepNavCancel(); }}>

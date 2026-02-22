@@ -52,8 +52,8 @@ CSS variables are defined in `globals.css`. `:root` holds light mode values; `.d
 | Token | Light | Dark | Usage |
 |-------|-------|------|-------|
 | `--foreground` | `#0A0A0A` | `#FAFAFA` | Primary text |
-| `--foreground-secondary` | `#52525B` | `#A1A1AA` | Secondary text, labels, placeholders |
-| `--foreground-muted` | `#A1A1AA` | `#71717A` | Disabled text, hints, timestamps |
+| `--foreground-secondary` | `#3F3F46` | `#B4B4BB` | Secondary text, labels, placeholders |
+| `--foreground-muted` | `#71717A` | `#8A8A93` | Disabled text, hints, timestamps |
 | `--foreground-accent` | `#FC520B` | `#FC520B` | Accent-colored text (links, active labels) |
 
 ### Semantic Colors
