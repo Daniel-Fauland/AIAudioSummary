@@ -330,7 +330,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     async (transcriptText: string, speakers: string[]) => {
       const { provider: kpProvider, model: kpModel } = resolveModelConfig("key_point_extraction");
       const llmKey = getKey(kpProvider);
-      if (!llmKey) return;
+      if (!llmKey) {
+        toast.error(`Please add your ${kpProvider} API key in Settings.`);
+        setSettingsOpen(true);
+        return;
+      }
 
       setIsExtractingKeyPoints(true);
       try {

@@ -50,7 +50,10 @@
       "Bash(git stash:*)",
       "Bash(npx tsx:*)",
       "Bash(docker compose up:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(uv run:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)"
     ]
   }
 }

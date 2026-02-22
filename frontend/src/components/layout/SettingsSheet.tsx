@@ -118,6 +118,12 @@ export function SettingsSheet({
     setKeyVersion((v) => v + 1);
   }, []);
 
+  const [minSpeakersInput, setMinSpeakersInput] = useState(String(minSpeakers));
+  const [maxSpeakersInput, setMaxSpeakersInput] = useState(String(maxSpeakers));
+
+  useEffect(() => { setMinSpeakersInput(String(minSpeakers)); }, [minSpeakers]);
+  useEffect(() => { setMaxSpeakersInput(String(maxSpeakers)); }, [maxSpeakers]);
+
   const [apiKeysOpen, setApiKeysOpen] = useState(() => readSection("aias:v1:settings:section:apiKeys", true));
   const [aiModelOpen, setAiModelOpen] = useState(() => readSection("aias:v1:settings:section:aiModel", true));
   const [featuresOpen, setFeaturesOpen] = useState(() =>
@@ -356,10 +362,12 @@ export function SettingsSheet({
                             type="number"
                             min={1}
                             max={maxSpeakers}
-                            value={minSpeakers}
-                            onChange={(e) => {
-                              const v = Math.max(1, Math.min(parseInt(e.target.value) || 1, maxSpeakers));
+                            value={minSpeakersInput}
+                            onChange={(e) => setMinSpeakersInput(e.target.value)}
+                            onBlur={() => {
+                              const v = Math.max(1, Math.min(parseInt(minSpeakersInput) || 1, maxSpeakers));
                               onMinSpeakersChange(v);
+                              setMinSpeakersInput(String(v));
                             }}
                             className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           />
@@ -371,13 +379,15 @@ export function SettingsSheet({
                             type="number"
                             min={minSpeakers}
                             max={20}
-                            value={maxSpeakers}
-                            onChange={(e) => {
+                            value={maxSpeakersInput}
+                            onChange={(e) => setMaxSpeakersInput(e.target.value)}
+                            onBlur={() => {
                               const v = Math.max(
                                 minSpeakers,
-                                Math.min(parseInt(e.target.value) || minSpeakers, 20),
+                                Math.min(parseInt(maxSpeakersInput) || minSpeakers, 20),
                               );
                               onMaxSpeakersChange(v);
+                              setMaxSpeakersInput(String(v));
                             }}
                             className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           />

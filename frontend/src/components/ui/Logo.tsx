@@ -6,7 +6,7 @@ export function Logo() {
       <AudioLines className="h-5 w-5 text-primary" />
       <span className="text-xl tracking-tight">
         <span className="font-bold text-primary">AI</span>
-        <span className="font-semibold text-foreground hidden sm:inline"> Audio Summary</span>
+        <span className="font-semibold text-foreground"> Audio Summary</span>
       </span>
     </div>
   );
