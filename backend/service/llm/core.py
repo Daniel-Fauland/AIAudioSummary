@@ -17,12 +17,16 @@ from service.misc.core import MiscService
 
 
 class _SpeakerEntry(PydanticBaseModel):
-    speaker: str = PydanticField(..., description="Speaker label (e.g. 'Speaker A')")
-    summary: str = PydanticField(..., description="1-3 sentence key point summary for this speaker")
+    speaker: str = PydanticField(...,
+                                 description="Speaker label (e.g. 'Speaker A')")
+    summary: str = PydanticField(
+        ..., description="1-3 sentence key point summary for this speaker")
 
 
 class _SpeakerKeyPointsResult(PydanticBaseModel):
-    entries: list[_SpeakerEntry] = PydanticField(..., description="Key point summaries for each speaker")
+    entries: list[_SpeakerEntry] = PydanticField(
+        ..., description="Key point summaries for each speaker")
+
 
 helper = MiscService()
 
@@ -198,7 +202,8 @@ class LLMService:
         )
 
         result = await agent.run(user_prompt)
-        key_points = {entry.speaker: entry.summary for entry in result.output.entries}
+        key_points = {
+            entry.speaker: entry.summary for entry in result.output.entries}
         return ExtractKeyPointsResponse(key_points=key_points)
 
     async def _stream_response(self, agent: Agent, user_prompt: str) -> AsyncGenerator[str, None]:
