@@ -28,7 +28,7 @@ services:
     environment:
       ENVIRONMENT: production
       # Allow requests from the frontend (browser-side origin)
-      ALLOWED_ORIGINS: http://localhost:3000
+      ALLOWED_ORIGINS: https://klartextai.com
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AUTH_SECRET: ${AUTH_SECRET}
       INITIAL_ADMINS: ${INITIAL_ADMINS}
@@ -42,7 +42,7 @@ services:
       dockerfile: Dockerfile
       args:
         # WebSocket URL must be reachable from the user's browser — use localhost for local Docker
-        NEXT_PUBLIC_BACKEND_WS_URL: ws://localhost:8080
+        NEXT_PUBLIC_BACKEND_WS_URL: wss://api.klartextai.com
     ports:
       - "3000:3000"
     restart: always
