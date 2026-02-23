@@ -7,9 +7,69 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { changelog } from "@/lib/changelog";
+import { APP_VERSION } from "@/lib/constants";
 
-type FooterModal = "imprint" | "privacy" | "cookies" | null;
+type FooterModal = "imprint" | "privacy" | "cookies" | "changelog" | null;
+
+const CHANGE_TYPE_CLASSES: Record<string, string> = {
+  added: "bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] text-[var(--color-success)]",
+  changed: "bg-[color-mix(in_srgb,var(--color-info)_15%,transparent)] text-[var(--color-info)]",
+  fixed: "bg-[color-mix(in_srgb,var(--color-warning)_15%,transparent)] text-[var(--color-warning)]",
+  removed: "bg-[color-mix(in_srgb,var(--destructive)_15%,transparent)] text-destructive",
+};
+
+const CHANGE_TYPE_LABELS: Record<string, string> = {
+  added: "Added",
+  changed: "Changed",
+  fixed: "Fixed",
+  removed: "Removed",
+};
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+const changelogContent = (
+  <div className="space-y-8">
+    {changelog.map((release, index) => (
+      <div key={release.version}>
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-base font-semibold text-foreground">
+            v{release.version}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            {formatDate(release.date)}
+          </span>
+        </div>
+        {release.title && (
+          <p className="text-sm text-muted-foreground mb-3">{release.title}</p>
+        )}
+        <ul className="space-y-2">
+          {release.changes.map((change, i) => (
+            <li key={i} className="flex items-start gap-2">
+              <Badge
+                variant="secondary"
+                className={`text-xs px-2 py-0.5 shrink-0 mt-0.5 border-0 ${CHANGE_TYPE_CLASSES[change.type]}`}
+              >
+                {CHANGE_TYPE_LABELS[change.type]}
+              </Badge>
+              <span className="text-sm text-foreground">{change.description}</span>
+            </li>
+          ))}
+        </ul>
+        {index < changelog.length - 1 && <Separator className="mt-6" />}
+      </div>
+    ))}
+  </div>
+);
 
 const OWNER_NAME = process.env.NEXT_PUBLIC_OWNER_NAME ?? "";
 const OWNER_STREET = process.env.NEXT_PUBLIC_OWNER_STREET ?? "";
@@ -434,6 +494,11 @@ const MODAL_CONFIG: Record<NonNullable<FooterModal>, ModalConfig> = {
     maxWidth: "sm:max-w-lg",
     content: cookiesContent,
   },
+  changelog: {
+    title: "Changelog",
+    maxWidth: "sm:max-w-2xl",
+    content: changelogContent,
+  },
 };
 
 export function Footer() {
@@ -466,6 +531,14 @@ export function Footer() {
           onClick={() => setOpenModal("cookies")}
         >
           Cookie Settings
+        </button>
+        <span aria-hidden="true">·</span>
+        <button
+          type="button"
+          className="cursor-pointer hover:text-foreground-secondary transition-colors"
+          onClick={() => setOpenModal("changelog")}
+        >
+          v{APP_VERSION}
         </button>
       </footer>
 
