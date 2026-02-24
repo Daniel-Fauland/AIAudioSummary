@@ -19,6 +19,14 @@ export const changelog: ChangelogEntry[] = [
         description:
           "Chatbot feature with conversation history, context awareness & the ability to perform actions on behalf of the user",
       },
+      {
+        type: "added",
+        description: "Paste button in API key manager for easy input of API keys from clipboard",
+      },
+      {
+        type: "changed",
+        description: "Added simple plausability check for API keys to ensure they are in the correct format",
+      },
     ],
   },
   {

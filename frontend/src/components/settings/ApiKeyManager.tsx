@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, X } from "lucide-react";
+import { Eye, EyeOff, X, ClipboardPaste } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,26 @@ import type { ProviderInfo, LLMProvider } from "@/lib/types";
 interface ApiKeyManagerProps {
   providers: ProviderInfo[];
   onKeyChange?: () => void;
+}
+
+function isKeyFormatValid(provider: LLMProvider | "assemblyai", key: string): boolean {
+  if (!key) return true;
+  switch (provider) {
+    case "openai":
+      return key.startsWith("sk-") && key.length >= 40;
+    case "anthropic":
+      return key.startsWith("sk-ant-") && key.length >= 80;
+    case "gemini":
+      return key.startsWith("AIzaSy") && key.length >= 35;
+    case "langdock":
+      return key.startsWith("sk-") && key.length >= 20;
+    case "azure_openai":
+      return key.length >= 20;
+    case "assemblyai":
+      return key.length >= 20;
+    default:
+      return true;
+  }
 }
 
 function KeyInput({
@@ -27,6 +47,7 @@ function KeyInput({
   const [value, setValue] = useState(() => getKey(provider));
 
   const saved = hasKey(provider);
+  const formatValid = isKeyFormatValid(provider, value);
 
   const handleChange = (newValue: string) => {
     setValue(newValue);
@@ -40,12 +61,28 @@ function KeyInput({
     onKeyChange?.();
   };
 
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const trimmed = text.trim();
+      if (trimmed) {
+        handleChange(trimmed);
+      }
+    } catch {
+      // Clipboard access denied — silently ignore
+    }
+  };
+
+  const dotColor = !saved
+    ? "bg-foreground-muted"
+    : formatValid
+      ? "bg-success"
+      : "bg-warning";
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2">
-        <div
-          className={`h-2 w-2 rounded-full ${saved ? "bg-success" : "bg-foreground-muted"}`}
-        />
+        <div className={`h-2 w-2 rounded-full ${dotColor}`} />
         <Label className="text-sm font-medium text-foreground-secondary">
           {label}
         </Label>
@@ -74,16 +111,27 @@ function KeyInput({
             )}
           </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleClear}
-          className={`text-foreground-muted hover:text-destructive ${!saved ? "invisible" : ""}`}
-          aria-label="Clear key"
-          disabled={!saved}
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        {saved ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClear}
+            className="text-foreground-muted hover:text-destructive"
+            aria-label="Clear key"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handlePaste}
+            className="text-foreground-muted hover:text-foreground"
+            aria-label="Paste from clipboard"
+          >
+            <ClipboardPaste className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );
