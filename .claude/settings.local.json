@@ -58,7 +58,8 @@
       "Bash(xargs kill:*)",
       "Bash(python3:*)",
       "Bash(echo:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(git diff:*)"
     ]
   }
 }

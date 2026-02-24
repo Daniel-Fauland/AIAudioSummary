@@ -459,7 +459,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     };
   }, [selectedProvider, selectedModel, appMode, theme]);
 
-  const { messages: chatMessages, isStreaming: isChatStreaming, sendMessage: sendChatMessage, clearMessages: clearChatMessages, hasApiKey: hasChatApiKey, confirmAction: confirmChatAction, cancelAction: cancelChatAction, isVoiceActive: isChatVoiceActive, partialTranscript: chatPartialTranscript, voiceText: chatVoiceText, clearVoiceText: clearChatVoiceText, toggleVoice: toggleChatVoice } = useChatbot({
+  const { messages: chatMessages, isStreaming: isChatStreaming, sendMessage: sendChatMessage, clearMessages: clearChatMessages, hasApiKey: hasChatApiKey, confirmAction: confirmChatAction, cancelAction: cancelChatAction, isVoiceActive: isChatVoiceActive, voiceConnecting: isChatVoiceConnecting, partialTranscript: chatPartialTranscript, voiceText: chatVoiceText, clearVoiceText: clearChatVoiceText, toggleVoice: toggleChatVoice, audioDevices: chatAudioDevices, selectedDeviceId: chatSelectedDeviceId, onDeviceChange: onChatDeviceChange } = useChatbot({
     chatbotQAEnabled,
     chatbotTranscriptEnabled,
     chatbotActionsEnabled,
@@ -474,6 +474,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     hasAssemblyAiKey: hasKey("assemblyai"),
     getAssemblyAiKey,
     appContext: chatbotAppContext,
+    isChatOpen,
+    chatbotEnabled,
   });
 
   const applyRenames = useCallback((keyPoints: Record<string, string>): Record<string, string> => {
@@ -1031,8 +1033,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
             voiceText={chatVoiceText}
             onClearVoiceText={clearChatVoiceText}
             onVoiceToggle={toggleChatVoice}
-            voiceDisabled={!hasKey("assemblyai")}
-            voiceDisabledReason={!hasKey("assemblyai") ? "AssemblyAI API key required for voice input" : undefined}
+            voiceDisabled={!hasKey("assemblyai") || isChatVoiceConnecting}
+            voiceDisabledReason={!hasKey("assemblyai") ? "AssemblyAI API key required for voice input" : isChatVoiceConnecting ? "Connecting voice service..." : undefined}
+            audioDevices={chatAudioDevices}
+            selectedDeviceId={chatSelectedDeviceId}
+            onDeviceChange={onChatDeviceChange}
             isSettingsOpen={settingsOpen}
           />
         </>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Send, Mic } from "lucide-react";
+import { Send, Mic, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -9,6 +9,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 interface ChatInputBarProps {
@@ -24,6 +33,9 @@ interface ChatInputBarProps {
   voiceText?: string;
   /** Called after voice text is consumed (sent or cleared) */
   onClearVoiceText?: () => void;
+  audioDevices?: MediaDeviceInfo[];
+  selectedDeviceId?: string;
+  onDeviceChange?: (deviceId: string) => void;
 }
 
 export function ChatInputBar({
@@ -37,14 +49,20 @@ export function ChatInputBar({
   partialTranscript,
   voiceText,
   onClearVoiceText,
+  audioDevices,
+  selectedDeviceId,
+  onDeviceChange,
 }: ChatInputBarProps) {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Sync finalized voice text into the input field
+  // Append finalized voice text to the input field (not replace)
   useEffect(() => {
     if (voiceText) {
-      setInput(voiceText);
+      setInput(prev => {
+        const base = prev.trimEnd();
+        return base ? base + " " + voiceText : voiceText;
+      });
       onClearVoiceText?.();
     }
   }, [voiceText, onClearVoiceText]);
@@ -87,6 +105,7 @@ export function ChatInputBar({
   }, [displayValue]);
 
   const canSend = input.trim().length > 0 && !disabled;
+  const hasDevices = audioDevices && audioDevices.length > 1;
 
   return (
     <div className="flex items-end gap-2 border-t border-border p-3">
@@ -109,29 +128,66 @@ export function ChatInputBar({
         )}
       />
       {onVoiceToggle && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={isVoiceActive ? "default" : "ghost"}
-                size="icon"
-                onClick={onVoiceToggle}
-                disabled={voiceDisabled && !isVoiceActive}
-                className={cn(
-                  "h-9 w-9 shrink-0",
-                  isVoiceActive && "bg-red-500 hover:bg-red-600 animate-pulse"
-                )}
-              >
-                <Mic className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            {voiceDisabled && !isVoiceActive && (
-              <TooltipContent>
-                <p>{voiceDisabledReason || "Voice input unavailable"}</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
+        <div className="flex shrink-0">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={isVoiceActive ? "default" : "ghost"}
+                  size="icon"
+                  onClick={onVoiceToggle}
+                  disabled={voiceDisabled && !isVoiceActive}
+                  className={cn(
+                    "h-9 w-9",
+                    isVoiceActive && "bg-red-500 hover:bg-red-600 animate-pulse",
+                    hasDevices && "rounded-r-none"
+                  )}
+                >
+                  <Mic className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              {voiceDisabled && !isVoiceActive && (
+                <TooltipContent>
+                  <p>{voiceDisabledReason || "Voice input unavailable"}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          {hasDevices && onDeviceChange && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={voiceDisabled && !isVoiceActive}
+                  className="h-9 w-5 rounded-l-none border-l border-border/50 px-0"
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="top" className="w-64">
+                <DropdownMenuLabel>Microphone</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  value={selectedDeviceId}
+                  onValueChange={onDeviceChange}
+                >
+                  {audioDevices.map((device) => (
+                    <DropdownMenuRadioItem
+                      key={device.deviceId}
+                      value={device.deviceId}
+                      className="text-xs"
+                    >
+                      <span className="truncate">
+                        {device.label || `Microphone (${device.deviceId.slice(0, 8)}...)`}
+                      </span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       )}
       <Button
         size="icon"
