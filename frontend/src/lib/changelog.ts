@@ -10,6 +10,23 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.2.1",
+    date: "2026-02-24",
+    title: "Chatbot feature improvements",
+    changes: [
+      {
+        type: "changed",
+        description:
+          "Changed the behaviour of the live transcript feature to establish the websocket connection immediately when the chatbot is opened, allowing for faster response times and a more seamless user experience",
+      },
+      {
+        type: "fixed",
+        description:
+          "Sometimes after a pause the text got cleared from the input field during dictation mode. This has been fixed and the text will now remain in the input field even after a pause in dictation",
+      },
+    ],
+  },
+  {
     version: "1.2.0",
     date: "2026-02-24",
     title: "Added chatbot feature",

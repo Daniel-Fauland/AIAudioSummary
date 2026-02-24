@@ -31,6 +31,9 @@ interface ChatbotModalProps {
   onVoiceToggle?: () => void;
   voiceDisabled?: boolean;
   voiceDisabledReason?: string;
+  audioDevices?: MediaDeviceInfo[];
+  selectedDeviceId?: string;
+  onDeviceChange?: (deviceId: string) => void;
   isSettingsOpen?: boolean;
 }
 
@@ -57,6 +60,9 @@ export function ChatbotModal({
   onVoiceToggle,
   voiceDisabled,
   voiceDisabledReason,
+  audioDevices,
+  selectedDeviceId,
+  onDeviceChange,
   isSettingsOpen,
 }: ChatbotModalProps) {
   if (!open) return null;
@@ -140,6 +146,9 @@ export function ChatbotModal({
             partialTranscript={partialTranscript}
             voiceText={voiceText}
             onClearVoiceText={onClearVoiceText}
+            audioDevices={audioDevices}
+            selectedDeviceId={selectedDeviceId}
+            onDeviceChange={onDeviceChange}
           />
         </>
       )}

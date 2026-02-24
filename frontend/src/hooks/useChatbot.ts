@@ -6,6 +6,29 @@ import { chatbotChat } from "@/lib/api";
 import type { ChatMessageType, ChatRequest, LLMProvider, AzureConfig, LangdockConfig, FeatureModelOverride, ActionProposal, AppContext } from "@/lib/types";
 
 const WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL || "ws://localhost:8080";
+const MIC_STORAGE_KEY = "aias:v1:mic_device_id";
+
+function getSavedMicId(): string {
+  try {
+    return localStorage.getItem(MIC_STORAGE_KEY) || "default";
+  } catch {
+    return "default";
+  }
+}
+
+function saveMicId(deviceId: string) {
+  try {
+    localStorage.setItem(MIC_STORAGE_KEY, deviceId);
+  } catch {
+    // localStorage not available
+  }
+}
+
+function resolveDeviceId(inputs: MediaDeviceInfo[], preferred: string): string {
+  if (inputs.find((d) => d.deviceId === preferred)) return preferred;
+  const fallback = inputs.find((d) => d.deviceId === "default");
+  return fallback?.deviceId || inputs[0]?.deviceId || "";
+}
 
 interface UseChatbotProps {
   chatbotQAEnabled: boolean;
@@ -22,6 +45,8 @@ interface UseChatbotProps {
   hasAssemblyAiKey: boolean;
   getAssemblyAiKey: () => string | null;
   appContext?: AppContext;
+  isChatOpen: boolean;
+  chatbotEnabled: boolean;
 }
 
 interface UseChatbotReturn {
@@ -33,10 +58,14 @@ interface UseChatbotReturn {
   confirmAction: (messageId: string) => Promise<void>;
   cancelAction: (messageId: string) => void;
   isVoiceActive: boolean;
+  voiceConnecting: boolean;
   partialTranscript: string;
   voiceText: string;
   clearVoiceText: () => void;
   toggleVoice: () => void;
+  audioDevices: MediaDeviceInfo[];
+  selectedDeviceId: string;
+  onDeviceChange: (deviceId: string) => void;
 }
 
 let messageIdCounter = 0;
@@ -73,6 +102,8 @@ export function useChatbot({
   hasAssemblyAiKey,
   getAssemblyAiKey,
   appContext,
+  isChatOpen,
+  chatbotEnabled,
 }: UseChatbotProps): UseChatbotReturn {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -85,11 +116,22 @@ export function useChatbot({
 
   // Voice state
   const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [voiceConnecting, setVoiceConnecting] = useState(false);
   const [partialTranscript, setPartialTranscript] = useState("");
   const [voiceText, setVoiceText] = useState("");
   const voiceWsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const voiceSessionReadyRef = useRef(false);
+  const hasBeenOpenedRef = useRef(false);
+  const getAssemblyAiKeyRef = useRef(getAssemblyAiKey);
+  getAssemblyAiKeyRef.current = getAssemblyAiKey;
+
+  // Audio device selection (shared localStorage key with AudioRecorder & RealtimeControls)
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>(getSavedMicId);
 
   // Resolve chatbot-specific model override
   const override = featureOverrides["chatbot"];
@@ -290,23 +332,53 @@ export function useChatbot({
     );
   }, []);
 
-  // --- Voice input ---
+  // --- Voice input (persistent session) ---
+  // The WebSocket + AudioWorklet are established once when the chatbot first
+  // opens and stay alive until the feature is disabled.  Only getUserMedia +
+  // audio-node wiring happen on each mic-press, making it near-instant.
+
+  const teardownVoiceSession = useCallback(() => {
+    voiceSessionReadyRef.current = false;
+
+    if (voiceWsRef.current) {
+      voiceWsRef.current.close();
+      voiceWsRef.current = null;
+    }
+
+    // Closing AudioContext also disconnects all connected nodes
+    audioContextRef.current?.close().catch(() => {});
+    audioContextRef.current = null;
+
+    mediaStreamRef.current?.getTracks().forEach(t => t.stop());
+    mediaStreamRef.current = null;
+    sourceNodeRef.current = null;
+    workletNodeRef.current = null;
+
+    setIsVoiceActive(false);
+    setPartialTranscript("");
+    setVoiceConnecting(false);
+  }, []);
+
+  const teardownVoiceSessionRef = useRef(teardownVoiceSession);
+  teardownVoiceSessionRef.current = teardownVoiceSession;
 
   const stopVoiceInternal = useCallback(() => {
-    // Send stop and close WebSocket
+    // Tell backend to end the AAI session (connection stays open)
     if (voiceWsRef.current?.readyState === WebSocket.OPEN) {
       try {
         voiceWsRef.current.send(JSON.stringify({ type: "stop" }));
       } catch {
         // ignore
       }
-      voiceWsRef.current.close();
     }
-    voiceWsRef.current = null;
 
-    // Stop audio
-    audioContextRef.current?.close().catch(() => {});
-    audioContextRef.current = null;
+    // Disconnect audio pipeline but keep AudioContext alive
+    sourceNodeRef.current?.disconnect();
+    sourceNodeRef.current = null;
+    workletNodeRef.current?.disconnect();
+    workletNodeRef.current = null;
+
+    // Release microphone
     mediaStreamRef.current?.getTracks().forEach(t => t.stop());
     mediaStreamRef.current = null;
 
@@ -320,41 +392,58 @@ export function useChatbot({
     });
   }, []);
 
-  // Use ref for stopVoiceInternal in voice callbacks to avoid stale closures
   const stopVoiceInternalRef = useRef(stopVoiceInternal);
   stopVoiceInternalRef.current = stopVoiceInternal;
 
-  const startVoice = useCallback(async () => {
-    const aaiKey = getAssemblyAiKey();
-    if (!aaiKey || isVoiceActive) return;
+  const initVoiceSession = useCallback(async () => {
+    const aaiKey = getAssemblyAiKeyRef.current();
+    if (!aaiKey || voiceSessionReadyRef.current || voiceWsRef.current) return;
+
+    setVoiceConnecting(true);
 
     try {
-      // Get microphone
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
+      // 1. Pre-load AudioWorklet (fast on subsequent calls – module is cached)
+      if (!audioContextRef.current) {
+        const ctx = new AudioContext({ sampleRate: 48000 });
+        audioContextRef.current = ctx;
+        await ctx.audioWorklet.addModule("/pcm-worklet-processor.js");
+      }
 
-      // Set up AudioContext and Worklet
-      const audioContext = new AudioContext({ sampleRate: 48000 });
-      audioContextRef.current = audioContext;
-
-      await audioContext.audioWorklet.addModule("/pcm-worklet-processor.js");
-      const source = audioContext.createMediaStreamSource(stream);
-      const workletNode = new AudioWorkletNode(audioContext, "pcm-worklet-processor");
-      source.connect(workletNode);
-
-      // Connect WebSocket — the chatbot router has prefix /chatbot
+      // 2. Establish persistent WebSocket to backend
       const ws = new WebSocket(`${WS_URL}/chatbot/ws/voice`);
       voiceWsRef.current = ws;
 
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ api_key: aaiKey, sample_rate: 16000 }));
-      };
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("Connection timeout")), 10000);
+
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ api_key: aaiKey, sample_rate: 16000 }));
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === "ready") {
+            clearTimeout(timeout);
+            resolve();
+          } else if (data.type === "error") {
+            clearTimeout(timeout);
+            reject(new Error(data.message));
+          }
+        };
+
+        ws.onerror = () => {
+          clearTimeout(timeout);
+          reject(new Error("WebSocket error"));
+        };
+      });
+
+      // Session established — set up persistent handlers
+      voiceSessionReadyRef.current = true;
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "turn") {
           if (data.is_final) {
-            // Final transcript — append to voiceText for the user to review/send
             const finalText = (data.transcript || "").trim();
             if (finalText) {
               setVoiceText(prev => (prev ? prev + " " + finalText : finalText));
@@ -363,28 +452,66 @@ export function useChatbot({
           } else {
             setPartialTranscript(data.transcript || "");
           }
-        } else if (data.type === "error") {
-          console.error("Voice error:", data.message);
+        } else if (data.type === "session_ended" || data.type === "error") {
+          if (data.type === "error") console.error("Voice error:", data.message);
           stopVoiceInternalRef.current();
         }
-      };
-
-      ws.onerror = () => {
-        stopVoiceInternalRef.current();
+        // "recording" is informational — mic is already shown as active
       };
 
       ws.onclose = () => {
-        // Only clean up if this is still the active WS
-        if (voiceWsRef.current === ws) {
-          setIsVoiceActive(false);
-          setPartialTranscript("");
-        }
+        voiceSessionReadyRef.current = false;
+        voiceWsRef.current = null;
+        setIsVoiceActive(false);
+        setVoiceConnecting(false);
       };
 
-      // Send audio data from worklet to WebSocket
+      ws.onerror = () => {
+        teardownVoiceSessionRef.current();
+      };
+
+      setVoiceConnecting(false);
+    } catch (e) {
+      console.error("Failed to init voice session:", e);
+      if (voiceWsRef.current) {
+        voiceWsRef.current.close();
+        voiceWsRef.current = null;
+      }
+      voiceSessionReadyRef.current = false;
+      setVoiceConnecting(false);
+    }
+  }, []);
+
+  const startVoice = useCallback(async () => {
+    if (!voiceSessionReadyRef.current || isVoiceActive) return;
+
+    try {
+      // Tell backend to connect to AAI (runs in parallel with getUserMedia)
+      voiceWsRef.current?.send(JSON.stringify({ type: "start" }));
+
+      // Get microphone access (use selected device if set)
+      const audioConstraints: boolean | MediaTrackConstraints = selectedDeviceId && selectedDeviceId !== "default"
+        ? { deviceId: { exact: selectedDeviceId } }
+        : true;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+      mediaStreamRef.current = stream;
+
+      // Resume AudioContext if suspended by browser autoplay policy
+      const ctx = audioContextRef.current!;
+      if (ctx.state === "suspended") {
+        await ctx.resume();
+      }
+
+      // Wire audio pipeline: mic → worklet → WebSocket
+      const source = ctx.createMediaStreamSource(stream);
+      const workletNode = new AudioWorkletNode(ctx, "pcm-worklet-processor");
+      sourceNodeRef.current = source;
+      workletNodeRef.current = workletNode;
+      source.connect(workletNode);
+
       workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(e.data);
+        if (voiceWsRef.current?.readyState === WebSocket.OPEN) {
+          voiceWsRef.current.send(e.data);
         }
       };
 
@@ -393,13 +520,18 @@ export function useChatbot({
       setVoiceText("");
     } catch (e) {
       console.error("Failed to start voice:", e);
-      // Clean up
       mediaStreamRef.current?.getTracks().forEach(t => t.stop());
       mediaStreamRef.current = null;
-      audioContextRef.current?.close().catch(() => {});
-      audioContextRef.current = null;
+      sourceNodeRef.current?.disconnect();
+      sourceNodeRef.current = null;
+      workletNodeRef.current?.disconnect();
+      workletNodeRef.current = null;
+      // Tell backend to cancel the session we just started
+      if (voiceWsRef.current?.readyState === WebSocket.OPEN) {
+        try { voiceWsRef.current.send(JSON.stringify({ type: "stop" })); } catch { /* ignore */ }
+      }
     }
-  }, [isVoiceActive, getAssemblyAiKey]);
+  }, [isVoiceActive, selectedDeviceId]);
 
   const toggleVoice = useCallback(() => {
     if (isVoiceActive) {
@@ -409,16 +541,63 @@ export function useChatbot({
     }
   }, [isVoiceActive, stopVoiceInternal, startVoice]);
 
+  // Track first open & manage voice session lifecycle
+  useEffect(() => {
+    if (isChatOpen) {
+      hasBeenOpenedRef.current = true;
+    }
+  }, [isChatOpen]);
+
+  useEffect(() => {
+    if (hasBeenOpenedRef.current && chatbotEnabled && hasAssemblyAiKey) {
+      initVoiceSession();
+    } else if (!chatbotEnabled || !hasAssemblyAiKey) {
+      teardownVoiceSession();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isChatOpen, chatbotEnabled, hasAssemblyAiKey]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (voiceWsRef.current) {
-        voiceWsRef.current.close();
-        voiceWsRef.current = null;
-      }
-      audioContextRef.current?.close().catch(() => {});
-      mediaStreamRef.current?.getTracks().forEach(t => t.stop());
+      teardownVoiceSessionRef.current();
     };
+  }, []);
+
+  // Enumerate audio devices when chatbot first opens
+  useEffect(() => {
+    if (!hasBeenOpenedRef.current || !chatbotEnabled) return;
+
+    const enumerate = async () => {
+      try {
+        const all = await navigator.mediaDevices.enumerateDevices();
+        const inputs = all.filter((d) => d.kind === "audioinput");
+        setAudioDevices(inputs);
+        setSelectedDeviceId((prev) => resolveDeviceId(inputs, prev));
+      } catch {
+        // enumerateDevices not supported
+      }
+    };
+
+    enumerate();
+
+    // Re-enumerate when devices change (plug/unplug)
+    const handler = () => {
+      navigator.mediaDevices.enumerateDevices().then((all) => {
+        const inputs = all.filter((d) => d.kind === "audioinput");
+        setAudioDevices(inputs);
+        setSelectedDeviceId((prev) => resolveDeviceId(inputs, prev));
+      }).catch(() => {});
+    };
+
+    navigator.mediaDevices.addEventListener("devicechange", handler);
+    return () => navigator.mediaDevices.removeEventListener("devicechange", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isChatOpen, chatbotEnabled]);
+
+  const onDeviceChange = useCallback((deviceId: string) => {
+    setSelectedDeviceId(deviceId);
+    saveMicId(deviceId);
   }, []);
 
   const clearVoiceText = useCallback(() => setVoiceText(""), []);
@@ -426,6 +605,7 @@ export function useChatbot({
   return {
     messages, isStreaming, sendMessage, clearMessages, hasApiKey,
     confirmAction, cancelAction,
-    isVoiceActive, partialTranscript, voiceText, clearVoiceText, toggleVoice,
+    isVoiceActive, voiceConnecting, partialTranscript, voiceText, clearVoiceText, toggleVoice,
+    audioDevices, selectedDeviceId, onDeviceChange,
   };
 }

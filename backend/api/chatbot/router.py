@@ -42,18 +42,28 @@ async def knowledge_status():
 
 @chatbot_router.websocket("/ws/voice")
 async def chatbot_voice(ws: WebSocket):
-    """Simplified voice-to-text relay for chatbot input.
+    """Persistent voice-to-text relay for chatbot input.
+
+    The WebSocket stays open across multiple recording sessions so that
+    subsequent mic-presses start transcribing almost instantly (no AAI
+    handshake delay).
 
     Protocol:
     1. Client sends init JSON: {"api_key": "...", "sample_rate": 16000}
-    2. Client sends binary audio frames
-    3. Server relays to AssemblyAI and returns transcript events:
+    2. Server responds with {"type": "ready"}
+    3. Client sends {"type": "start"} to begin a recording session
+    4. Server connects to AssemblyAI, responds {"type": "recording"}
+    5. Client sends binary audio frames, server relays and returns
        {"type": "turn", "transcript": "...", "is_final": true/false}
-    4. Client sends {"type": "stop"} to end
+    6. Client sends {"type": "stop"} to end the session
+    7. Steps 3-6 can repeat for multiple sessions
+    8. WebSocket close triggers full teardown
     """
     await ws.accept()
 
     aai_ws = None
+    aai_relay_task = None
+    disconnect_event = asyncio.Event()
 
     try:
         # Wait for init message
@@ -68,61 +78,22 @@ async def chatbot_voice(ws: WebSocket):
             await ws.close()
             return
 
-        # Connect to AssemblyAI
-        try:
-            aai_ws = await realtime_service.connect(api_key, sample_rate)
-        except Exception as e:
-            error_msg = str(e).lower()
-            if "401" in error_msg or "auth" in error_msg:
-                await ws.send_json({"type": "error", "message": "Invalid AssemblyAI API key"})
-            else:
-                await ws.send_json({"type": "error", "message": f"Failed to connect to AssemblyAI: {e}"})
-            await ws.close()
-            return
-
         await ws.send_json({"type": "ready"})
 
-        stop_event = asyncio.Event()
-
-        async def browser_to_aai():
-            """Forward audio from browser to AssemblyAI."""
+        async def relay_aai_to_browser(aai_conn):
+            """Relay transcript events from one AAI session to the browser."""
             try:
-                while not stop_event.is_set():
-                    message = await ws.receive()
-
-                    if message.get("type") == "websocket.disconnect":
-                        stop_event.set()
-                        return
-
-                    if "bytes" in message and message["bytes"]:
-                        try:
-                            await realtime_service.send_audio(aai_ws, message["bytes"])
-                        except Exception:
-                            stop_event.set()
-                            return
-
-                    elif "text" in message and message["text"]:
-                        data = json.loads(message["text"])
-                        if data.get("type") == "stop":
-                            stop_event.set()
-                            return
-            except WebSocketDisconnect:
-                stop_event.set()
-            except Exception as e:
-                logger.error(f"chatbot voice browser_to_aai error: {e}")
-                stop_event.set()
-
-        async def aai_to_browser():
-            """Forward transcript events from AssemblyAI to browser."""
-            try:
-                while not stop_event.is_set():
+                while not disconnect_event.is_set():
                     try:
-                        raw = await aai_ws.recv()
+                        raw = await aai_conn.recv()
                     except Exception as e:
-                        if stop_event.is_set():
+                        if disconnect_event.is_set():
                             return
                         logger.warning(f"Chatbot voice AAI connection lost: {e}")
-                        stop_event.set()
+                        try:
+                            await ws.send_json({"type": "session_ended"})
+                        except Exception:
+                            pass
                         return
 
                     event = json.loads(raw)
@@ -157,31 +128,71 @@ async def chatbot_voice(ws: WebSocket):
 
                     elif msg_type == "Termination":
                         break
-
+            except asyncio.CancelledError:
+                pass
             except Exception as e:
-                if not stop_event.is_set():
-                    logger.error(f"chatbot voice aai_to_browser error: {e}")
-                    stop_event.set()
+                if not disconnect_event.is_set():
+                    logger.error(f"chatbot voice aai relay error: {e}")
 
-        task_b2a = asyncio.create_task(browser_to_aai())
-        task_a2b = asyncio.create_task(aai_to_browser())
-
-        try:
-            _, pending = await asyncio.wait(
-                [task_b2a, task_a2b],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            stop_event.set()
-            for task in pending:
-                task.cancel()
+        async def stop_session():
+            """Terminate current AAI session if active."""
+            nonlocal aai_ws, aai_relay_task
+            if aai_relay_task:
+                aai_relay_task.cancel()
                 try:
-                    await task
+                    await aai_relay_task
                 except (asyncio.CancelledError, Exception):
                     pass
-        except Exception:
-            stop_event.set()
-            task_b2a.cancel()
-            task_a2b.cancel()
+                aai_relay_task = None
+            if aai_ws:
+                try:
+                    await realtime_service.terminate(aai_ws)
+                except Exception:
+                    pass
+                aai_ws = None
+
+        # Main message loop — stays open for the lifetime of the chatbot
+        while True:
+            message = await ws.receive()
+
+            if message.get("type") == "websocket.disconnect":
+                break
+
+            if "bytes" in message and message["bytes"]:
+                # Forward audio to AAI if a session is active
+                if aai_ws:
+                    try:
+                        await realtime_service.send_audio(aai_ws, message["bytes"])
+                    except Exception:
+                        await stop_session()
+                        try:
+                            await ws.send_json({"type": "session_ended"})
+                        except Exception:
+                            pass
+
+            elif "text" in message and message["text"]:
+                data = json.loads(message["text"])
+                cmd = data.get("type")
+
+                if cmd == "start":
+                    # Stop any lingering session first
+                    await stop_session()
+                    try:
+                        aai_ws = await realtime_service.connect(api_key, sample_rate)
+                        aai_relay_task = asyncio.create_task(
+                            relay_aai_to_browser(aai_ws)
+                        )
+                        await ws.send_json({"type": "recording"})
+                    except Exception as e:
+                        aai_ws = None
+                        error_msg = str(e).lower()
+                        if "401" in error_msg or "auth" in error_msg:
+                            await ws.send_json({"type": "error", "message": "Invalid AssemblyAI API key"})
+                        else:
+                            await ws.send_json({"type": "error", "message": f"Failed to connect to AssemblyAI: {e}"})
+
+                elif cmd == "stop":
+                    await stop_session()
 
     except WebSocketDisconnect:
         logger.info("Chatbot voice WebSocket disconnected")
@@ -192,6 +203,13 @@ async def chatbot_voice(ws: WebSocket):
         except Exception:
             pass
     finally:
+        disconnect_event.set()
+        if aai_relay_task:
+            aai_relay_task.cancel()
+            try:
+                await aai_relay_task
+            except (asyncio.CancelledError, Exception):
+                pass
         if aai_ws:
             try:
                 await realtime_service.terminate(aai_ws)
