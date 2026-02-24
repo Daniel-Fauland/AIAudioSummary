@@ -10,6 +10,18 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.2.0",
+    date: "2026-02-24",
+    title: "Added chatbot feature",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Chatbot feature with conversation history, context awareness & the ability to perform actions on behalf of the user",
+      },
+    ],
+  },
+  {
     version: "1.1.0",
     date: "2026-02-23",
     title: "Added release notes and changelog",

@@ -26,6 +26,7 @@ import { ModelSelector } from "@/components/settings/ModelSelector";
 import { AzureConfigForm } from "@/components/settings/AzureConfigForm";
 import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
 import { FeatureModelOverrides } from "@/components/settings/FeatureModelOverrides";
+import { ChatbotSettings } from "@/components/settings/ChatbotSettings";
 import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride } from "@/lib/types";
 
 interface SettingsSheetProps {
@@ -55,6 +56,14 @@ interface SettingsSheetProps {
   defaultRealtimeSystemPrompt: string;
   featureOverrides: Partial<Record<LLMFeature, FeatureModelOverride>>;
   onFeatureOverridesChange: (overrides: Partial<Record<LLMFeature, FeatureModelOverride>>) => void;
+  chatbotEnabled: boolean;
+  onChatbotEnabledChange: (enabled: boolean) => void;
+  chatbotQAEnabled: boolean;
+  onChatbotQAEnabledChange: (enabled: boolean) => void;
+  chatbotTranscriptEnabled: boolean;
+  onChatbotTranscriptEnabledChange: (enabled: boolean) => void;
+  chatbotActionsEnabled: boolean;
+  onChatbotActionsEnabledChange: (enabled: boolean) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -110,6 +119,14 @@ export function SettingsSheet({
   defaultRealtimeSystemPrompt,
   featureOverrides,
   onFeatureOverridesChange,
+  chatbotEnabled,
+  onChatbotEnabledChange,
+  chatbotQAEnabled,
+  onChatbotQAEnabledChange,
+  chatbotTranscriptEnabled,
+  onChatbotTranscriptEnabledChange,
+  chatbotActionsEnabled,
+  onChatbotActionsEnabledChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -328,6 +345,24 @@ export function SettingsSheet({
               <SectionHeader>Features</SectionHeader>
               <CollapsibleContent>
                 <div className="space-y-5 pt-3">
+                  <div className="space-y-4">
+                    <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">
+                      General
+                    </p>
+                    <ChatbotSettings
+                      chatbotEnabled={chatbotEnabled}
+                      onChatbotEnabledChange={onChatbotEnabledChange}
+                      chatbotQAEnabled={chatbotQAEnabled}
+                      onChatbotQAEnabledChange={onChatbotQAEnabledChange}
+                      chatbotTranscriptEnabled={chatbotTranscriptEnabled}
+                      onChatbotTranscriptEnabledChange={onChatbotTranscriptEnabledChange}
+                      chatbotActionsEnabled={chatbotActionsEnabled}
+                      onChatbotActionsEnabledChange={onChatbotActionsEnabledChange}
+                    />
+                  </div>
+
+                  <Separator />
+
                   {/* Standard mode sub-section */}
                   <div className="space-y-4">
                     <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">

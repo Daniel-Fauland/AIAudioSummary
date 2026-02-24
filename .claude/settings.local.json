@@ -44,6 +44,8 @@
       "Bash(timeout 5 uv run:*)",
       "Bash(npx tsc:*)",
       "WebFetch(domain:docs.langdock.com)",
+      "Bash(docker info)",
+      "Bash(docker compose down:*)",
       "Bash(docker compose build:*)",
       "Bash(docker run:*)",
       "Bash(docker stop:*)",
@@ -53,7 +55,10 @@
       "Bash(docker exec:*)",
       "Bash(uv run:*)",
       "Bash(lsof:*)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(python3:*)",
+      "Bash(echo:*)",
+      "Bash(docker compose:*)"
     ]
   }
 }

@@ -208,3 +208,6 @@ __marimo__/
 
 .DS_Store
 imgs/
+
+# Docker local dev overrides
+docker-compose.override.yml

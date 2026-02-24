@@ -50,7 +50,7 @@ class AssemblyAIService:
             language_detection=language_detection,
             language_code=language_code,
             speaker_labels=True,
-            speaker_options={"min_sepakers_expected": min_speaker, "max_speakers_expected": max_speaker})
+            speaker_options={"min_speakers_expected": min_speaker, "max_speakers_expected": max_speaker})
         transcript = aai.Transcriber(config=config).transcribe(path_to_file)
 
         if transcript.status == "error":

@@ -1,4 +1,5 @@
 import type {
+  ChatRequest,
   ConfigResponse,
   CreateSummaryRequest,
   CreateSummaryResponse,
@@ -254,4 +255,51 @@ export async function deletePreferences(): Promise<void> {
   if (!response.ok && response.status !== 204) {
     await handleResponse<void>(response);
   }
+}
+
+export async function chatbotChat(
+  request: ChatRequest,
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  const response = await fetch(`${API_BASE}/chatbot/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+    signal,
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body.detail) {
+        message = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+      }
+    } catch {
+      // body wasn't JSON
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  if (request.stream) {
+    const reader = response.body?.getReader();
+    if (!reader) throw new ApiError(0, "No response body for streaming");
+
+    const decoder = new TextDecoder();
+    let fullText = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      fullText += chunk;
+      onChunk(chunk);
+    }
+
+    return fullText;
+  }
+
+  const data = await response.json();
+  return data.content;
 }

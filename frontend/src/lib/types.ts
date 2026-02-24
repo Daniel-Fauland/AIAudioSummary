@@ -146,7 +146,8 @@ export type LLMFeature =
   | "realtime_summary"
   | "key_point_extraction"
   | "prompt_assistant"
-  | "live_question_evaluation";
+  | "live_question_evaluation"
+  | "chatbot";
 
 export const LLM_FEATURE_LABELS: Record<LLMFeature, string> = {
   summary_generation: "Summary Generation",
@@ -154,6 +155,7 @@ export const LLM_FEATURE_LABELS: Record<LLMFeature, string> = {
   key_point_extraction: "Key Point Extraction",
   prompt_assistant: "Prompt Assistant",
   live_question_evaluation: "Live Question Evaluation",
+  chatbot: "Chatbot",
 };
 
 export interface FeatureModelOverride {
@@ -227,6 +229,50 @@ export interface EvaluateQuestionsResponse {
   evaluations: QuestionEvaluation[];
 }
 
+// === Chatbot types ===
+
+export type ChatRole = "user" | "assistant";
+
+export interface ChatMessageType {
+  id: string;
+  role: ChatRole;
+  content: string;
+  action?: ActionProposal;
+  actionStatus?: "pending" | "confirmed" | "cancelled" | "error";
+  isError?: boolean;
+}
+
+export interface ActionProposal {
+  action_id: string;
+  description: string;
+  params: Record<string, unknown>;
+}
+
+export interface AppContext {
+  selected_provider: string;
+  selected_model: string;
+  app_mode: string;
+  theme: string;
+  app_version: string;
+  changelog: string;
+}
+
+export interface ChatRequest {
+  messages: { role: ChatRole; content: string }[];
+  provider: string;
+  model: string;
+  api_key: string;
+  azure_config: AzureConfig | null;
+  langdock_config?: LangdockConfig;
+  qa_enabled: boolean;
+  transcript_enabled: boolean;
+  actions_enabled: boolean;
+  transcript: string | null;
+  confirmed_action?: ActionProposal | null;
+  stream: boolean;
+  app_context?: AppContext;
+}
+
 // === User types ===
 
 export interface UserProfile {
@@ -258,6 +304,10 @@ export interface UserPreferences {
   realtime_final_summary?: boolean;
   realtime_system_prompt?: string;
   custom_templates?: { id: string; name: string; content: string }[];
+  chatbot_enabled?: boolean;
+  chatbot_qa?: boolean;
+  chatbot_transcript?: boolean;
+  chatbot_actions?: boolean;
 }
 
 export interface PreferencesResponse {

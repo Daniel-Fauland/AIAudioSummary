@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,6 +15,8 @@ import { SpeakerMapper } from "@/components/workflow/SpeakerMapper";
 import { PromptEditor } from "@/components/workflow/PromptEditor";
 import { SummaryView } from "@/components/workflow/SummaryView";
 import { RealtimeMode } from "@/components/realtime/RealtimeMode";
+import { ChatbotFAB } from "@/components/chatbot/ChatbotFAB";
+import { ChatbotModal } from "@/components/chatbot/ChatbotModal";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,13 +26,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTheme } from "next-themes";
 import { useConfig } from "@/hooks/useConfig";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { useCustomTemplates } from "@/hooks/useCustomTemplates";
 import { usePreferences } from "@/hooks/usePreferences";
+import { useChatbot } from "@/hooks/useChatbot";
 import { createTranscript, createSummary, extractKeyPoints } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext } from "@/lib/types";
+import { APP_VERSION } from "@/lib/constants";
+import { changelog } from "@/lib/changelog";
 
 const PROVIDER_KEY = "aias:v1:selected_provider";
 const MODEL_KEY_PREFIX = "aias:v1:model:";
@@ -42,6 +48,10 @@ const REALTIME_INTERVAL_KEY = "aias:v1:realtime_interval";
 const REALTIME_FINAL_SUMMARY_KEY = "aias:v1:realtime_final_summary";
 const REALTIME_SYSTEM_PROMPT_KEY = "aias:v1:realtime_system_prompt";
 const FEATURE_OVERRIDES_KEY = "aias:v1:feature_overrides";
+const CHATBOT_ENABLED_KEY = "aias:v1:chatbot_enabled";
+const CHATBOT_QA_KEY = "aias:v1:chatbot_qa";
+const CHATBOT_TRANSCRIPT_KEY = "aias:v1:chatbot_transcript";
+const CHATBOT_ACTIONS_KEY = "aias:v1:chatbot_actions";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -88,7 +98,8 @@ interface HomeInnerProps {
 }
 
 function HomeInner({ config, savePreferences, setStorageMode, serverPreferences }: HomeInnerProps) {
-  const { getKey, hasKey, getAzureConfig, getLangdockConfig, setLangdockConfig } = useApiKeys();
+  const { getKey, setKey, hasKey, getAzureConfig, getLangdockConfig, setLangdockConfig } = useApiKeys();
+  const { theme, setTheme } = useTheme();
   const {
     templates: customTemplates,
     saveTemplate: rawSaveCustomTemplate,
@@ -201,6 +212,47 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
       return {};
     }
   });
+  // Chatbot settings
+  const [chatbotEnabled, setChatbotEnabled] = useState(
+    () => serverPreferences?.chatbot_enabled !== undefined ? serverPreferences.chatbot_enabled : safeGet(CHATBOT_ENABLED_KEY, "true") === "true",
+  );
+  const [chatbotQAEnabled, setChatbotQAEnabled] = useState(
+    () => serverPreferences?.chatbot_qa !== undefined ? serverPreferences.chatbot_qa : safeGet(CHATBOT_QA_KEY, "true") !== "false",
+  );
+  const [chatbotTranscriptEnabled, setChatbotTranscriptEnabled] = useState(
+    () => serverPreferences?.chatbot_transcript !== undefined ? serverPreferences.chatbot_transcript : safeGet(CHATBOT_TRANSCRIPT_KEY, "true") !== "false",
+  );
+  const [chatbotActionsEnabled, setChatbotActionsEnabled] = useState(
+    () => serverPreferences?.chatbot_actions !== undefined ? serverPreferences.chatbot_actions : safeGet(CHATBOT_ACTIONS_KEY, "true") !== "false",
+  );
+
+  // Chatbot UI state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatbotTranscriptDetached, setChatbotTranscriptDetached] = useState(false);
+
+  // Realtime transcript for chatbot context
+  const [realtimeTranscript, setRealtimeTranscript] = useState("");
+
+  // Compute chatbot transcript (auto-attach logic)
+  const chatbotTranscript = (() => {
+    if (!chatbotTranscriptEnabled) return null;
+    if (chatbotTranscriptDetached) return null;
+    // Standard mode transcript
+    if (appMode === "standard" && transcript) return transcript;
+    // Realtime mode: live transcript from the realtime session
+    if (appMode === "realtime" && realtimeTranscript) return realtimeTranscript;
+    return null;
+  })();
+
+  const isLiveTranscript = appMode === "realtime" && !!chatbotTranscript;
+
+  // Auto-reattach transcript when content changes
+  useEffect(() => {
+    if (transcript || realtimeTranscript) {
+      setChatbotTranscriptDetached(false);
+    }
+  }, [transcript, realtimeTranscript]);
+
   const hasAutoExtractedKeyPointsRef = useRef(false);
   // Accumulated speaker renames: original label → new name
   const speakerRenamesRef = useRef<Record<string, string>>({});
@@ -315,6 +367,114 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     },
     [savePreferences],
   );
+
+  const handleChatbotEnabledChange = useCallback((enabled: boolean) => {
+    setChatbotEnabled(enabled);
+    safeSet(CHATBOT_ENABLED_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleChatbotQAEnabledChange = useCallback((enabled: boolean) => {
+    setChatbotQAEnabled(enabled);
+    safeSet(CHATBOT_QA_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleChatbotTranscriptEnabledChange = useCallback((enabled: boolean) => {
+    setChatbotTranscriptEnabled(enabled);
+    safeSet(CHATBOT_TRANSCRIPT_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleChatbotActionsEnabledChange = useCallback((enabled: boolean) => {
+    setChatbotActionsEnabled(enabled);
+    safeSet(CHATBOT_ACTIONS_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
+  // Chatbot action handlers
+  const chatbotActionHandlers = useMemo<Record<string, (params: Record<string, unknown>) => Promise<void>>>(() => ({
+    change_theme: async ({ theme }) => {
+      const validThemes = ["light", "dark", "system"];
+      if (!validThemes.includes(theme as string)) throw new Error(`Invalid theme: ${theme}`);
+      setTheme(theme as string);
+    },
+    switch_app_mode: async ({ mode }) => {
+      const validModes = ["standard", "realtime"];
+      if (!validModes.includes(mode as string)) throw new Error(`Invalid mode: ${mode}`);
+      handleModeChange(mode as "standard" | "realtime");
+    },
+    change_provider: async ({ provider }) => {
+      const validProviders = config?.providers.map(p => p.id) ?? [];
+      if (!validProviders.includes(provider as LLMProvider)) throw new Error(`Invalid provider: ${provider}`);
+      handleProviderChange(provider as LLMProvider);
+    },
+    change_model: async ({ model }) => {
+      // Validate model exists for the current provider
+      const currentProvider = config?.providers.find(p => p.id === selectedProvider);
+      if (currentProvider && currentProvider.models.length > 0 && !currentProvider.models.includes(model as string)) {
+        throw new Error(`Invalid model "${model}" for provider ${selectedProvider}. Valid models: ${currentProvider.models.join(", ")}`);
+      }
+      handleModelChange(model as string);
+    },
+    toggle_speaker_key_points: async ({ enabled }) => {
+      handleAutoKeyPointsChange(enabled as boolean);
+    },
+    change_speaker_count: async ({ min, max }) => {
+      handleMinSpeakersChange(min as number);
+      handleMaxSpeakersChange(max as number);
+    },
+    change_realtime_interval: async ({ minutes }) => {
+      handleRealtimeSummaryIntervalChange(minutes as number as SummaryInterval);
+    },
+    toggle_final_summary: async ({ enabled }) => {
+      handleRealtimeFinalSummaryEnabledChange(enabled as boolean);
+    },
+    open_settings: async () => {
+      setSettingsOpen(true);
+    },
+    update_api_key: async ({ provider, key }) => {
+      setKey(provider as LLMProvider | "assemblyai", key as string);
+    },
+  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleAutoKeyPointsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, setKey, config, selectedProvider]);
+
+  const getAssemblyAiKey = useCallback((): string | null => {
+    const key = getKey("assemblyai");
+    return key.trim().length > 0 ? key : null;
+  }, [getKey]);
+
+  // Build app context for the chatbot (current settings + version info)
+  const chatbotAppContext = useMemo<AppContext>(() => {
+    const changelogText = changelog.map(entry =>
+      `### v${entry.version} (${entry.date})${entry.title ? ` — ${entry.title}` : ""}\n` +
+      entry.changes.map(c => `- **${c.type}**: ${c.description}`).join("\n")
+    ).join("\n\n");
+    return {
+      selected_provider: selectedProvider,
+      selected_model: selectedModel,
+      app_mode: appMode,
+      theme: theme ?? "system",
+      app_version: APP_VERSION,
+      changelog: changelogText,
+    };
+  }, [selectedProvider, selectedModel, appMode, theme]);
+
+  const { messages: chatMessages, isStreaming: isChatStreaming, sendMessage: sendChatMessage, clearMessages: clearChatMessages, hasApiKey: hasChatApiKey, confirmAction: confirmChatAction, cancelAction: cancelChatAction, isVoiceActive: isChatVoiceActive, partialTranscript: chatPartialTranscript, voiceText: chatVoiceText, clearVoiceText: clearChatVoiceText, toggleVoice: toggleChatVoice } = useChatbot({
+    chatbotQAEnabled,
+    chatbotTranscriptEnabled,
+    chatbotActionsEnabled,
+    selectedProvider,
+    selectedModel,
+    featureOverrides,
+    getKey,
+    azureConfig,
+    langdockConfig,
+    transcript: chatbotTranscript || undefined,
+    actionHandlers: chatbotActionsEnabled ? chatbotActionHandlers : undefined,
+    hasAssemblyAiKey: hasKey("assemblyai"),
+    getAssemblyAiKey,
+    appContext: chatbotAppContext,
+  });
 
   const applyRenames = useCallback((keyPoints: Record<string, string>): Record<string, string> => {
     const renames = speakerRenamesRef.current;
@@ -632,6 +792,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
         defaultRealtimeSystemPrompt={DEFAULT_REALTIME_SYSTEM_PROMPT}
         featureOverrides={featureOverrides}
         onFeatureOverridesChange={handleFeatureOverridesChange}
+        chatbotEnabled={chatbotEnabled}
+        onChatbotEnabledChange={handleChatbotEnabledChange}
+        chatbotQAEnabled={chatbotQAEnabled}
+        onChatbotQAEnabledChange={handleChatbotQAEnabledChange}
+        chatbotTranscriptEnabled={chatbotTranscriptEnabled}
+        onChatbotTranscriptEnabledChange={handleChatbotTranscriptEnabledChange}
+        chatbotActionsEnabled={chatbotActionsEnabled}
+        onChatbotActionsEnabledChange={handleChatbotActionsEnabledChange}
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
@@ -683,6 +851,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
               realtimeSystemPrompt={realtimeSystemPrompt}
               liveQuestionsProvider={resolvedLiveQuestionsConfig.provider}
               liveQuestionsModel={resolvedLiveQuestionsConfig.model}
+              onTranscriptChange={setRealtimeTranscript}
             />
           </div>
         ) : (
@@ -833,6 +1002,41 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
       </div>{/* end flex-1 */}
 
       <Footer />
+
+      {chatbotEnabled && (
+        <>
+          <ChatbotFAB
+            onClick={() => setIsChatOpen(true)}
+            isOpen={isChatOpen}
+            isSettingsOpen={settingsOpen}
+          />
+          <ChatbotModal
+            open={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            onMinimize={() => setIsChatOpen(false)}
+            messages={chatMessages}
+            isStreaming={isChatStreaming}
+            hasApiKey={hasChatApiKey}
+            onSendMessage={sendChatMessage}
+            onClearMessages={clearChatMessages}
+            onOpenSettings={() => setSettingsOpen(true)}
+            transcriptAttached={!!chatbotTranscript}
+            transcriptWordCount={chatbotTranscript ? chatbotTranscript.split(/\s+/).filter(Boolean).length : 0}
+            isLiveTranscript={isLiveTranscript}
+            onDetachTranscript={() => setChatbotTranscriptDetached(true)}
+            onConfirmAction={confirmChatAction}
+            onCancelAction={cancelChatAction}
+            isVoiceActive={isChatVoiceActive}
+            partialTranscript={chatPartialTranscript}
+            voiceText={chatVoiceText}
+            onClearVoiceText={clearChatVoiceText}
+            onVoiceToggle={toggleChatVoice}
+            voiceDisabled={!hasKey("assemblyai")}
+            voiceDisabledReason={!hasKey("assemblyai") ? "AssemblyAI API key required for voice input" : undefined}
+            isSettingsOpen={settingsOpen}
+          />
+        </>
+      )}
 
       {/* Step navigation confirmation dialog */}
       <Dialog open={stepNavDialogOpen} onOpenChange={(open) => { if (!open) handleStepNavCancel(); }}>

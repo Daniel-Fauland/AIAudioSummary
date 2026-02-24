@@ -1,6 +1,6 @@
 import { ApiError } from "./api";
 
-export type ErrorContext = "summary" | "keyPoints" | "transcript" | "speakers" | "analyze" | "generate" | "regenerate";
+export type ErrorContext = "summary" | "keyPoints" | "transcript" | "speakers" | "analyze" | "generate" | "regenerate" | "chatbot";
 
 export function getErrorMessage(error: unknown, context: ErrorContext): string {
   if (error instanceof ApiError) {
@@ -25,6 +25,9 @@ export function getErrorMessage(error: unknown, context: ErrorContext): string {
       }
       if (context === "generate" || context === "regenerate") {
         return "Failed to generate prompt. Please try again or select a different model.";
+      }
+      if (context === "chatbot") {
+        return "Chat failed. Please try again or select a different model.";
       }
     }
   }

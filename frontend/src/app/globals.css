@@ -315,6 +315,14 @@
   color: #FC520B;
 }
 
+/* Blinking cursor appended to the last element in streaming markdown */
+.streaming-active > *:last-child::after,
+.streaming-active:empty::after {
+  content: "▊";
+  animation: blink 1s step-end infinite;
+  color: #FC520B;
+}
+
 /* Step transition animation */
 .step-content {
   animation: stepEnter 300ms ease-out;

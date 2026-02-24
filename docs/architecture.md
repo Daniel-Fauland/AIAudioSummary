@@ -57,6 +57,7 @@ It uses:
 
 - **AssemblyAI** for speech-to-text (batch SDK + streaming WebSocket API)
 - **Multi-provider LLM support** (OpenAI, Anthropic, Google Gemini, Azure OpenAI) via `pydantic-ai` for summarization
+- **AI Chatbot** — floating assistant overlay with Q&A knowledge base, transcript context (standard + realtime live transcript), agentic app control, and voice input
 - **Next.js 16** frontend with shadcn/ui
 - **FastAPI** backend with WebSocket support
 - **Google OAuth** (via Auth.js v5) for authentication with database-driven access control
@@ -91,6 +92,7 @@ project-root/
 │   │   ├── realtime/router.py    #   WS /ws/realtime, POST /createIncrementalSummary
 │   │   ├── prompt_assistant/router.py  #   POST /prompt-assistant/analyze, POST /prompt-assistant/generate
 │   │   ├── live_questions/router.py    #   POST /live-questions/evaluate
+│   │   ├── chatbot/router.py      #   POST /chatbot/chat, GET /chatbot/knowledge, WS /chatbot/ws/voice
 │   │   ├── auth/router.py         #   GET /auth/verify (no auth required)
 │   │   └── users/router.py        #   GET /users/me, GET /users, POST /users, DELETE /users/{id}
 │   ├── service/                    # Service layer (business logic)
@@ -100,6 +102,8 @@ project-root/
 │   │   ├── realtime/             #   RealtimeTranscriptionService, SessionManager
 │   │   ├── prompt_assistant/core.py  #   PromptAssistantService (analyze + generate)
 │   │   ├── live_questions/core.py    #   LiveQuestionsService (strict LLM evaluation)
+│   │   ├── chatbot/core.py        #   ChatbotService (chat, knowledge base, actions)
+│   │   ├── chatbot/actions.py     #   ACTION_REGISTRY (available chatbot actions)
 │   │   ├── auth/core.py           #   AuthService (email verification against DB)
 │   │   └── users/core.py          #   UsersService (CRUD, name sync)
 │   ├── dependencies/               # FastAPI dependencies
@@ -110,7 +114,8 @@ project-root/
 │   │   ├── llm.py
 │   │   ├── realtime.py            #   IncrementalSummaryRequest/Response
 │   │   ├── prompt_assistant.py    #   AssistantQuestion, AnalyzeRequest/Response, GenerateRequest/Response
-│   │   └── live_questions.py      #   EvaluateQuestionsRequest/Response, QuestionInput, QuestionEvaluation
+│   │   ├── live_questions.py      #   EvaluateQuestionsRequest/Response, QuestionInput, QuestionEvaluation
+│   │   └── chatbot.py            #   ChatRole, ChatMessage, ActionProposal, ChatRequest/ChatResponse
 │   ├── db/                         # Database layer (SQLAlchemy async)
 │   │   ├── engine.py              #   async_engine, AsyncSessionLocal, get_db(), Base
 │   │   └── models.py              #   User ORM model (id, email, name, role, preferences, storage_mode)
@@ -150,13 +155,15 @@ project-root/
 │   │   │   ├── realtime/          # RealtimeMode, RealtimeControls, RealtimeTranscriptView, RealtimeSummaryView, ConnectionStatus
 │   │   │   ├── live-transcript/   # LiveQuestions, LiveQuestionItem, AddQuestionInput, useLiveQuestions hook
 │   │   │   ├── prompt-assistant/  # PromptAssistantModal, StepBasePrompt, StepQuestions, StepSummary, StepResult, QuestionField, usePromptAssistant hook
+│   │   │   ├── chatbot/          # ChatbotFAB, ChatbotModal, ChatMessage, ChatMessageList, ChatInputBar, TranscriptBadge, ActionConfirmCard
 │   │   │   └── ui/                 # shadcn/ui primitives + AudioPlayer composite component
 │   │   ├── hooks/
 │   │   │   ├── useApiKeys.ts       # localStorage key management
 │   │   │   ├── useConfig.ts        # Backend config fetching
 │   │   │   ├── useCustomTemplates.ts # Custom prompt template CRUD (localStorage + server sync)
 │   │   │   ├── usePreferences.ts   # Server preference sync (loads on mount, fire-and-forget saves)
-│   │   │   └── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
+│   │   │   ├── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
+│   │   │   └── useChatbot.ts      # Chatbot hook (messages, streaming, actions, voice input)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
 │   │       ├── errors.ts           # getErrorMessage() — maps ApiError status codes to user-friendly strings
@@ -195,10 +202,11 @@ Browser (client)
     │                    └── /createTranscript, /createSummary, /getConfig, etc.
     │
     └── WebSocket ──► FastAPI Backend (direct, bypasses proxy)
-                         └── /ws/realtime (realtime transcription relay)
+                         ├── /ws/realtime (realtime transcription relay)
+                         └── /chatbot/ws/voice (chatbot voice input relay)
 ```
 
-The HTTP proxy route forwards requests from the frontend container to the backend container via `BACKEND_INTERNAL_URL` (Docker internal network: `http://backend:8080`). The WebSocket connection goes directly from the browser to the backend — it bypasses the Next.js proxy because Auth.js session cookies are not sent over WebSocket connections. Authentication for the WebSocket is handled via the AssemblyAI API key sent in the init message.
+The HTTP proxy route forwards requests from the frontend container to the backend container via `BACKEND_INTERNAL_URL` (Docker internal network: `http://backend:8080`). The WebSocket connections go directly from the browser to the backend — they bypass the Next.js proxy because Auth.js session cookies are not sent over WebSocket connections. Authentication for WebSocket connections is handled via the AssemblyAI API key sent in the init message.
 
 ### Authentication (Google OAuth)
 
@@ -346,6 +354,13 @@ HTTP Request
   - `RealtimeTranscriptionService` (`core.py`): manages WebSocket connections to AssemblyAI's streaming API (connect, send audio, terminate)
   - `SessionManager` (`session.py`): in-memory session state with asyncio Lock for thread safety — tracks accumulated transcript, current partial, and timestamps per session
   - `SessionState` dataclass: `session_id`, `accumulated_transcript`, `current_partial`, `created_at`, `last_activity`
+- The **chatbot service** (`service/chatbot/`) contains:
+  - `ChatbotService` (`core.py`): manages chat conversations with streaming, system prompt assembly based on enabled capabilities (Q&A, transcript context, actions), knowledge base loading from `usage_guide/usage_guide.md`, and conversation history trimming (last 20 messages)
+  - `actions.py`: `ACTION_REGISTRY` — list of available chatbot actions (change theme, switch app mode, change provider/model, toggle settings, open settings, update API key). Each action has an `action_id`, `description`, and typed `params` schema. Also includes `PROVIDER_MODELS` — a mapping of valid models per provider used for LLM-side and frontend-side validation.
+  - The chatbot router (`api/chatbot/router.py`) exposes three endpoints:
+    - `POST /chatbot/chat` — streaming chat (same `StreamingResponse` pattern as `/createSummary`)
+    - `GET /chatbot/knowledge` — returns knowledge base loaded status and size
+    - `WS /chatbot/ws/voice` — voice input relay to AssemblyAI (same protocol as `/ws/realtime` but simplified for single-utterance capture; auto-sends the final transcript as a chat message)
 - The LLM service uses a factory method `_create_model()` to instantiate the correct pydantic-ai provider:
 
   | Provider       | Model Class       | Provider Class      |
@@ -373,6 +388,7 @@ Key models:
 | `models/realtime.py`         | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                                        |
 | `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest`, `AnalyzeResponse` (incl. `suggested_target_system`), `GenerateRequest/Response` |
 | `models/live_questions.py`   | `QuestionInput`, `EvaluateQuestionsRequest`, `QuestionEvaluation`, `EvaluateQuestionsResponse`                                                    |
+| `models/chatbot.py`         | `ChatRole` (enum), `ChatMessage`, `ActionProposal`, `ChatRequest`, `ChatResponse`                |
 
 ### Configuration & Environment
 
@@ -461,6 +477,8 @@ Prompt templates are Markdown files in `prompt_templates/`. They are loaded dyna
 > **Note**: The **realtime incremental summary** (`/createIncrementalSummary`) does **not** use the prompt template system. It uses a hardcoded stability-focused system prompt defined in `api/realtime/router.py` (`_REALTIME_SYSTEM_PROMPT`). The target language is auto-detected from the transcript using the `langdetect` library rather than being selected by the user.
 
 > **Note**: The **Prompt Assistant** (`/prompt-assistant/analyze` and `/prompt-assistant/generate`) also does **not** use the prompt template system. It uses two hardcoded system prompts defined in `service/prompt_assistant/core.py`. Key constraints baked into the analysis prompt: always assume GitHub-Flavored Markdown (never ask the user about it); never ask about target language (handled separately in Prompt Settings); never ask about target system / output destination (injected programmatically — see below); never suggest "Links & references" as a section option (links from chats are not part of transcripts). The generation prompt includes explicit tailoring rules for each supported target system.
+
+> **Note**: The **Chatbot** (`/chatbot/chat`) does **not** use the prompt template system. Its system prompt is assembled dynamically in `ChatbotService._build_system_prompt()` based on enabled capabilities (Q&A, transcript context, agentic actions). The knowledge base is loaded from `backend/usage_guide/usage_guide.md` (cached in memory). The action registry (`service/chatbot/actions.py`) includes `PROVIDER_MODELS` for model validation and `ACTION_REGISTRY` for available actions — both are serialized into the system prompt when actions are enabled.
 
 ### Error Handling
 
@@ -643,11 +661,19 @@ RootLayout (layout.tsx)
         │       └── Step 3: TranscriptView (readonly) + SummaryView
         │
         ├── (Realtime mode):
-        │   └── RealtimeMode           ← orchestrator, uses useRealtimeSession() hook
+        │   └── RealtimeMode           ← orchestrator, uses useRealtimeSession() hook; exposes full transcript (accumulated + partials) to parent via onTranscriptChange for chatbot context
         │       ├── RealtimeControls   ← Start/Pause/Stop, mic selector, elapsed timer, countdown + Refresh button
         │       │   └── ConnectionStatus
         │       ├── RealtimeTranscriptView  ← live transcript with auto-scroll
         │       └── RealtimeSummaryView     ← markdown summary with periodic updates
+        │
+        ├── (Chatbot overlay, when chatbotEnabled):
+        │   ├── ChatbotFAB            ← Floating action button (bottom-right, shifts when settings open)
+        │   └── ChatbotModal          ← Chat panel, uses useChatbot() hook
+        │       ├── ChatMessageList   ← Scrollable messages with auto-scroll, thinking indicator
+        │       │   └── ChatMessage   ← User/assistant bubble, copy button, ActionConfirmCard
+        │       ├── TranscriptBadge   ← Shows when transcript attached; live variant (green pulsing dot + bucketed word count) in realtime mode
+        │       └── ChatInputBar     ← Text input, send button, mic button (voice input)
         │
         └── Footer                     ← Imprint / Privacy Policy / Cookie Settings links (each opens a Dialog)
 ```
@@ -657,9 +683,10 @@ RootLayout (layout.tsx)
 1. **Create the component** in the appropriate subdirectory:
    - `components/auth/` — authentication-related components (SessionWrapper, UserMenu)
    - `components/layout/` — structural/layout components
-   - `components/settings/` — settings panel sub-components
+   - `components/settings/` — settings panel sub-components (including ChatbotSettings)
    - `components/workflow/` — standard mode step-specific workflow components
    - `components/realtime/` — realtime mode components (RealtimeMode, Controls, TranscriptView, SummaryView, ConnectionStatus)
+   - `components/chatbot/` — chatbot overlay components (ChatbotFAB, ChatbotModal, ChatMessage, ChatMessageList, ChatInputBar, TranscriptBadge, ActionConfirmCard)
 
 2. **Define a props interface**:
 
@@ -706,9 +733,15 @@ All application state lives in `page.tsx` using `useState`. There is no global s
 | Realtime sys prompt | Yes (localStorage) | Yes               | `aias:v1:realtime_system_prompt` |
 | Custom templates    | Yes (localStorage) | Yes               | `aias:v1:custom_templates`  |
 | Theme               | Yes (localStorage) | Yes               | `aias:v1:theme`             |
+| Chatbot enabled     | Yes (localStorage) | Yes               | `aias:v1:chatbot_enabled`   |
+| Chatbot Q&A toggle  | Yes (localStorage) | Yes               | `aias:v1:chatbot_qa`        |
+| Chatbot transcript  | Yes (localStorage) | Yes               | `aias:v1:chatbot_transcript`|
+| Chatbot actions     | Yes (localStorage) | Yes               | `aias:v1:chatbot_actions`   |
 | Workflow state      | No                 | No                | -                           |
 | Prompt/language     | No                 | No                | -                           |
 | Realtime session    | No (hook state)    | No                | -                           |
+| Realtime transcript | No (page state)    | No                | - (lifted from RealtimeMode via onTranscriptChange for chatbot context) |
+| Chatbot messages    | No (hook state)    | No                | -                           |
 
 Pattern for persisted state (in `HomeInner`, which receives `serverPreferences` as a prop):
 
@@ -741,6 +774,7 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 | `analyzePrompt()`              | POST   | `/prompt-assistant/analyze`  | `PromptAssistantAnalyzeResponse`              |
 | `generatePrompt()`             | POST   | `/prompt-assistant/generate` | `PromptAssistantGenerateResponse`             |
 | `evaluateLiveQuestions()`      | POST   | `/live-questions/evaluate`   | `EvaluateQuestionsResponse`                   |
+| `chatbotChat()`                | POST   | `/chatbot/chat`              | `string` (streaming, same pattern as summary) |
 | `getMe()`                      | GET    | `/users/me`                  | `UserProfile`                                 |
 | `getUsers()`                   | GET    | `/users`                     | `UserProfile[]` (admin only)                  |
 | `createUser(email, name?)`     | POST   | `/users`                     | `UserProfile` (admin only)                    |
@@ -751,7 +785,7 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 
 Error handling: `ApiError` class with `status` and `message`. The `handleResponse<T>()` helper extracts `detail` from FastAPI error JSON. Use `getErrorMessage(error, context)` from `lib/errors.ts` in catch blocks to map `ApiError` status codes to user-friendly toast messages — never show raw backend error strings to the user.
 
-`ErrorContext` values: `"summary"` | `"keyPoints"` | `"transcript"` | `"speakers"` | `"analyze"` | `"generate"` | `"regenerate"`. The last three are used by the Prompt Assistant hook.
+`ErrorContext` values: `"summary"` | `"keyPoints"` | `"transcript"` | `"speakers"` | `"analyze"` | `"generate"` | `"regenerate"` | `"chatbot"`. The `analyze`/`generate`/`regenerate` contexts are used by the Prompt Assistant hook; `chatbot` is used by the `useChatbot` hook.
 
 **To add a new API call**: add a function in `api.ts`, add types in `types.ts`, call it from `page.tsx` or a component.
 
@@ -860,7 +894,7 @@ Semantic colors (differ per theme):
 
 Custom animations:
 
-- `.streaming-cursor` — blinking orange cursor during streaming
+- `.streaming-cursor` — blinking orange cursor character (`▊`) during streaming (used in SummaryView as an inline `<span>`; in the chatbot, a CSS `::after` pseudo-element on `.streaming-active` appends the cursor to the last markdown element)
 - `.step-content` — fade-in + slide-up on step transitions
 - `.summary-fade-enter` — 400ms fade-in on realtime summary updates
 - `.connection-dot` — colored status dots (green/amber/gray/red) with blink animation for connecting/reconnecting states
@@ -1143,6 +1177,108 @@ PromptEditor: onPromptChange(generatedPrompt) — populates the Prompt textarea
     Modal closes, wizard resets on next open
 ```
 
+### Chatbot Flow
+
+```
+User opens chatbot via floating action button (ChatbotFAB, bottom-right)
+    │  Chatbot enabled by default (toggle in Settings → AI Chatbot)
+    │  Four independently toggleable capabilities:
+    │    - App Usage Q&A (knowledge base)
+    │    - Transcript Context (auto-attaches current transcript in standard mode; live transcript including in-progress partials in realtime mode)
+    │    - App Control (agentic actions)
+    │    - Voice Input (via AssemblyAI realtime STT)
+    │
+    ▼
+ChatbotModal opens (fixed overlay, 420px wide, max 600px tall)
+    │  useChatbot() hook manages: messages, streaming, actions, voice
+    │  Resolves model config: chatbot feature override → default provider/model
+    │
+    ▼
+User sends text message (or voice → auto-sent on final transcript)
+    │
+    ▼
+useChatbot.sendMessage():
+    ├── Creates user + empty assistant message in state
+    ├── Builds ChatRequest: messages (last 20), provider, model, api_key,
+    │   capability flags, transcript (if attached), stream=true
+    │
+    ▼
+api.ts: chatbotChat(request, onChunk, signal)
+    ├── POST /chatbot/chat (streaming, same pattern as /createSummary)
+    │
+    ▼
+ChatbotService.chat():
+    ├── _build_system_prompt():
+    │   ├── Base: helpful assistant persona
+    │   ├── If qa_enabled: appends usage_guide.md content (~37KB)
+    │   ├── If transcript_enabled + transcript present: appends transcript
+    │   ├── If actions_enabled: appends ACTION_REGISTRY JSON + constraints
+    │   │   └── Constraints: no storage mode actions, only valid models per
+    │   │       provider, don't confuse app mode with storage mode
+    │   └── If confirmed_action: appends acknowledgment instruction
+    ├── _build_messages(): trims to last 20 messages
+    ├── Creates pydantic-ai Agent (temperature=0.7)
+    ├── agent.run_stream() → StreamingResponse
+    │
+    ▼
+Frontend: streaming uses direct DOM manipulation (bypasses React for zero-flicker)
+    ├── useChatbot buffers chunks in a ref, flushes via requestAnimationFrame
+    ├── Each rAF: marked.parse() converts accumulated text to HTML, writes innerHTML to [data-streaming-target], then sets scrollTop on [data-chat-scroll]
+    ├── React state is only updated once when streaming completes (single re-render)
+    ├── ChatMessage renders markdown in real-time during streaming (via marked), then ReactMarkdown + remarkGfm for finalized messages
+    ├── After streaming completes: parseActionBlock() extracts ```action``` blocks
+    │
+    ▼
+If action proposed:
+    ├── ActionConfirmCard shown inline (confirm/cancel buttons)
+    ├── User confirms → actionHandlers[action_id](params) executes
+    │   ├── Frontend validates params (valid provider, valid model for provider, etc.)
+    │   ├── On success: status = "confirmed"
+    │   └── On error: status = "error"
+    └── User cancels → status = "cancelled"
+```
+
+**Voice Input Flow:**
+
+```
+User clicks mic button in ChatInputBar
+    │
+    ▼
+useChatbot.startVoice():
+    ├── getUserMedia() → microphone stream
+    ├── AudioContext (48kHz) → AudioWorklet (pcm-worklet-processor)
+    ├── Opens WebSocket: ws://backend:8080/chatbot/ws/voice
+    ├── Sends init: {api_key, sample_rate: 16000}
+    │
+    ▼
+Backend /chatbot/ws/voice:
+    ├── Connects to AssemblyAI streaming API (same as /ws/realtime)
+    ├── Two concurrent tasks: browser→AAI (audio) + AAI→browser (transcripts)
+    ├── Sends {type: "turn", transcript, is_final} to browser
+    │
+    ▼
+Browser receives final transcript:
+    ├── stopVoiceInternal() — closes WS, AudioContext, MediaStream
+    └── sendMessage(finalText) — auto-sends as chat message
+```
+
+**Available Chatbot Actions:**
+
+| Action ID | Description | Params | Frontend Validation |
+|---|---|---|---|
+| `change_theme` | Change app theme | `theme`: light/dark/system | Validates against allowed values |
+| `switch_app_mode` | Switch standard/realtime | `mode`: standard/realtime | Validates against allowed values |
+| `change_provider` | Change LLM provider | `provider`: enum | Validates against `config.providers` |
+| `change_model` | Change LLM model | `model`: string | Validates model exists in current provider's model list |
+| `toggle_speaker_key_points` | Toggle auto key points | `enabled`: boolean | — |
+| `change_speaker_count` | Set speaker range | `min`, `max`: integer | — |
+| `change_realtime_interval` | Set summary interval | `minutes`: 1/2/3/5/10 | — |
+| `toggle_final_summary` | Toggle final summary | `enabled`: boolean | — |
+| `update_api_key` | Set API key | `provider`, `key`: string | — |
+| `open_settings` | Open settings panel | (none) | — |
+
+> **Note**: Storage mode (local/account) is **not** available as a chatbot action. It requires the StorageModeDialog flow (avatar menu → Storage Mode) which involves data upload/download confirmation. The system prompt explicitly instructs the LLM to explain this to users.
+
 ---
 
 ## Common Tasks
@@ -1207,6 +1343,29 @@ Then import from `@/components/ui/<component-name>`.
 **Change how the final prompt is generated**:
 
 - Edit `_GENERATE_SYSTEM_PROMPT` in `service/prompt_assistant/core.py`. The prompt includes a dedicated section for target system tailoring — update it if you add new target system options.
+
+### Extend the Chatbot
+
+**Add a new chatbot action** (e.g., `change_language`):
+
+1. **Backend**: Add the action to `ACTION_REGISTRY` in `service/chatbot/actions.py` with `action_id`, `description`, and `params` schema
+2. **Frontend**: Add the handler to `chatbotActionHandlers` in `page.tsx` — include param validation (check against config/allowed values before applying)
+3. If the action needs constraints the LLM should know about, update the `IMPORTANT CONSTRAINTS` section in `ChatbotService._build_system_prompt()` in `service/chatbot/core.py`
+
+**Change chatbot personality or behaviour**:
+
+- Edit the base system prompt in `ChatbotService._build_system_prompt()` in `service/chatbot/core.py`. The prompt is assembled from parts based on enabled capabilities.
+
+**Update the knowledge base**:
+
+- Edit `backend/usage_guide/usage_guide.md`. The file is loaded once on first chat request and cached in memory. Restart the backend to pick up changes.
+
+**Add a new capability toggle**:
+
+1. **Backend**: Add a new boolean field to `ChatRequest` in `models/chatbot.py`
+2. **Backend**: Add conditional system prompt section in `ChatbotService._build_system_prompt()`
+3. **Frontend**: Add localStorage key + state in `page.tsx`, pass through `useChatbot` props
+4. **Frontend**: Add toggle switch in `ChatbotSettings.tsx`
 
 ### Run the project locally
 

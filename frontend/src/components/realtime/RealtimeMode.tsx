@@ -36,6 +36,8 @@ interface RealtimeModeProps {
   /** Provider/model to use for Live Question Evaluation (may differ from main summary provider) */
   liveQuestionsProvider: LLMProvider;
   liveQuestionsModel: string;
+  /** Called whenever the accumulated transcript changes */
+  onTranscriptChange?: (transcript: string) => void;
 }
 
 export function RealtimeMode({
@@ -55,6 +57,7 @@ export function RealtimeMode({
   realtimeSystemPrompt,
   liveQuestionsProvider,
   liveQuestionsModel,
+  onTranscriptChange,
 }: RealtimeModeProps) {
   const session = useRealtimeSession();
   const liveQuestions = useLiveQuestions();
@@ -64,6 +67,15 @@ export function RealtimeMode({
   const [recordMode, setRecordMode] = useState<"mic" | "meeting">("mic");
 
   const isActive = session.connectionStatus === "connected" || session.connectionStatus === "reconnecting";
+
+  // Notify parent of full transcript (committed + in-progress partials) so the chatbot
+  // always has the complete text, even while someone is speaking non-stop.
+  useEffect(() => {
+    const full = [session.accumulatedTranscript, session.committedPartial, session.currentPartial]
+      .filter(Boolean)
+      .join(" ");
+    onTranscriptChange?.(full);
+  }, [session.accumulatedTranscript, session.committedPartial, session.currentPartial, onTranscriptChange]);
 
   // Track previous isSummaryUpdating value to detect when a summary run starts
   const prevIsSummaryUpdatingRef = useRef(false);
