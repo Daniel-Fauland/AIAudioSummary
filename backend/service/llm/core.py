@@ -28,6 +28,17 @@ class _SpeakerKeyPointsResult(PydanticBaseModel):
         ..., description="Key point summaries for each speaker")
 
 
+class _SpeakerEntryWithName(PydanticBaseModel):
+    speaker: str = PydanticField(..., description="Speaker label (e.g. 'Speaker A')")
+    summary: str = PydanticField(..., description="1-3 sentence key point summary for this speaker")
+    identified_name: str = PydanticField("", description="The real name of this speaker if clearly and explicitly mentioned in the transcript. Leave empty if not identifiable.")
+
+
+class _SpeakerKeyPointsWithNamesResult(PydanticBaseModel):
+    entries: list[_SpeakerEntryWithName] = PydanticField(
+        ..., description="Key point summaries with optional identified names for each speaker")
+
+
 helper = MiscService()
 
 
@@ -189,6 +200,19 @@ class LLMService:
             "Focus on what each speaker talked about, their main arguments, and any decisions they made. "
             "Include an entry for every speaker in the list, even if they had minimal contributions."
         )
+
+        if request.identify_speakers:
+            system_prompt += (
+                "\n\nAdditionally, for each speaker, try to identify their real name from the transcript. "
+                "Only provide a name if it is clearly and explicitly mentioned in the transcript "
+                "(e.g., someone addresses them by name, they introduce themselves). "
+                "Do NOT guess, infer, or hallucinate names. "
+                "If a speaker's name is not clearly identifiable, leave identified_name as an empty string."
+            )
+            output_type = _SpeakerKeyPointsWithNamesResult
+        else:
+            output_type = _SpeakerKeyPointsResult
+
         user_prompt = (
             f"Speakers: {speakers_list}\n\n"
             f"Transcript:\n{request.transcript}"
@@ -197,14 +221,21 @@ class LLMService:
         agent = Agent(
             model,
             system_prompt=system_prompt,
-            output_type=_SpeakerKeyPointsResult,
+            output_type=output_type,
             model_settings=ModelSettings(temperature=0.3)
         )
 
         result = await agent.run(user_prompt)
         key_points = {
             entry.speaker: entry.summary for entry in result.output.entries}
-        return ExtractKeyPointsResponse(key_points=key_points)
+
+        speaker_labels = {}
+        if request.identify_speakers:
+            for entry in result.output.entries:
+                if entry.identified_name:
+                    speaker_labels[entry.speaker] = entry.identified_name
+
+        return ExtractKeyPointsResponse(key_points=key_points, speaker_labels=speaker_labels)
 
     async def _stream_response(self, agent: Agent, user_prompt: str) -> AsyncGenerator[str, None]:
         """Stream response chunks from the LLM agent."""

@@ -43,6 +43,7 @@ function collectPreferences(): UserPreferences {
   } catch {}
 
   const autoKeyPoints = safeLocalGet("aias:v1:auto_key_points");
+  const speakerLabels = safeLocalGet("aias:v1:speaker_labels");
   const minSpeakers = parseInt(safeLocalGet("aias:v1:min_speakers"));
   const maxSpeakers = parseInt(safeLocalGet("aias:v1:max_speakers"));
   const realtimeFinalSummary = safeLocalGet("aias:v1:realtime_final_summary");
@@ -61,6 +62,7 @@ function collectPreferences(): UserPreferences {
       deployment_name: safeLocalGet("aias:v1:azure:deployment_name") || undefined,
     },
     auto_key_points: autoKeyPoints ? autoKeyPoints !== "false" : undefined,
+    speaker_labels_enabled: speakerLabels ? speakerLabels !== "false" : undefined,
     min_speakers: minSpeakers || undefined,
     max_speakers: maxSpeakers || undefined,
     realtime_final_summary: realtimeFinalSummary ? realtimeFinalSummary !== "false" : undefined,
@@ -85,6 +87,7 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.azure?.endpoint) safeLocalSet("aias:v1:azure:endpoint", prefs.azure.endpoint);
   if (prefs.azure?.deployment_name) safeLocalSet("aias:v1:azure:deployment_name", prefs.azure.deployment_name);
   if (prefs.auto_key_points !== undefined) safeLocalSet("aias:v1:auto_key_points", prefs.auto_key_points ? "true" : "false");
+  if (prefs.speaker_labels_enabled !== undefined) safeLocalSet("aias:v1:speaker_labels", prefs.speaker_labels_enabled ? "true" : "false");
   if (prefs.min_speakers) safeLocalSet("aias:v1:min_speakers", String(prefs.min_speakers));
   if (prefs.max_speakers) safeLocalSet("aias:v1:max_speakers", String(prefs.max_speakers));
   if (prefs.realtime_final_summary !== undefined) safeLocalSet("aias:v1:realtime_final_summary", prefs.realtime_final_summary ? "true" : "false");

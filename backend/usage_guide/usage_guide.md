@@ -1,6 +1,5 @@
 # AI Audio Summary — Usage Guide
 
-> **Version:** v1.2.0
 > **Purpose:** This guide is intended for end users of the AI Audio Summary application. It covers every feature, workflow, and setting available in the app, written in plain language without any references to code or technical internals.
 
 ---
@@ -121,7 +120,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.2.0** — click to view the changelog of recent updates
+- **v1.3.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 

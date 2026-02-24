@@ -728,6 +728,7 @@ All application state lives in `page.tsx` using `useState`. There is no global s
 | Realtime interval   | Yes (localStorage) | Yes               | `aias:v1:realtime_interval` |
 | Feature overrides   | Yes (localStorage) | Yes               | `aias:v1:feature_overrides` |
 | Auto key points     | Yes (localStorage) | Yes               | `aias:v1:auto_key_points`   |
+| Speaker labels      | Yes (localStorage) | Yes               | `aias:v1:speaker_labels`    |
 | Speaker count range | Yes (localStorage) | Yes               | `aias:v1:min_speakers`, `aias:v1:max_speakers` |
 | Final summary toggle| Yes (localStorage) | Yes               | `aias:v1:realtime_final_summary` |
 | Realtime sys prompt | Yes (localStorage) | Yes               | `aias:v1:realtime_system_prompt` |
@@ -863,6 +864,7 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 | `aias:v1:realtime_interval`     | Realtime auto-summary interval (minutes: 1/2/3/5/10) | Yes |
 | `aias:v1:feature_overrides`     | JSON: per-feature model overrides (`Partial<Record<LLMFeature, FeatureModelOverride>>`); features: `summary_generation`, `realtime_summary`, `key_point_extraction`, `prompt_assistant`, `live_question_evaluation` | Yes |
 | `aias:v1:auto_key_points`       | Auto-extract key points toggle (`"true"`/`"false"`) | Yes |
+| `aias:v1:speaker_labels`        | Auto-suggest speaker names from transcript (`"true"`/`"false"`) | Yes |
 | `aias:v1:min_speakers`          | Minimum expected speakers (number) | Yes  |
 | `aias:v1:max_speakers`          | Maximum expected speakers (number) | Yes  |
 | `aias:v1:realtime_final_summary`| Generate final summary on stop (`"true"`/`"false"`) | Yes |

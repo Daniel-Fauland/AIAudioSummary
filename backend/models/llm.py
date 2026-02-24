@@ -55,6 +55,7 @@ class ExtractKeyPointsRequest(BaseModel):
     langdock_config: LangdockConfig = Field(default_factory=LangdockConfig, description="Langdock region config")
     transcript: str = Field(..., min_length=1, description="The transcript text to extract key points from")
     speakers: list[str] = Field(..., min_length=1, description="List of speaker labels found in the transcript")
+    identify_speakers: bool = Field(False, description="When True, also attempt to identify real speaker names from the transcript")
 
     @model_validator(mode="after")
     def validate_azure_config(self):
@@ -65,3 +66,4 @@ class ExtractKeyPointsRequest(BaseModel):
 
 class ExtractKeyPointsResponse(BaseModel):
     key_points: dict[str, str] = Field(..., description="Mapping of speaker label to 1-3 sentence key point summary")
+    speaker_labels: dict[str, str] = Field(default_factory=dict, description="Mapping of speaker label to identified real name (only speakers with clearly identifiable names)")

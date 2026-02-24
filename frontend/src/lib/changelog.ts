@@ -10,6 +10,18 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.3.0",
+    date: "2026-02-24",
+    title: "Added automatic speaker labels",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Automatic speaker labels feature that let's the AI try to label the speakers based on the given transcript. Can be toggled in the settings panel. Enabled by default",
+      },
+    ],
+  },
+  {
     version: "1.2.1",
     date: "2026-02-24",
     title: "Chatbot feature improvements",

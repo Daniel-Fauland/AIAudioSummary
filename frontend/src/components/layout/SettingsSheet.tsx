@@ -43,6 +43,8 @@ interface SettingsSheetProps {
   onLangdockConfigChange: (config: LangdockConfig) => void;
   autoKeyPointsEnabled: boolean;
   onAutoKeyPointsChange: (enabled: boolean) => void;
+  speakerLabelsEnabled: boolean;
+  onSpeakerLabelsChange: (enabled: boolean) => void;
   minSpeakers: number;
   onMinSpeakersChange: (value: number) => void;
   maxSpeakers: number;
@@ -106,6 +108,8 @@ export function SettingsSheet({
   onLangdockConfigChange,
   autoKeyPointsEnabled,
   onAutoKeyPointsChange,
+  speakerLabelsEnabled,
+  onSpeakerLabelsChange,
   minSpeakers,
   onMinSpeakersChange,
   maxSpeakers,
@@ -382,6 +386,22 @@ export function SettingsSheet({
                         id="auto-key-points"
                         checked={autoKeyPointsEnabled}
                         onCheckedChange={onAutoKeyPointsChange}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="speaker-labels" className="text-sm">
+                          Speaker Labels
+                        </Label>
+                        <p className="text-xs text-foreground-muted">
+                          Suggest real speaker names from transcript content when extracting key points
+                        </p>
+                      </div>
+                      <Switch
+                        id="speaker-labels"
+                        checked={speakerLabelsEnabled}
+                        onCheckedChange={onSpeakerLabelsChange}
                       />
                     </div>
 

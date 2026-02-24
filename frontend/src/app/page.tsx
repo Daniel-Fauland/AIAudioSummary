@@ -41,6 +41,7 @@ import { changelog } from "@/lib/changelog";
 const PROVIDER_KEY = "aias:v1:selected_provider";
 const MODEL_KEY_PREFIX = "aias:v1:model:";
 const AUTO_KEY_POINTS_KEY = "aias:v1:auto_key_points";
+const SPEAKER_LABELS_KEY = "aias:v1:speaker_labels";
 const MIN_SPEAKERS_KEY = "aias:v1:min_speakers";
 const MAX_SPEAKERS_KEY = "aias:v1:max_speakers";
 const APP_MODE_KEY = "aias:v1:app_mode";
@@ -183,6 +184,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
   const [autoKeyPointsEnabled, setAutoKeyPointsEnabled] = useState(
     () => serverPreferences?.auto_key_points !== undefined ? serverPreferences.auto_key_points : safeGet(AUTO_KEY_POINTS_KEY, "true") !== "false",
   );
+  const [speakerLabelsEnabled, setSpeakerLabelsEnabled] = useState(
+    () => serverPreferences?.speaker_labels_enabled !== undefined ? serverPreferences.speaker_labels_enabled : safeGet(SPEAKER_LABELS_KEY, "true") !== "false",
+  );
+  const [suggestedNames, setSuggestedNames] = useState<Record<string, string>>({});
   const [minSpeakers, setMinSpeakers] = useState<number>(
     () => serverPreferences?.min_speakers || parseInt(safeGet(MIN_SPEAKERS_KEY, "1")) || 1,
   );
@@ -318,6 +323,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
   const handleAutoKeyPointsChange = useCallback((enabled: boolean) => {
     setAutoKeyPointsEnabled(enabled);
     safeSet(AUTO_KEY_POINTS_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleSpeakerLabelsChange = useCallback((enabled: boolean) => {
+    setSpeakerLabelsEnabled(enabled);
+    safeSet(SPEAKER_LABELS_KEY, enabled ? "true" : "false");
     savePreferences();
   }, [savePreferences]);
 
@@ -508,15 +519,17 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
           langdock_config: kpProvider === "langdock" ? langdockConfig : undefined,
           transcript: transcriptText,
           speakers,
+          identify_speakers: speakerLabelsEnabled,
         });
         setSpeakerKeyPoints(applyRenames(result.key_points));
+        setSuggestedNames(result.speaker_labels ?? {});
       } catch (e) {
         toast.error(getErrorMessage(e, "keyPoints"));
       } finally {
         setIsExtractingKeyPoints(false);
       }
     },
-    [resolveModelConfig, getKey, azureConfig, langdockConfig, applyRenames],
+    [resolveModelConfig, getKey, azureConfig, langdockConfig, applyRenames, speakerLabelsEnabled],
   );
 
   const handleAutoExtractKeyPoints = useCallback(
@@ -545,6 +558,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
       // Clear stale state from the previous transcript
       speakerRenamesRef.current = {};
       setSpeakerKeyPoints({});
+      setSuggestedNames({});
       // Mark as auto-extracted so onAutoExtractKeyPoints won't fire a second time
       hasAutoExtractedKeyPointsRef.current = true;
       doExtractKeyPoints(transcriptText, speakers);
@@ -703,6 +717,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     setTranscript("");
     setSummary("");
     setSpeakerKeyPoints({});
+    setSuggestedNames({});
     hasAutoExtractedKeyPointsRef.current = false;
     speakerRenamesRef.current = {};
     setIsGenerating(false);
@@ -730,6 +745,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
       setTranscript("");
       setSummary("");
       setSpeakerKeyPoints({});
+      setSuggestedNames({});
       hasAutoExtractedKeyPointsRef.current = false;
       speakerRenamesRef.current = {};
       setIsGenerating(false);
@@ -781,6 +797,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
         onLangdockConfigChange={handleLangdockConfigChange}
         autoKeyPointsEnabled={autoKeyPointsEnabled}
         onAutoKeyPointsChange={handleAutoKeyPointsChange}
+        speakerLabelsEnabled={speakerLabelsEnabled}
+        onSpeakerLabelsChange={handleSpeakerLabelsChange}
         minSpeakers={minSpeakers}
         onMinSpeakersChange={handleMinSpeakersChange}
         maxSpeakers={maxSpeakers}
@@ -939,6 +957,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
                     onManualExtractKeyPoints={handleManualExtractKeyPoints}
                     onKeyPointsRemap={handleKeyPointsRemap}
                     onTranscriptReplaced={handleTranscriptReplaced}
+                    suggestedNames={suggestedNames}
                   />
                   <PromptEditor
                     templates={config?.prompt_templates ?? []}

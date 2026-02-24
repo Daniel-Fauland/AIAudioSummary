@@ -75,10 +75,12 @@ export interface ExtractKeyPointsRequest {
   langdock_config?: LangdockConfig;
   transcript: string;
   speakers: string[];
+  identify_speakers?: boolean;
 }
 
 export interface ExtractKeyPointsResponse {
   key_points: Record<string, string>;
+  speaker_labels?: Record<string, string>;
 }
 
 // === Speaker types ===
@@ -308,6 +310,7 @@ export interface UserPreferences {
   chatbot_qa?: boolean;
   chatbot_transcript?: boolean;
   chatbot_actions?: boolean;
+  speaker_labels_enabled?: boolean;
 }
 
 export interface PreferencesResponse {

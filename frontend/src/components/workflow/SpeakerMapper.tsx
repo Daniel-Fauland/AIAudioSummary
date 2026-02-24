@@ -22,6 +22,7 @@ interface SpeakerMapperProps {
   onManualExtractKeyPoints: (transcript: string, speakers: string[]) => void;
   onKeyPointsRemap: (mappings: Record<string, string>) => void;
   onTranscriptReplaced: (transcript: string, speakers: string[]) => void;
+  suggestedNames?: Record<string, string>;
 }
 
 export function SpeakerMapper({
@@ -36,6 +37,7 @@ export function SpeakerMapper({
   onManualExtractKeyPoints,
   onKeyPointsRemap,
   onTranscriptReplaced,
+  suggestedNames,
 }: SpeakerMapperProps) {
   const [speakers, setSpeakers] = useState<string[]>([]);
   const [replacements, setReplacements] = useState<Record<string, string>>({});
@@ -112,6 +114,22 @@ export function SpeakerMapper({
     }
     wasExtractingRef.current = isExtractingKeyPoints;
   }, [isExtractingKeyPoints, keyPoints, speakers]);
+
+  // Pre-fill replacement inputs with suggested names (only empty fields)
+  useEffect(() => {
+    if (!suggestedNames || Object.keys(suggestedNames).length === 0) return;
+    setReplacements((prev) => {
+      const updated = { ...prev };
+      let changed = false;
+      for (const [speaker, name] of Object.entries(suggestedNames)) {
+        if (name && (!prev[speaker] || prev[speaker].trim() === "")) {
+          updated[speaker] = name;
+          changed = true;
+        }
+      }
+      return changed ? updated : prev;
+    });
+  }, [suggestedNames]);
 
   const handleApply = async () => {
     const mappings: Record<string, string> = {};
