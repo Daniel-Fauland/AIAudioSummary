@@ -163,7 +163,7 @@ project-root/
 │   │   │   ├── useCustomTemplates.ts # Custom prompt template CRUD (localStorage + server sync)
 │   │   │   ├── usePreferences.ts   # Server preference sync (loads on mount, fire-and-forget saves)
 │   │   │   ├── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
-│   │   │   └── useChatbot.ts      # Chatbot hook (messages, streaming, actions, voice input)
+│   │   │   └── useChatbot.ts      # Chatbot hook (messages, streaming, actions, persistent voice session, mic device selection)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
 │   │       ├── errors.ts           # getErrorMessage() — maps ApiError status codes to user-friendly strings
@@ -360,7 +360,7 @@ HTTP Request
   - The chatbot router (`api/chatbot/router.py`) exposes three endpoints:
     - `POST /chatbot/chat` — streaming chat (same `StreamingResponse` pattern as `/createSummary`)
     - `GET /chatbot/knowledge` — returns knowledge base loaded status and size
-    - `WS /chatbot/ws/voice` — voice input relay to AssemblyAI (same protocol as `/ws/realtime` but simplified for single-utterance capture; auto-sends the final transcript as a chat message)
+    - `WS /chatbot/ws/voice` — persistent voice input relay to AssemblyAI. The WebSocket stays open for the lifetime of the chatbot and supports multiple recording sessions via `start`/`stop` commands (AAI connects on `start`, terminates on `stop`). This avoids re-establishing the connection on every mic-press.
 - The LLM service uses a factory method `_create_model()` to instantiate the correct pydantic-ai provider:
 
   | Provider       | Model Class       | Provider Class      |
@@ -673,7 +673,7 @@ RootLayout (layout.tsx)
         │       ├── ChatMessageList   ← Scrollable messages with auto-scroll, thinking indicator
         │       │   └── ChatMessage   ← User/assistant bubble, copy button, ActionConfirmCard
         │       ├── TranscriptBadge   ← Shows when transcript attached; live variant (green pulsing dot + bucketed word count) in realtime mode
-        │       └── ChatInputBar     ← Text input, send button, mic button (voice input)
+        │       └── ChatInputBar     ← Text input, send button, mic button (voice input) + mic device selector dropdown
         │
         └── Footer                     ← Imprint / Privacy Policy / Cookie Settings links (each opens a Dialog)
 ```
@@ -737,6 +737,7 @@ All application state lives in `page.tsx` using `useState`. There is no global s
 | Chatbot Q&A toggle  | Yes (localStorage) | Yes               | `aias:v1:chatbot_qa`        |
 | Chatbot transcript  | Yes (localStorage) | Yes               | `aias:v1:chatbot_transcript`|
 | Chatbot actions     | Yes (localStorage) | Yes               | `aias:v1:chatbot_actions`   |
+| Mic device ID       | Yes (localStorage) | No                | `aias:v1:mic_device_id` (shared by AudioRecorder, RealtimeControls, useChatbot) |
 | Workflow state      | No                 | No                | -                           |
 | Prompt/language     | No                 | No                | -                           |
 | Realtime session    | No (hook state)    | No                | -                           |
@@ -1186,7 +1187,7 @@ User opens chatbot via floating action button (ChatbotFAB, bottom-right)
     │    - App Usage Q&A (knowledge base)
     │    - Transcript Context (auto-attaches current transcript in standard mode; live transcript including in-progress partials in realtime mode)
     │    - App Control (agentic actions)
-    │    - Voice Input (via AssemblyAI realtime STT)
+    │    - Voice Input (via AssemblyAI realtime STT, persistent session, mic device selector)
     │
     ▼
 ChatbotModal opens (fixed overlay, 420px wide, max 600px tall)
@@ -1238,29 +1239,60 @@ If action proposed:
     └── User cancels → status = "cancelled"
 ```
 
-**Voice Input Flow:**
+**Voice Input Flow (persistent session):**
+
+The voice WebSocket + AudioWorklet are established once when the chatbot first opens and stay alive until the feature is disabled. Only `getUserMedia` + audio node wiring happen on each mic-press, making transcription start near-instantly.
 
 ```
-User clicks mic button in ChatInputBar
+Chatbot first opens (isChatOpen becomes true + has AssemblyAI key)
+    │
+    ▼
+useChatbot.initVoiceSession():
+    ├── Creates AudioContext (48kHz) + loads AudioWorklet (pcm-worklet-processor)
+    ├── Opens persistent WebSocket: ws://backend:8080/chatbot/ws/voice
+    ├── Sends init: {api_key, sample_rate: 16000}
+    ├── Backend responds {type: "ready"} — session is now idle, ready for recordings
+    │
+    ▼
+User clicks mic button (near-instant start)
     │
     ▼
 useChatbot.startVoice():
-    ├── getUserMedia() → microphone stream
-    ├── AudioContext (48kHz) → AudioWorklet (pcm-worklet-processor)
-    ├── Opens WebSocket: ws://backend:8080/chatbot/ws/voice
-    ├── Sends init: {api_key, sample_rate: 16000}
+    ├── Sends {type: "start"} to backend (triggers AAI connection, runs in parallel)
+    ├── getUserMedia(deviceId) → microphone stream (uses selected device from dropdown)
+    ├── Wires: mic source → AudioWorkletNode → worklet.port.onmessage → ws.send(binary)
+    ├── Sets isVoiceActive = true immediately
+    │   (audio sent during AAI handshake queues in WS buffer, forwarded once AAI connects)
     │
     ▼
-Backend /chatbot/ws/voice:
+Backend receives "start":
     ├── Connects to AssemblyAI streaming API (same as /ws/realtime)
-    ├── Two concurrent tasks: browser→AAI (audio) + AAI→browser (transcripts)
-    ├── Sends {type: "turn", transcript, is_final} to browser
+    ├── Spawns relay task: AAI→browser (parses Turn events, sends transcripts)
+    ├── Responds {type: "recording"} (informational)
+    ├── Main loop forwards incoming binary audio to AAI
     │
     ▼
-Browser receives final transcript:
-    ├── stopVoiceInternal() — closes WS, AudioContext, MediaStream
-    └── sendMessage(finalText) — auto-sends as chat message
+Browser receives transcript events:
+    ├── is_final=true → appends to voiceText → synced into ChatInputBar input field
+    ├── is_final=false → shown as live partial (italic, muted) after committed text
+    │
+    ▼
+User clicks mic again (stop recording)
+    │
+    ▼
+useChatbot.stopVoiceInternal():
+    ├── Sends {type: "stop"} to backend (terminates AAI session, WS stays open)
+    ├── Disconnects audio nodes, releases microphone
+    ├── Appends any remaining partial to input
+    └── User can review/edit text in input field, then send as chat message
+
+Subsequent mic clicks repeat startVoice/stopVoiceInternal without reconnecting.
+Session torn down when: chatbot disabled in settings, AAI key removed, or component unmounts.
 ```
+
+**Microphone device selection:**
+
+The chatbot shares the same `aias:v1:mic_device_id` localStorage key as `AudioRecorder` and `RealtimeControls`. When multiple audio input devices are available, a small chevron dropdown appears next to the mic button (split-button pattern) listing all devices via `navigator.mediaDevices.enumerateDevices()`. The selected device ID is passed to `getUserMedia({ audio: { deviceId: { exact: id } } })`. Device changes (plug/unplug) are detected via the `devicechange` event.
 
 **Available Chatbot Actions:**
 
