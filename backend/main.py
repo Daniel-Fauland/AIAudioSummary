@@ -18,6 +18,7 @@ from api.live_questions.router import live_questions_router
 from api.auth.router import auth_router
 from api.users.router import users_router
 from api.chatbot.router import chatbot_router
+from api.form_output.router import form_output_router
 
 
 def _run_migrations_sync() -> None:
@@ -98,6 +99,7 @@ app.include_router(live_questions_router, tags=["LiveQuestions"])
 app.include_router(auth_router, tags=["Auth"])
 app.include_router(users_router, tags=["Users"])
 app.include_router(chatbot_router, tags=["Chatbot"])
+app.include_router(form_output_router, tags=["FormOutput"])
 
 
 @app.get("/")

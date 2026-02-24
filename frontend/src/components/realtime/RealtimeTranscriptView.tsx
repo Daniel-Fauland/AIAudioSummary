@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Anchor, Copy, Maximize2 } from "lucide-react";
+import { Anchor, Copy, Maximize2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -14,6 +24,7 @@ interface RealtimeTranscriptViewProps {
   committedPartial: string;
   isSessionActive: boolean;
   onCopy: () => void;
+  onClear?: () => void;
 }
 
 export function RealtimeTranscriptView({
@@ -22,10 +33,12 @@ export function RealtimeTranscriptView({
   committedPartial,
   isSessionActive,
   onCopy,
+  onClear,
 }: RealtimeTranscriptViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const getViewport = useCallback(
     () => scrollRef.current?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]'),
@@ -64,6 +77,21 @@ export function RealtimeTranscriptView({
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Live Transcript</CardTitle>
         <div className="flex items-center gap-1">
+          {accumulatedTranscript && onClear && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-foreground-muted hover:text-destructive"
+                  onClick={() => setConfirmClear(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear transcript</TooltipContent>
+            </Tooltip>
+          )}
           {accumulatedTranscript && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -154,6 +182,23 @@ export function RealtimeTranscriptView({
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear transcript?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the accumulated transcript. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { onClear?.(); setConfirmClear(false); }}>
+              Clear
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

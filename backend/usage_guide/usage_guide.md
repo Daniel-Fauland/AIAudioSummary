@@ -20,10 +20,13 @@
    - [4.8 Summary Generation](#48-summary-generation)
    - [4.9 Realtime Mode](#49-realtime-mode)
    - [4.10 Questions & Topics (Realtime)](#410-questions--topics-realtime)
-   - [4.11 Settings Panel](#411-settings-panel)
-   - [4.12 Storage Mode](#412-storage-mode)
-   - [4.13 Theme Toggle](#413-theme-toggle)
-   - [4.14 Admin Panel](#414-admin-panel)
+   - [4.11 Form Output](#411-form-output)
+   - [4.12 Settings Panel](#412-settings-panel)
+   - [4.13 Storage Mode](#413-storage-mode)
+   - [4.14 Export / Import Settings](#414-export--import-settings)
+   - [4.15 Theme Toggle](#415-theme-toggle)
+   - [4.16 Admin Panel](#416-admin-panel)
+   - [4.17 Session Data Persistence](#417-session-data-persistence)
 5. [Common Workflows](#5-common-workflows)
    - [5.1 Transcribing and Summarising a Recording](#51-transcribing-and-summarising-a-recording)
    - [5.2 Recording Live Audio and Getting a Summary](#52-recording-live-audio-and-getting-a-summary)
@@ -46,7 +49,7 @@ It works in two modes:
 
 **Who it's for:** Anyone who needs to extract key points, decisions, and action items from spoken audio — team leads, project managers, researchers, journalists, or anyone who attends meetings and wants an automatic written record.
 
-**Key privacy principle — Bring Your Own Key (BYOK):** The app never stores your API keys on the server. All AI provider keys are saved exclusively in your browser and are sent directly to the respective service only when you trigger a transcription or summary. Transcripts and summaries are also never stored on the server — they exist only in your current browser session.
+**Key privacy principle — Bring Your Own Key (BYOK):** The app never stores your API keys on the server. All AI provider keys are saved exclusively in your browser and are sent directly to the respective service only when you trigger a transcription or summary. Transcripts and summaries are also never stored on the server — they are saved in your browser's localStorage so they persist across page reloads, but they never leave your device.
 
 ---
 
@@ -101,7 +104,7 @@ Directly below the header, a segmented control lets you switch between the two m
 - **Standard** — the default 3-step workflow (Upload → Transcript → Summary)
 - **Realtime** — live microphone transcription with running summary
 
-Click either button to switch modes. Your choice is remembered across sessions.
+Click either button to switch modes. Your choice is remembered across sessions. Switching between modes preserves both sessions — for example, if you have a transcript in Standard mode and switch to Realtime, the Standard data stays intact. In Realtime mode, the WebSocket connection even stays alive while you switch to Standard and back.
 
 ### 3.3 Step Indicator (Standard Mode Only)
 
@@ -111,7 +114,7 @@ When in Standard mode, three step circles show your progress:
 2. **Transcript** — review and edit the transcript
 3. **Summary** — view and copy the generated summary
 
-The active step is highlighted in orange. Steps you've already completed are also orange; steps you haven't reached yet are grey. You can click a completed step to navigate back to it (a confirmation dialog will warn you if returning would discard progress).
+The active step is highlighted in orange. Steps you've already completed are also orange; steps you haven't reached yet are grey. You can click a completed step to navigate back to it without losing your data — your transcript, summary, and form values are preserved (see [Section 4.17](#417-session-data-persistence)).
 
 ### 3.4 Footer
 
@@ -120,14 +123,15 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.3.0** — click to view the changelog of recent updates
+- **v1.4.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
 Click your **avatar** in the top-right to open the user menu:
 
 - Your **name** and **email** are shown at the top.
-- **Storage Mode** — switch between Local Storage and Account Storage (see [Section 4.12](#412-storage-mode)).
+- **Storage Mode** — switch between Local Storage and Account Storage (see [Section 4.13](#413-storage-mode)).
+- **Export / Import Settings** — export or import your settings as a portable config string (see [Section 4.14](#414-export--import-settings)).
 - **Admin Panel** — visible only to administrators; opens the user management page.
 - **Sign out** — signs you out of the application.
 
@@ -351,9 +355,9 @@ After clicking **Generate Summary**, the app moves to **Step 3** — the Summary
 
 **Fullscreen view:** Click the **expand icon** (top-right of the Summary card) to open the summary in a large fullscreen dialog. The same Copy and Regenerate buttons are available there.
 
-**Start Over:** The **Start Over** button below the cards resets everything and returns to Step 1.
+**Start Over:** The **Start Over** button below the cards returns to Step 1 (Upload) but preserves your data. You can navigate back to the Transcript or Summary steps using the step indicators or the **"Show previous transcript"** / **"Show previous summary"** / **"Show previous form"** links that appear on the upload screen. Your data is only cleared when you upload a new audio file or skip upload.
 
-> **Note:** Navigating back via the step indicator or Start Over will discard the current summary. A confirmation dialog will warn you.
+> **Note:** Navigating back via the step indicator preserves your transcript, summary, and form values. See [Section 4.17](#417-session-data-persistence) for full details on how session data is retained.
 
 ---
 
@@ -385,6 +389,7 @@ A horizontal controls bar appears at the top of the Realtime view:
 - Shows the conversation as it happens, word by word.
 - **Finalized text** appears in normal style; **in-progress partial text** appears in a muted italic style.
 - Auto-scrolls to the bottom as new text arrives.
+- A **trash icon** (to the left of the copy button) lets you clear the accumulated transcript. A confirmation dialog appears before clearing.
 
 #### Summary Panel
 
@@ -392,6 +397,7 @@ A horizontal controls bar appears at the top of the Realtime view:
 - Shows the AI-generated running summary in Markdown format (headings, bullet points).
 - An **"Updating..."** badge appears while a new summary is being generated.
 - A timestamp below the summary shows when it was last updated.
+- A **trash icon** (to the left of the fullscreen button) lets you clear the current summary. A confirmation dialog appears before clearing. A new summary will be generated automatically at the next summary interval.
 
 #### Summary Interval
 
@@ -417,10 +423,76 @@ Below the Live Transcript and Summary panels in Realtime mode, there is a **Ques
 - Click **"+ Add a question or topic..."** field and type your question, then press Enter or click the **+** button.
 - The AI evaluates each question against the live transcript as the session progresses and highlights when relevant content appears.
 - You can add, edit, or remove questions at any time during a session.
+- A **trash icon** in the panel header lets you clear all questions and answers at once. A confirmation dialog appears before clearing. This button is only shown when at least one question exists.
 
 ---
 
-### 4.11 Settings Panel
+### 4.11 Form Output
+
+**Form Output** is an alternative to the free-text summary. Instead of producing a prose summary, the AI extracts structured data from the transcript into a form with specific fields that you define. This is useful when you need to capture consistent data points from every meeting — for example, action items, decisions, participant names, dates, or any structured information.
+
+Form Output works in both **Standard mode** (after uploading/recording) and **Realtime mode** (during a live session).
+
+#### Creating a Form Template
+
+A form template defines which fields to extract. To create one:
+
+1. In Standard mode Step 2, switch to the **Form Output** tab (next to "Summary").
+2. Click the **+** button to open the template editor.
+3. Enter a **Template Name** (e.g., "Weekly Standup", "Client Meeting Notes").
+4. Click **Add Field** to add fields. For each field, configure:
+   - **Label** — the field name (e.g., "Meeting Date", "Attendees", "Decision").
+   - **Type** — choose from:
+
+     | Type                | What it captures                     | User control             |
+     | ------------------- | ------------------------------------ | ------------------------ |
+     | **Text**            | A single text value                  | Free text input          |
+     | **Number**          | A numeric value                      | Number input             |
+     | **Date**            | A calendar date                      | Date picker (YYYY-MM-DD) |
+     | **Yes / No**        | A true/false value                   | Toggle switch            |
+     | **List**            | Multiple text items                  | Add/remove items         |
+     | **Single Choice**   | Exactly one from predefined options  | Dropdown select          |
+     | **Multiple Choice** | Zero or more from predefined options | Checkbox list            |
+
+   - **Description** (optional) — a hint for the AI about what to extract (e.g., "Full legal name of the client").
+   - **Options** (Single Choice and Multiple Choice only) — define the allowed values. Each option has its own input field. The first two options are always present (minimum for a choice field); click **+ Add Option** to add more, and use the **trash icon** to remove any option beyond the first two.
+
+5. Use the **up/down arrows** to reorder fields.
+6. Click **Create Template** to save.
+
+Templates are stored in your browser and, if you use Account Storage, synced across devices.
+
+#### Filling a Form (Standard Mode)
+
+1. After transcription, switch to the **Form Output** tab in Step 2.
+2. Select your form template from the dropdown.
+3. Click **Fill Form** — the AI analyses the transcript and extracts values for each field.
+4. The app moves to Step 3, showing the transcript on the left and the filled form on the right.
+5. Review the extracted values. You can **edit any field** manually.
+6. Click **Re-fill** to regenerate values from the transcript, or **Copy** to copy the form as plain text.
+
+> The AI only fills a field if the information is clearly stated in the transcript. Fields without matching content are left empty.
+
+#### Filling a Form (Realtime Mode)
+
+1. In Realtime mode, switch to the **Form Output** tab below the transcript and summary panels.
+2. Select or create a form template.
+3. As speech is transcribed, the AI **automatically fills the form in real time** — no need to click a button.
+4. A badge shows how many fields are filled (e.g., "3/5 filled").
+5. You can manually edit any field value at any time.
+6. Toggle **Mark as Complete** to lock the form and prevent further auto-updates. Manual edits are still allowed when locked. Unlock to resume auto-filling.
+7. To deselect a template entirely, choose **"No template"** from the dropdown. This clears the form and stops auto-filling.
+
+#### Editing and Deleting Templates
+
+- To **edit** a template: select it from the dropdown, then click the **pencil icon**. The template editor opens with the current fields pre-filled.
+- To **delete** a template: select it, then click the **trash icon**. A confirmation may appear.
+
+> **Requires:** An LLM API key. Form filling uses the default AI model, or the overridden model for "Form Output" if configured in Feature-Specific Models (see [Settings Panel](#412-settings-panel)).
+
+---
+
+### 4.12 Settings Panel
 
 Open the Settings panel by clicking the **gear icon (⚙)** in the header, or using the keyboard shortcut **Alt + S** (⌥S on Mac).
 
@@ -473,6 +545,7 @@ Override the default model for individual features. Click the section to expand 
 - Key Point Extraction
 - Prompt Assistant
 - Live Question Evaluation
+- Form Output
 
 This is useful if, for example, you want to use a cheaper model for key point extraction but a more capable model for final summaries.
 
@@ -495,9 +568,16 @@ This is useful if, for example, you want to use a cheaper model for key point ex
 | **Summary Interval** dropdown       | How often a new running summary is auto-generated: 1, 2, 3, 5, or 10 minutes. |
 | **Final Summary on Stop** (toggle)  | When on, stopping a realtime session triggers a full final summary.           |
 
+**AI Chatbot** sub-section:
+
+| Setting                              | What it does                                                                                                                                                                                                                                                                                        |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Transcript Context** (toggle)      | When on, the chatbot includes transcript text as context for its responses.                                                                                                                                                                                                                         |
+| **Transcript Context Mode** dropdown | Controls which transcript the chatbot uses. Only visible when Transcript Context is toggled on. **Current mode** (default) — uses the transcript from whichever mode (Standard/Realtime) you're currently viewing. **Latest transcript** — uses the most recently updated transcript regardless of which mode you're in. This is useful when you've generated a transcript in Standard mode but switched to Realtime. |
+
 ---
 
-### 4.12 Storage Mode
+### 4.13 Storage Mode
 
 Storage Mode controls where your app preferences (model selection, template choices, settings, etc.) are saved.
 
@@ -517,7 +597,38 @@ Storage Mode controls where your app preferences (model selection, template choi
 
 ---
 
-### 4.13 Theme Toggle
+### 4.14 Export / Import Settings
+
+The **Export / Import Settings** feature lets you transfer all your app settings between browsers, devices, or colleagues using a single portable config string.
+
+**Opening it:** Click your **avatar** in the header → **Export / Import Settings**. A dialog opens with two tabs: **Export** and **Import**.
+
+#### Exporting Settings
+
+1. Click the **Export** tab (selected by default).
+2. Optionally check **"Include API keys"** if you want the exported config to also contain your API keys.
+   - **Important:** If you check this box, a warning appears: _"Be cautious when sharing this config string. It will contain your API keys in an encoded (not encrypted) format. Anyone with this string can decode and use your keys."_ Only include API keys when transferring to your own device — never share a config string that contains your keys with others.
+3. Click **Generate Config String**.
+4. A text box appears containing the config string (it starts with `CFG1_`).
+5. Click **Copy to Clipboard** to copy it. You can also click inside the text box to select all the text.
+
+The config string contains your settings compressed and encoded. It includes all your preferences (selected provider, model, theme, feature toggles, custom templates, etc.) — but **not** your API keys unless you explicitly check the box.
+
+#### Importing Settings
+
+1. Click the **Import** tab.
+2. Paste a config string (starting with `CFG1_`) into the text area.
+3. The app validates the string immediately:
+   - If valid, a preview shows how many settings will be imported and warns if the config contains API keys.
+   - If invalid, an error message explains what's wrong.
+4. Click **Import Settings** to apply. Existing settings with matching keys will be overwritten.
+5. **Reload the page** after importing to apply the new settings.
+
+> **Note:** This feature works independently of Storage Mode. It directly reads from and writes to your browser's localStorage. If you use Account Storage, you may want to also trigger a sync after importing by switching storage modes or reloading.
+
+---
+
+### 4.15 Theme Toggle
 
 Click the **moon/sun icon** in the header to cycle through three theme options:
 
@@ -529,7 +640,7 @@ Your theme choice is saved and persists across sessions.
 
 ---
 
-### 4.14 Admin Panel
+### 4.16 Admin Panel
 
 The Admin Panel is only visible to users with the **Admin** role. Access it via **User menu → Admin Panel**.
 
@@ -541,6 +652,26 @@ The Admin Panel is only visible to users with the **Admin** role. Access it via 
 - **Refresh** — click the refresh icon to reload the user list.
 
 > **Note:** The Admin Panel manages access control. Only emails that exist in the user database are allowed to sign in — adding a user here is what grants them access to the app.
+
+---
+
+### 4.17 Session Data Persistence
+
+Your session data (transcripts, summaries, form output values, questions and topics) is automatically saved in your browser's localStorage and persists across page reloads and navigation. You do not need to do anything to enable this — it happens automatically.
+
+#### Standard Mode
+
+- Your **transcript**, **summary**, **form values**, and **output mode** (Summary vs Form Output) are automatically saved and restored when you reload the page or navigate away and return.
+- Clicking **"Start Over"** returns you to the Upload step but **preserves your data**. From the upload screen, you can navigate back to the Transcript or Summary steps using the step indicators or the **"Show previous transcript"** / **"Show previous summary"** / **"Show previous form"** links that appear.
+- Your session data is only cleared when you **upload a new audio file** or **skip upload** — this starts a fresh session.
+
+#### Realtime Mode
+
+- The **accumulated transcript**, **summary**, **questions and topics**, and **form output values** all persist across page reloads.
+- Switching between Standard and Realtime modes preserves both sessions independently. The Realtime WebSocket connection stays alive when you switch to Standard mode and back.
+- Data is cleared when you click **"Start New Session"** (the reset button), which begins a fresh realtime session.
+
+> **Note:** Session data is stored in your browser's localStorage and is device-specific. It is not synced via Account Storage. If you close the browser tab, the data is still available the next time you open the app, but clearing your browser data will remove it.
 
 ---
 
@@ -677,7 +808,12 @@ A: This usually means your AssemblyAI API key is missing or invalid. Check **Set
 ---
 
 **Q: I switched devices and my settings are gone.**
-A: By default, settings are saved in your browser's **Local Storage**, which is device-specific. To sync settings across devices, switch to **Account Storage**: click your avatar → **Storage Mode** → switch to Account Storage. Going forward, your preferences will follow you across devices. (API keys are never synced and must be re-entered on each device.)
+A: By default, settings are saved in your browser's **Local Storage**, which is device-specific. You have two options to transfer settings: (1) Switch to **Account Storage** (avatar → Storage Mode) so your preferences sync across devices automatically, or (2) Use **Export / Import Settings** (avatar → Export / Import Settings) to generate a config string on the old device and import it on the new one. API keys are never synced via Account Storage, but can optionally be included in an exported config string.
+
+---
+
+**Q: How do I transfer my settings to another browser or device?**
+A: Click your **avatar** → **Export / Import Settings**. On the Export tab, click **Generate Config String** and copy the result. On the other browser/device, open the same dialog, switch to the **Import** tab, paste the string, and click **Import Settings**. Then reload the page. If you also want to transfer API keys, check **"Include API keys"** before exporting — but be careful not to share that string with others, as the keys are encoded but not encrypted.
 
 ---
 
@@ -687,7 +823,7 @@ A: API keys are stored in browser localStorage for security reasons — they are
 ---
 
 **Q: I accidentally cleared the transcript — can I get it back?**
-A: No. Transcripts exist only in your current browser session and are not stored on the server. If you cleared it accidentally, you will need to re-upload the audio file and transcribe it again.
+A: If you cleared the transcript using the trash icon (which requires confirmation), the data is removed and you will need to re-upload the audio file and transcribe again. However, if you simply navigated away or reloaded the page, your transcript is automatically preserved — just navigate back to the Transcript step using the step indicators or the "Show previous transcript" link on the upload screen. Session data persists in your browser's localStorage until you start a new session by uploading a new file or skipping upload.
 
 ---
 
@@ -707,4 +843,4 @@ A: Yes — you can save API keys for multiple providers and switch between them 
 ---
 
 **Q: Where is my data stored? Is my audio or transcript saved on the server?**
-A: No. Audio files are processed by AssemblyAI and deleted from the app's server immediately after transcription. Transcripts and summaries exist only in your browser session. API keys are stored only in your browser's localStorage. If you have Account Storage enabled, only your app preferences (model settings, templates, theme) are stored server-side — never audio, transcripts, or API keys. See the full **Privacy Policy** in the footer for details.
+A: No. Audio files are processed by AssemblyAI and deleted from the app's server immediately after transcription. Transcripts and summaries are stored in your browser's localStorage so they persist across page reloads and navigation, but they are never sent to or saved on the app's server. API keys are also stored only in your browser's localStorage. If you have Account Storage enabled, only your app preferences (model settings, templates, theme) are stored server-side — never audio, transcripts, summaries, or API keys. See the full **Privacy Policy** in the footer for details.

@@ -42,12 +42,20 @@ function collectPreferences(): UserPreferences {
     if (raw) customTemplates = JSON.parse(raw);
   } catch {}
 
+  let formTemplates: import("@/lib/types").FormTemplate[] | undefined;
+  try {
+    const raw = safeLocalGet("aias:v1:form_templates");
+    if (raw) formTemplates = JSON.parse(raw);
+  } catch {}
+
   const autoKeyPoints = safeLocalGet("aias:v1:auto_key_points");
   const speakerLabels = safeLocalGet("aias:v1:speaker_labels");
   const minSpeakers = parseInt(safeLocalGet("aias:v1:min_speakers"));
   const maxSpeakers = parseInt(safeLocalGet("aias:v1:max_speakers"));
   const realtimeFinalSummary = safeLocalGet("aias:v1:realtime_final_summary");
   const realtimeSystemPrompt = safeLocalGet("aias:v1:realtime_system_prompt");
+
+  const chatbotTranscriptMode = safeLocalGet("aias:v1:chatbot_transcript_mode");
 
   return {
     selected_provider: safeLocalGet("aias:v1:selected_provider") || undefined,
@@ -68,6 +76,8 @@ function collectPreferences(): UserPreferences {
     realtime_final_summary: realtimeFinalSummary ? realtimeFinalSummary !== "false" : undefined,
     realtime_system_prompt: realtimeSystemPrompt || undefined,
     custom_templates: customTemplates,
+    form_templates: formTemplates,
+    chatbot_transcript_mode: (chatbotTranscriptMode as import("@/lib/types").ChatbotTranscriptMode) || undefined,
   };
 }
 
@@ -93,6 +103,8 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.realtime_final_summary !== undefined) safeLocalSet("aias:v1:realtime_final_summary", prefs.realtime_final_summary ? "true" : "false");
   if (prefs.realtime_system_prompt) safeLocalSet("aias:v1:realtime_system_prompt", prefs.realtime_system_prompt);
   if (prefs.custom_templates) safeLocalSet("aias:v1:custom_templates", JSON.stringify(prefs.custom_templates));
+  if (prefs.form_templates) safeLocalSet("aias:v1:form_templates", JSON.stringify(prefs.form_templates));
+  if (prefs.chatbot_transcript_mode) safeLocalSet("aias:v1:chatbot_transcript_mode", prefs.chatbot_transcript_mode);
 }
 
 export interface UsePreferencesResult {

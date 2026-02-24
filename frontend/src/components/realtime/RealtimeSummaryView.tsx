@@ -3,11 +3,21 @@
 import { useEffect, useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, FileText, Loader2, Maximize2 } from "lucide-react";
+import { Copy, FileText, Loader2, Maximize2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
@@ -17,6 +27,7 @@ interface RealtimeSummaryViewProps {
   summaryUpdatedAt: string | null;
   isSummaryUpdating: boolean;
   isSessionEnded: boolean;
+  onClear?: () => void;
 }
 
 function getRelativeTime(isoTimestamp: string): string {
@@ -33,9 +44,11 @@ export function RealtimeSummaryView({
   summaryUpdatedAt,
   isSummaryUpdating,
   isSessionEnded,
+  onClear,
 }: RealtimeSummaryViewProps) {
   const [relativeTime, setRelativeTime] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Update relative time every 30s
@@ -92,6 +105,21 @@ export function RealtimeSummaryView({
             <span className="text-xs text-foreground-muted">
               Last updated: {relativeTime}
             </span>
+          )}
+          {summary && onClear && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-foreground-muted hover:text-destructive"
+                  onClick={() => setConfirmClear(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear summary</TooltipContent>
+            </Tooltip>
           )}
           {summary && (
             <Tooltip>
@@ -152,6 +180,23 @@ export function RealtimeSummaryView({
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear summary?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the current summary. A new summary will be generated at the next interval.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { onClear?.(); setConfirmClear(false); }}>
+              Clear
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

@@ -1,8 +1,21 @@
 "use client";
 
-import { Info, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Info, Loader2, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AddQuestionInput } from "./AddQuestionInput";
 import { LiveQuestionItem } from "./LiveQuestionItem";
 import type { LiveQuestion } from "@/lib/types";
@@ -15,6 +28,7 @@ interface LiveQuestionsProps {
   onRemove: (id: string) => void;
   onReset: (id: string) => void;
   onDismissWarning: () => void;
+  onClearAll?: () => void;
 }
 
 export function LiveQuestions({
@@ -25,7 +39,9 @@ export function LiveQuestions({
   onRemove,
   onReset,
   onDismissWarning,
+  onClearAll,
 }: LiveQuestionsProps) {
+  const [confirmClear, setConfirmClear] = useState(false);
   const answeredCount = questions.filter((q) => q.status === "answered").length;
   const totalCount = questions.length;
 
@@ -43,6 +59,21 @@ export function LiveQuestions({
           <div className="flex items-center gap-2">
             {isEvaluating && (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground-muted" />
+            )}
+            {totalCount > 0 && onClearAll && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-foreground-muted hover:text-destructive"
+                    onClick={() => setConfirmClear(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Clear all</TooltipContent>
+              </Tooltip>
             )}
             {totalCount > 0 && (
               <Badge
@@ -96,6 +127,23 @@ export function LiveQuestions({
           </div>
         )}
       </CardContent>
+
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear all questions?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove all {totalCount} question{totalCount !== 1 ? "s" : ""} and their answers. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { onClearAll?.(); setConfirmClear(false); }}>
+              Clear All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

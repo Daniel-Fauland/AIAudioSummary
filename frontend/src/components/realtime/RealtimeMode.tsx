@@ -7,15 +7,20 @@ import { RealtimeControls } from "./RealtimeControls";
 import { RealtimeTranscriptView } from "./RealtimeTranscriptView";
 import { RealtimeSummaryView } from "./RealtimeSummaryView";
 import { LiveQuestions } from "@/components/live-transcript/LiveQuestions";
+import { RealtimeFormOutput } from "@/components/form-output/RealtimeFormOutput";
 import { useLiveQuestions } from "@/components/live-transcript/useLiveQuestions";
+import { useFormOutput } from "@/components/form-output/useFormOutput";
 import { useRealtimeSession } from "@/hooks/useRealtimeSession";
 import type {
   AzureConfig,
   LangdockConfig,
   ConfigResponse,
+  FormTemplate,
+  LiveQuestion,
   LLMProvider,
   SummaryInterval,
 } from "@/lib/types";
+import type { RealtimeSessionData } from "@/hooks/useSessionPersistence";
 
 interface RealtimeModeProps {
   config: ConfigResponse | null;
@@ -33,11 +38,22 @@ interface RealtimeModeProps {
   summaryInterval: SummaryInterval;
   realtimeFinalSummaryEnabled: boolean;
   realtimeSystemPrompt: string;
-  /** Provider/model to use for Live Question Evaluation (may differ from main summary provider) */
   liveQuestionsProvider: LLMProvider;
   liveQuestionsModel: string;
-  /** Called whenever the accumulated transcript changes */
   onTranscriptChange?: (transcript: string) => void;
+  formOutputProvider: LLMProvider;
+  formOutputModel: string;
+  formTemplates: FormTemplate[];
+  onSaveFormTemplate: (template: FormTemplate) => void;
+  onUpdateFormTemplate: (template: FormTemplate) => void;
+  onDeleteFormTemplate: (id: string) => void;
+  initialRealtimeSession?: RealtimeSessionData;
+  onPersistTranscript?: (value: string) => void;
+  onPersistSummary?: (value: string) => void;
+  onPersistQuestions?: (questions: LiveQuestion[]) => void;
+  onPersistFormValues?: (values: Record<string, unknown>) => void;
+  onPersistFormTemplateId?: (id: string | null) => void;
+  onClearRealtimeSession?: () => void;
 }
 
 export function RealtimeMode({
@@ -58,24 +74,69 @@ export function RealtimeMode({
   liveQuestionsProvider,
   liveQuestionsModel,
   onTranscriptChange,
+  formOutputProvider,
+  formOutputModel,
+  formTemplates,
+  onSaveFormTemplate,
+  onUpdateFormTemplate,
+  onDeleteFormTemplate,
+  initialRealtimeSession,
+  onPersistTranscript,
+  onPersistSummary,
+  onPersistQuestions,
+  onPersistFormValues,
+  onPersistFormTemplateId,
+  onClearRealtimeSession,
 }: RealtimeModeProps) {
-  const session = useRealtimeSession();
-  const liveQuestions = useLiveQuestions();
+  const session = useRealtimeSession({
+    initialTranscript: initialRealtimeSession?.transcript,
+    initialSummary: initialRealtimeSession?.summary,
+  });
+  const liveQuestions = useLiveQuestions({
+    initialQuestions: initialRealtimeSession?.questions,
+  });
+  const formOutput = useFormOutput({
+    initialValues: initialRealtimeSession?.formValues,
+  });
 
   const [mobileTab, setMobileTab] = useState<"transcript" | "summary">("transcript");
+  const [bottomTab, setBottomTab] = useState<"questions" | "form">("questions");
   const [micDeviceId, setMicDeviceId] = useState<string | undefined>(undefined);
   const [recordMode, setRecordMode] = useState<"mic" | "meeting">("mic");
+  const [selectedFormTemplateId, setSelectedFormTemplateId] = useState<string | null>(
+    initialRealtimeSession?.formTemplateId ?? null,
+  );
 
   const isActive = session.connectionStatus === "connected" || session.connectionStatus === "reconnecting";
 
-  // Notify parent of full transcript (committed + in-progress partials) so the chatbot
-  // always has the complete text, even while someone is speaking non-stop.
+  // Notify parent of full transcript
   useEffect(() => {
     const full = [session.accumulatedTranscript, session.committedPartial, session.currentPartial]
       .filter(Boolean)
       .join(" ");
     onTranscriptChange?.(full);
   }, [session.accumulatedTranscript, session.committedPartial, session.currentPartial, onTranscriptChange]);
+
+  // Persist session data to localStorage on changes
+  useEffect(() => {
+    if (session.accumulatedTranscript) onPersistTranscript?.(session.accumulatedTranscript);
+  }, [session.accumulatedTranscript, onPersistTranscript]);
+
+  useEffect(() => {
+    if (session.realtimeSummary) onPersistSummary?.(session.realtimeSummary);
+  }, [session.realtimeSummary, onPersistSummary]);
+
+  useEffect(() => {
+    onPersistQuestions?.(liveQuestions.questions);
+  }, [liveQuestions.questions, onPersistQuestions]);
+
+  useEffect(() => {
+    if (Object.keys(formOutput.values).length > 0) onPersistFormValues?.(formOutput.values);
+  }, [formOutput.values, onPersistFormValues]);
+
+  useEffect(() => {
+    onPersistFormTemplateId?.(selectedFormTemplateId);
+  }, [selectedFormTemplateId, onPersistFormTemplateId]);
 
   // Track previous isSummaryUpdating value to detect when a summary run starts
   const prevIsSummaryUpdatingRef = useRef(false);
@@ -112,13 +173,15 @@ export function RealtimeMode({
     session.setSummaryInterval(summaryInterval);
   }, [summaryInterval, session.setSummaryInterval]);
 
-  // Trigger live question evaluation in parallel whenever a summary update starts
+  // Trigger live question evaluation + form filling in parallel whenever a summary update starts
   useEffect(() => {
     const wasUpdating = prevIsSummaryUpdatingRef.current;
     const isNowUpdating = session.isSummaryUpdating;
 
     if (!wasUpdating && isNowUpdating) {
       const transcript = session.accumulatedTranscript;
+
+      // Live questions
       if (liveQuestions.shouldEvaluate(transcript)) {
         const apiKey = getKey(liveQuestionsProvider);
         if (apiKey) {
@@ -131,6 +194,21 @@ export function RealtimeMode({
           });
         }
       }
+
+      // Form output (parallel)
+      const selectedTemplate = formTemplates.find((t) => t.id === selectedFormTemplateId);
+      if (selectedTemplate && formOutput.shouldFill(transcript)) {
+        const formApiKey = getKey(formOutputProvider);
+        if (formApiKey) {
+          formOutput.triggerFill(transcript, selectedTemplate.fields, {
+            provider: formOutputProvider,
+            apiKey: formApiKey,
+            model: formOutputModel,
+            azureConfig: formOutputProvider === "azure_openai" ? azureConfig ?? undefined : undefined,
+            langdockConfig: formOutputProvider === "langdock" ? langdockConfig : undefined,
+          });
+        }
+      }
     }
 
     prevIsSummaryUpdatingRef.current = isNowUpdating;
@@ -140,6 +218,11 @@ export function RealtimeMode({
     liveQuestions,
     liveQuestionsProvider,
     liveQuestionsModel,
+    formOutput,
+    formOutputProvider,
+    formOutputModel,
+    formTemplates,
+    selectedFormTemplateId,
     azureConfig,
     langdockConfig,
     getKey,
@@ -172,7 +255,17 @@ export function RealtimeMode({
   const handleResetSession = useCallback(() => {
     session.resetSession();
     liveQuestions.resetEvaluationTracking();
-  }, [session, liveQuestions]);
+    formOutput.resetForm();
+    onClearRealtimeSession?.();
+  }, [session, liveQuestions, formOutput, onClearRealtimeSession]);
+
+  const handleClearTranscript = useCallback(() => {
+    session.clearTranscript();
+  }, [session]);
+
+  const handleClearSummary = useCallback(() => {
+    session.clearSummary();
+  }, [session]);
 
   const liveQuestionsCard = (
     <LiveQuestions
@@ -183,7 +276,53 @@ export function RealtimeMode({
       onRemove={liveQuestions.removeQuestion}
       onReset={liveQuestions.resetQuestion}
       onDismissWarning={liveQuestions.dismissWarning}
+      onClearAll={liveQuestions.clearAll}
     />
+  );
+
+  const formOutputCard = (
+    <RealtimeFormOutput
+      templates={formTemplates}
+      selectedTemplateId={selectedFormTemplateId}
+      onSelectTemplate={setSelectedFormTemplateId}
+      onSaveTemplate={onSaveFormTemplate}
+      onUpdateTemplate={onUpdateFormTemplate}
+      onDeleteTemplate={onDeleteFormTemplate}
+      values={formOutput.values}
+      isFilling={formOutput.isFilling}
+      isComplete={formOutput.isComplete}
+      onManualEdit={formOutput.setManualValue}
+      onToggleComplete={formOutput.toggleComplete}
+    />
+  );
+
+  // Tabbed bottom section
+  const bottomSection = (
+    <div>
+      <div className="flex border-b border-border mb-3">
+        <button
+          className={`px-4 pb-2 text-sm font-medium transition-colors ${
+            bottomTab === "questions"
+              ? "border-b-2 border-primary text-foreground -mb-px"
+              : "text-foreground-muted hover:text-foreground-secondary"
+          }`}
+          onClick={() => setBottomTab("questions")}
+        >
+          Questions &amp; Topics
+        </button>
+        <button
+          className={`px-4 pb-2 text-sm font-medium transition-colors ${
+            bottomTab === "form"
+              ? "border-b-2 border-primary text-foreground -mb-px"
+              : "text-foreground-muted hover:text-foreground-secondary"
+          }`}
+          onClick={() => setBottomTab("form")}
+        >
+          Form Output
+        </button>
+      </div>
+      {bottomTab === "questions" ? liveQuestionsCard : formOutputCard}
+    </div>
   );
 
   return (
@@ -208,7 +347,7 @@ export function RealtimeMode({
         onRecordModeChange={setRecordMode}
       />
 
-      {/* Desktop layout: two columns for transcript+summary, then full-width questions */}
+      {/* Desktop layout: two columns for transcript+summary, then tabbed bottom */}
       <div className="hidden md:block md:space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <RealtimeTranscriptView
@@ -217,15 +356,17 @@ export function RealtimeMode({
             committedPartial={session.committedPartial}
             isSessionActive={isActive}
             onCopy={handleCopyTranscript}
+            onClear={handleClearTranscript}
           />
           <RealtimeSummaryView
             summary={session.realtimeSummary}
             summaryUpdatedAt={session.summaryUpdatedAt}
             isSummaryUpdating={session.isSummaryUpdating}
             isSessionEnded={session.isSessionEnded}
+            onClear={handleClearSummary}
           />
         </div>
-        {liveQuestionsCard}
+        {bottomSection}
       </div>
 
       {/* Mobile layout: tabbed */}
@@ -260,6 +401,7 @@ export function RealtimeMode({
             committedPartial={session.committedPartial}
             isSessionActive={isActive}
             onCopy={handleCopyTranscript}
+            onClear={handleClearTranscript}
           />
         ) : (
           <div className="flex flex-col gap-4">
@@ -268,8 +410,9 @@ export function RealtimeMode({
               summaryUpdatedAt={session.summaryUpdatedAt}
               isSummaryUpdating={session.isSummaryUpdating}
               isSessionEnded={session.isSessionEnded}
+              onClear={handleClearSummary}
             />
-            {liveQuestionsCard}
+            {bottomSection}
           </div>
         )}
       </div>

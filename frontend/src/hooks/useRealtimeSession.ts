@@ -28,16 +28,23 @@ export interface LlmConfig {
   author?: string;
 }
 
-export function useRealtimeSession() {
+export interface UseRealtimeSessionOptions {
+  initialTranscript?: string;
+  initialSummary?: string;
+}
+
+export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
+  const { initialTranscript, initialSummary } = options ?? {};
+
   // --- Exposed state ---
   const [connectionStatus, setConnectionStatus] = useState<RealtimeConnectionStatus>("disconnected");
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [accumulatedTranscript, setAccumulatedTranscript] = useState("");
+  const [accumulatedTranscript, setAccumulatedTranscript] = useState(initialTranscript ?? "");
   const [currentPartial, setCurrentPartial] = useState("");
   // Partial that was in-progress when a summary was triggered — displayed as white
   // (committed) text until AssemblyAI sends the real final turn for that sentence.
   const [committedPartial, setCommittedPartial] = useState("");
-  const [realtimeSummary, setRealtimeSummary] = useState("");
+  const [realtimeSummary, setRealtimeSummary] = useState(initialSummary ?? "");
   const [summaryUpdatedAt, setSummaryUpdatedAt] = useState<string | null>(null);
   const [isSummaryUpdating, setIsSummaryUpdating] = useState(false);
   const [summaryInterval, setSummaryIntervalState] = useState<SummaryInterval>(2);
@@ -452,6 +459,22 @@ export function useRealtimeSession() {
     llmConfigRef.current = config;
   }, []);
 
+  const clearTranscript = useCallback(() => {
+    setAccumulatedTranscript("");
+    setCurrentPartial("");
+    setCommittedPartial("");
+    accumulatedTranscriptRef.current = "";
+    currentPartialRef.current = "";
+    lastSummaryTranscriptLenRef.current = 0;
+  }, []);
+
+  const clearSummary = useCallback(() => {
+    setRealtimeSummary("");
+    setSummaryUpdatedAt(null);
+    realtimeSummaryRef.current = "";
+    summaryCountRef.current = 0;
+  }, []);
+
   const resetSession = useCallback(() => {
     // Close WS if still open
     if (wsRef.current) {
@@ -513,5 +536,7 @@ export function useRealtimeSession() {
     setLlmConfig,
     resetSession,
     triggerManualSummary,
+    clearTranscript,
+    clearSummary,
   };
 }

@@ -149,7 +149,8 @@ export type LLMFeature =
   | "key_point_extraction"
   | "prompt_assistant"
   | "live_question_evaluation"
-  | "chatbot";
+  | "chatbot"
+  | "form_output";
 
 export const LLM_FEATURE_LABELS: Record<LLMFeature, string> = {
   summary_generation: "Summary Generation",
@@ -158,6 +159,7 @@ export const LLM_FEATURE_LABELS: Record<LLMFeature, string> = {
   prompt_assistant: "Prompt Assistant",
   live_question_evaluation: "Live Question Evaluation",
   chatbot: "Chatbot",
+  form_output: "Form Output",
 };
 
 export interface FeatureModelOverride {
@@ -286,6 +288,10 @@ export interface UserProfile {
   created_at: string;
 }
 
+// === Chatbot Transcript Mode ===
+
+export type ChatbotTranscriptMode = "current_mode" | "latest";
+
 // === Preferences types ===
 
 export interface UserPreferences {
@@ -306,14 +312,49 @@ export interface UserPreferences {
   realtime_final_summary?: boolean;
   realtime_system_prompt?: string;
   custom_templates?: { id: string; name: string; content: string }[];
+  form_templates?: FormTemplate[];
   chatbot_enabled?: boolean;
   chatbot_qa?: boolean;
   chatbot_transcript?: boolean;
   chatbot_actions?: boolean;
   speaker_labels_enabled?: boolean;
+  chatbot_transcript_mode?: ChatbotTranscriptMode;
 }
 
 export interface PreferencesResponse {
   storage_mode: "local" | "account";
   preferences: UserPreferences | null;
+}
+
+// === Form Output types ===
+
+export type FormFieldType = "string" | "number" | "date" | "boolean" | "list_str" | "enum" | "multi_select";
+
+export interface FormFieldDefinition {
+  id: string;
+  label: string;
+  type: FormFieldType;
+  description?: string;
+  options?: string[];
+}
+
+export interface FormTemplate {
+  id: string;
+  name: string;
+  fields: FormFieldDefinition[];
+}
+
+export interface FillFormRequest {
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  azure_config?: AzureConfig;
+  langdock_config?: LangdockConfig;
+  transcript: string;
+  fields: FormFieldDefinition[];
+  previous_values?: Record<string, unknown>;
+}
+
+export interface FillFormResponse {
+  values: Record<string, unknown>;
 }

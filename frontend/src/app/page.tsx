@@ -27,14 +27,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useTheme } from "next-themes";
+import { FormTemplateSelector } from "@/components/form-output/FormTemplateSelector";
+import { FormOutputView } from "@/components/form-output/FormOutputView";
 import { useConfig } from "@/hooks/useConfig";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { useCustomTemplates } from "@/hooks/useCustomTemplates";
+import { useFormTemplates } from "@/hooks/useFormTemplates";
 import { usePreferences } from "@/hooks/usePreferences";
+import { useSessionPersistence } from "@/hooks/useSessionPersistence";
 import { useChatbot } from "@/hooks/useChatbot";
-import { createTranscript, createSummary, extractKeyPoints } from "@/lib/api";
+import { createTranscript, createSummary, extractKeyPoints, fillForm } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, ChatbotTranscriptMode } from "@/lib/types";
 import { APP_VERSION } from "@/lib/constants";
 import { changelog } from "@/lib/changelog";
 
@@ -53,6 +57,7 @@ const CHATBOT_ENABLED_KEY = "aias:v1:chatbot_enabled";
 const CHATBOT_QA_KEY = "aias:v1:chatbot_qa";
 const CHATBOT_TRANSCRIPT_KEY = "aias:v1:chatbot_transcript";
 const CHATBOT_ACTIONS_KEY = "aias:v1:chatbot_actions";
+const CHATBOT_TRANSCRIPT_MODE_KEY = "aias:v1:chatbot_transcript_mode";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -118,6 +123,34 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     savePreferences();
   }, [rawDeleteCustomTemplate, savePreferences]);
 
+  // Form templates
+  const {
+    templates: formTemplates,
+    saveTemplate: rawSaveFormTemplate,
+    updateTemplate: rawUpdateFormTemplate,
+    deleteTemplate: rawDeleteFormTemplate,
+  } = useFormTemplates();
+
+  const saveFormTemplate = useCallback((template: FormTemplate) => {
+    rawSaveFormTemplate(template);
+    savePreferences();
+  }, [rawSaveFormTemplate, savePreferences]);
+
+  const updateFormTemplate = useCallback((template: FormTemplate) => {
+    rawUpdateFormTemplate(template);
+    savePreferences();
+  }, [rawUpdateFormTemplate, savePreferences]);
+
+  const deleteFormTemplate = useCallback((id: string) => {
+    rawDeleteFormTemplate(id);
+    savePreferences();
+  }, [rawDeleteFormTemplate, savePreferences]);
+
+  // Session persistence
+  const sessionPersistence = useSessionPersistence();
+  const initialStandardSession = useMemo(() => sessionPersistence.loadStandardSession(), [sessionPersistence.loadStandardSession]);
+  const initialRealtimeSession = useMemo(() => sessionPersistence.loadRealtimeSession(), [sessionPersistence.loadRealtimeSession]);
+
   // Settings panel
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -154,17 +187,25 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
   });
   const [langdockConfig, setLangdockConfigState] = useState<LangdockConfig>(() => getLangdockConfig());
 
-  // Workflow state
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-  const [maxReachedStep, setMaxReachedStep] = useState<1 | 2 | 3>(1);
+  // Workflow state — initialize from persisted session data
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(() => {
+    if (initialStandardSession.summary || (initialStandardSession.formValues && Object.keys(initialStandardSession.formValues).length > 0)) return 3;
+    if (initialStandardSession.transcript) return 2;
+    return 1;
+  });
+  const [maxReachedStep, setMaxReachedStep] = useState<1 | 2 | 3>(() => {
+    if (initialStandardSession.summary || (initialStandardSession.formValues && Object.keys(initialStandardSession.formValues).length > 0)) return 3;
+    if (initialStandardSession.transcript) return 2;
+    return 1;
+  });
   const [stepNavDialogOpen, setStepNavDialogOpen] = useState(false);
   const [pendingStep, setPendingStep] = useState<1 | 2 | 3 | null>(null);
   const [step1Mode, setStep1Mode] = useState<"upload" | "record">("upload");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [transcript, setTranscript] = useState("");
+  const [transcript, setTranscript] = useState(initialStandardSession.transcript);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [summary, setSummary] = useState("");
+  const [summary, setSummary] = useState(initialStandardSession.summary);
   const [isGenerating, setIsGenerating] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -230,6 +271,15 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
   const [chatbotActionsEnabled, setChatbotActionsEnabled] = useState(
     () => serverPreferences?.chatbot_actions !== undefined ? serverPreferences.chatbot_actions : safeGet(CHATBOT_ACTIONS_KEY, "true") !== "false",
   );
+  const [chatbotTranscriptMode, setChatbotTranscriptMode] = useState<ChatbotTranscriptMode>(
+    () => (serverPreferences?.chatbot_transcript_mode as ChatbotTranscriptMode) || safeGet(CHATBOT_TRANSCRIPT_MODE_KEY, "current_mode") as ChatbotTranscriptMode,
+  );
+
+  // Form output state — initialize from persisted session
+  const [outputMode, setOutputMode] = useState<"summary" | "form">(initialStandardSession.outputMode);
+  const [selectedFormTemplateId, setSelectedFormTemplateId] = useState<string | null>(initialStandardSession.formTemplateId);
+  const [formValues, setFormValues] = useState<Record<string, unknown>>(initialStandardSession.formValues);
+  const [isFillingForm, setIsFillingForm] = useState(false);
 
   // Chatbot UI state
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -242,14 +292,36 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
   const chatbotTranscript = (() => {
     if (!chatbotTranscriptEnabled) return null;
     if (chatbotTranscriptDetached) return null;
-    // Standard mode transcript
+
+    if (chatbotTranscriptMode === "latest") {
+      // "Latest" mode: use the most recently updated transcript regardless of current mode
+      // Prefer in-memory value if the latest mode matches current mode
+      const latest = sessionPersistence.getLatestTranscript();
+      if (!latest) {
+        // Fall back to current mode behavior
+        if (appMode === "standard" && transcript) return transcript;
+        if (appMode === "realtime" && realtimeTranscript) return realtimeTranscript;
+        return null;
+      }
+      if (latest.mode === "standard") return appMode === "standard" && transcript ? transcript : latest.transcript;
+      if (latest.mode === "realtime") return appMode === "realtime" && realtimeTranscript ? realtimeTranscript : latest.transcript;
+      return null;
+    }
+
+    // "Current mode" (default): transcript from active Standard/Realtime mode
     if (appMode === "standard" && transcript) return transcript;
-    // Realtime mode: live transcript from the realtime session
     if (appMode === "realtime" && realtimeTranscript) return realtimeTranscript;
     return null;
   })();
 
-  const isLiveTranscript = appMode === "realtime" && !!chatbotTranscript;
+  const isLiveTranscript = (() => {
+    if (chatbotTranscriptMode === "latest") {
+      // Only live if latest is realtime AND user is in realtime mode with active transcript
+      const latest = sessionPersistence.getLatestTranscript();
+      return latest?.mode === "realtime" && appMode === "realtime" && !!realtimeTranscript;
+    }
+    return appMode === "realtime" && !!chatbotTranscript;
+  })();
 
   // Auto-reattach transcript when content changes
   useEffect(() => {
@@ -257,6 +329,27 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
       setChatbotTranscriptDetached(false);
     }
   }, [transcript, realtimeTranscript]);
+
+  // Persist standard session data to localStorage on changes
+  useEffect(() => {
+    if (transcript) sessionPersistence.saveStandardTranscript(transcript);
+  }, [transcript, sessionPersistence.saveStandardTranscript]);
+
+  useEffect(() => {
+    if (summary) sessionPersistence.saveStandardSummary(summary);
+  }, [summary, sessionPersistence.saveStandardSummary]);
+
+  useEffect(() => {
+    if (Object.keys(formValues).length > 0) sessionPersistence.saveStandardFormValues(formValues);
+  }, [formValues, sessionPersistence.saveStandardFormValues]);
+
+  useEffect(() => {
+    sessionPersistence.saveStandardFormTemplateId(selectedFormTemplateId);
+  }, [selectedFormTemplateId, sessionPersistence.saveStandardFormTemplateId]);
+
+  useEffect(() => {
+    sessionPersistence.saveStandardOutputMode(outputMode);
+  }, [outputMode, sessionPersistence.saveStandardOutputMode]);
 
   const hasAutoExtractedKeyPointsRef = useRef(false);
   // Accumulated speaker renames: original label → new name
@@ -400,6 +493,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
   const handleChatbotActionsEnabledChange = useCallback((enabled: boolean) => {
     setChatbotActionsEnabled(enabled);
     safeSet(CHATBOT_ACTIONS_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleChatbotTranscriptModeChange = useCallback((mode: ChatbotTranscriptMode) => {
+    setChatbotTranscriptMode(mode);
+    safeSet(CHATBOT_TRANSCRIPT_MODE_KEY, mode);
     savePreferences();
   }, [savePreferences]);
 
@@ -603,13 +702,22 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
         return;
       }
 
-      setIsUploading(true);
-      setCurrentStep(2);
-      setMaxReachedStep((prev) => Math.max(prev, 2) as 1 | 2 | 3);
-      setIsTranscribing(true);
+      // Clear previous session data — new upload replaces everything
+      setSummary("");
+      setFormValues({});
+      setSelectedFormTemplateId(null);
+      setOutputMode("summary");
+      setSpeakerKeyPoints({});
+      setSuggestedNames({});
+      setAuthorSpeaker(null);
       hasAutoExtractedKeyPointsRef.current = false;
       speakerRenamesRef.current = {};
-      setSpeakerKeyPoints({});
+      sessionPersistence.clearStandardSession();
+
+      setIsUploading(true);
+      setCurrentStep(2);
+      setMaxReachedStep(2);
+      setIsTranscribing(true);
 
       try {
         const result = await createTranscript(file, assemblyAiKey, undefined, minSpeakers, maxSpeakers);
@@ -624,16 +732,28 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
         setIsTranscribing(false);
       }
     },
-    [getKey, minSpeakers, maxSpeakers],
+    [getKey, minSpeakers, maxSpeakers, sessionPersistence.clearStandardSession],
   );
 
   // Skip upload: go directly to step 2 with empty transcript
   const handleSkipUpload = useCallback(() => {
+    // Clear previous session data
+    setSummary("");
+    setFormValues({});
+    setSelectedFormTemplateId(null);
+    setOutputMode("summary");
+    setSpeakerKeyPoints({});
+    setSuggestedNames({});
+    setAuthorSpeaker(null);
+    hasAutoExtractedKeyPointsRef.current = false;
+    speakerRenamesRef.current = {};
+    sessionPersistence.clearStandardSession();
+
     setCurrentStep(2);
-    setMaxReachedStep((prev) => Math.max(prev, 2) as 1 | 2 | 3);
+    setMaxReachedStep(2);
     setTranscript("");
     setSelectedFile(null);
-  }, []);
+  }, [sessionPersistence.clearStandardSession]);
 
   // Step 2 → 3: generate summary
   const handleGenerate = useCallback(async () => {
@@ -710,29 +830,44 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     setCurrentStep(2);
   }, []);
 
+  const handleShowPreviousOutput = useCallback(() => {
+    setCurrentStep(3);
+    setMaxReachedStep((prev) => Math.max(prev, 3) as 1 | 2 | 3);
+  }, []);
+
   const handleStartOver = useCallback(() => {
+    abortControllerRef.current?.abort();
     setCurrentStep(1);
-    setMaxReachedStep(1);
     setSelectedFile(null);
-    setTranscript("");
-    setSummary("");
-    setSpeakerKeyPoints({});
-    setSuggestedNames({});
-    hasAutoExtractedKeyPointsRef.current = false;
-    speakerRenamesRef.current = {};
     setIsGenerating(false);
     setIsTranscribing(false);
-    setAuthorSpeaker(null);
+    // Keep transcript/summary/form in state and storage — data persists until a new file is uploaded
   }, []);
 
   const handleStepClick = useCallback(
     (step: 1 | 2 | 3) => {
       if (step === currentStep) return;
       if (step > maxReachedStep) return;
-      setPendingStep(step);
-      setStepNavDialogOpen(true);
+      // Navigating forward (e.g. step 2 → 3 to view previous results) — go directly
+      if (step > currentStep) {
+        setCurrentStep(step);
+        return;
+      }
+      // Navigating backward — show confirmation if going to step 1 or if generation is in progress
+      if (step === 1 && currentStep > 1) {
+        setPendingStep(step);
+        setStepNavDialogOpen(true);
+        return;
+      }
+      if (step === 2 && currentStep === 3 && isGenerating) {
+        setPendingStep(step);
+        setStepNavDialogOpen(true);
+        return;
+      }
+      // Otherwise go directly (e.g. step 3 → 2 with no generation in progress)
+      setCurrentStep(step);
     },
-    [currentStep, maxReachedStep],
+    [currentStep, maxReachedStep, isGenerating],
   );
 
   const handleStepNavConfirm = useCallback(() => {
@@ -740,17 +875,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     if (pendingStep === 1) {
       abortControllerRef.current?.abort();
       setCurrentStep(1);
-      setMaxReachedStep(1);
       setSelectedFile(null);
-      setTranscript("");
-      setSummary("");
-      setSpeakerKeyPoints({});
-      setSuggestedNames({});
-      hasAutoExtractedKeyPointsRef.current = false;
-      speakerRenamesRef.current = {};
       setIsGenerating(false);
       setIsTranscribing(false);
-      setAuthorSpeaker(null);
+      // Keep transcript/summary/form in state and storage — data persists until a new file is uploaded
     } else if (pendingStep === 2) {
       abortControllerRef.current?.abort();
       setIsGenerating(false);
@@ -774,9 +902,82 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     featureOverrides["prompt_assistant"] ?? { provider: selectedProvider, model: selectedModel };
   const resolvedLiveQuestionsConfig =
     featureOverrides["live_question_evaluation"] ?? { provider: selectedProvider, model: selectedModel };
+  const resolvedFormOutputConfig =
+    featureOverrides["form_output"] ?? { provider: selectedProvider, model: selectedModel };
 
   const hasLlmKey = hasKey(resolvedSummaryConfig.provider);
   const hasAssemblyAiKey = hasKey("assemblyai");
+  const hasFormOutputKey = hasKey(resolvedFormOutputConfig.provider);
+
+  // Form output handler
+  const handleFillForm = useCallback(async () => {
+    const template = formTemplates.find((t) => t.id === selectedFormTemplateId);
+    if (!template) return;
+
+    const llmKey = getKey(resolvedFormOutputConfig.provider);
+    if (!llmKey) {
+      toast.error(`Please add your ${resolvedFormOutputConfig.provider} API key in Settings.`);
+      setSettingsOpen(true);
+      return;
+    }
+
+    setCurrentStep(3);
+    setMaxReachedStep((prev) => Math.max(prev, 3) as 1 | 2 | 3);
+    setIsFillingForm(true);
+
+    try {
+      const response = await fillForm({
+        provider: resolvedFormOutputConfig.provider,
+        api_key: llmKey,
+        model: resolvedFormOutputConfig.model,
+        azure_config: resolvedFormOutputConfig.provider === "azure_openai" ? azureConfig ?? undefined : undefined,
+        langdock_config: resolvedFormOutputConfig.provider === "langdock" ? langdockConfig : undefined,
+        transcript,
+        fields: template.fields,
+      });
+      setFormValues(response.values);
+    } catch (e) {
+      toast.error(getErrorMessage(e, "formOutput"));
+    } finally {
+      setIsFillingForm(false);
+    }
+  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript]);
+
+  const handleFormManualEdit = useCallback((fieldId: string, value: unknown) => {
+    setFormValues((prev) => ({ ...prev, [fieldId]: value }));
+  }, []);
+
+  const handleFormRefill = useCallback(async () => {
+    const template = formTemplates.find((t) => t.id === selectedFormTemplateId);
+    if (!template) return;
+
+    const llmKey = getKey(resolvedFormOutputConfig.provider);
+    if (!llmKey) {
+      toast.error(`Please add your ${resolvedFormOutputConfig.provider} API key in Settings.`);
+      setSettingsOpen(true);
+      return;
+    }
+
+    setIsFillingForm(true);
+
+    try {
+      const response = await fillForm({
+        provider: resolvedFormOutputConfig.provider,
+        api_key: llmKey,
+        model: resolvedFormOutputConfig.model,
+        azure_config: resolvedFormOutputConfig.provider === "azure_openai" ? azureConfig ?? undefined : undefined,
+        langdock_config: resolvedFormOutputConfig.provider === "langdock" ? langdockConfig : undefined,
+        transcript,
+        fields: template.fields,
+        previous_values: formValues,
+      });
+      setFormValues(response.values);
+    } catch (e) {
+      toast.error(getErrorMessage(e, "formOutput"));
+    } finally {
+      setIsFillingForm(false);
+    }
+  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, formValues]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -820,6 +1021,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
         onChatbotTranscriptEnabledChange={handleChatbotTranscriptEnabledChange}
         chatbotActionsEnabled={chatbotActionsEnabled}
         onChatbotActionsEnabledChange={handleChatbotActionsEnabledChange}
+        chatbotTranscriptMode={chatbotTranscriptMode}
+        onChatbotTranscriptModeChange={handleChatbotTranscriptModeChange}
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
@@ -851,30 +1054,45 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
           </div>
         </div>
 
-        {appMode === "realtime" ? (
-          <div className="step-content space-y-6 pb-8">
-            <RealtimeMode
-              config={config}
-              selectedProvider={resolvedRealtimeConfig.provider}
-              selectedModel={resolvedRealtimeConfig.model}
-              azureConfig={azureConfig}
-              langdockConfig={langdockConfig}
-              selectedLanguage={selectedLanguage}
-              informalGerman={informalGerman}
-              meetingDate={meetingDate ?? ""}
-              authorSpeaker={authorSpeaker ?? ""}
-              getKey={getKey}
-              hasKey={hasKey}
-              onOpenSettings={() => setSettingsOpen(true)}
-              summaryInterval={realtimeSummaryInterval}
-              realtimeFinalSummaryEnabled={realtimeFinalSummaryEnabled}
-              realtimeSystemPrompt={realtimeSystemPrompt}
-              liveQuestionsProvider={resolvedLiveQuestionsConfig.provider}
-              liveQuestionsModel={resolvedLiveQuestionsConfig.model}
-              onTranscriptChange={setRealtimeTranscript}
-            />
-          </div>
-        ) : (
+        {/* Realtime mode — always mounted so WebSocket stays alive during mode switches */}
+        <div className={appMode === "realtime" ? "step-content space-y-6 pb-8" : "hidden"}>
+          <RealtimeMode
+            config={config}
+            selectedProvider={resolvedRealtimeConfig.provider}
+            selectedModel={resolvedRealtimeConfig.model}
+            azureConfig={azureConfig}
+            langdockConfig={langdockConfig}
+            selectedLanguage={selectedLanguage}
+            informalGerman={informalGerman}
+            meetingDate={meetingDate ?? ""}
+            authorSpeaker={authorSpeaker ?? ""}
+            getKey={getKey}
+            hasKey={hasKey}
+            onOpenSettings={() => setSettingsOpen(true)}
+            summaryInterval={realtimeSummaryInterval}
+            realtimeFinalSummaryEnabled={realtimeFinalSummaryEnabled}
+            realtimeSystemPrompt={realtimeSystemPrompt}
+            liveQuestionsProvider={resolvedLiveQuestionsConfig.provider}
+            liveQuestionsModel={resolvedLiveQuestionsConfig.model}
+            onTranscriptChange={setRealtimeTranscript}
+            formOutputProvider={resolvedFormOutputConfig.provider}
+            formOutputModel={resolvedFormOutputConfig.model}
+            formTemplates={formTemplates}
+            onSaveFormTemplate={saveFormTemplate}
+            onUpdateFormTemplate={updateFormTemplate}
+            onDeleteFormTemplate={deleteFormTemplate}
+            initialRealtimeSession={initialRealtimeSession}
+            onPersistTranscript={sessionPersistence.saveRealtimeTranscript}
+            onPersistSummary={sessionPersistence.saveRealtimeSummary}
+            onPersistQuestions={sessionPersistence.saveRealtimeQuestions}
+            onPersistFormValues={sessionPersistence.saveRealtimeFormValues}
+            onPersistFormTemplateId={sessionPersistence.saveRealtimeFormTemplateId}
+            onClearRealtimeSession={sessionPersistence.clearRealtimeSession}
+          />
+        </div>
+
+        {/* Standard mode */}
+        {appMode === "standard" && (
           <>
         <StepIndicator
           currentStep={currentStep}
@@ -882,7 +1100,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
           onStepClick={handleStepClick}
         />
 
-        <div className="step-content space-y-6 pb-8" key={currentStep}>
+        <div className="step-content space-y-6 pb-8">
           {/* Step 1: Upload or Record */}
           {currentStep === 1 ? (
             <div className="space-y-3">
@@ -931,6 +1149,16 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
                   hasAssemblyAiKey={hasAssemblyAiKey}
                 />
               )}
+
+              {transcript && (
+                <button
+                  type="button"
+                  onClick={() => { setCurrentStep(2); }}
+                  className="text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  Show previous transcript
+                </button>
+              )}
             </div>
           ) : null}
 
@@ -959,31 +1187,97 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
                     onTranscriptReplaced={handleTranscriptReplaced}
                     suggestedNames={suggestedNames}
                   />
-                  <PromptEditor
-                    templates={config?.prompt_templates ?? []}
-                    customTemplates={customTemplates}
-                    onSaveCustomTemplate={saveCustomTemplate}
-                    onDeleteCustomTemplate={deleteCustomTemplate}
-                    languages={config?.languages ?? []}
-                    selectedPrompt={selectedPrompt}
-                    onPromptChange={setSelectedPrompt}
-                    selectedLanguage={selectedLanguage}
-                    onLanguageChange={setSelectedLanguage}
-                    informalGerman={informalGerman}
-                    onInformalGermanChange={setInformalGerman}
-                    meetingDate={meetingDate}
-                    onMeetingDateChange={setMeetingDate}
-                    onGenerate={handleGenerate}
-                    generateDisabled={!transcript || !hasLlmKey || !resolvedSummaryConfig.model}
-                    generating={isGenerating}
-                    hasLlmKey={hasKey(resolvedPromptAssistantConfig.provider)}
-                    onOpenSettings={() => setSettingsOpen(true)}
-                    llmProvider={resolvedPromptAssistantConfig.provider}
-                    llmApiKey={hasKey(resolvedPromptAssistantConfig.provider) ? (getKey(resolvedPromptAssistantConfig.provider) ?? "") : ""}
-                    llmModel={resolvedPromptAssistantConfig.model}
-                    llmAzureConfig={azureConfig}
-                    llmLangdockConfig={langdockConfig}
-                  />
+
+                  {/* Output mode toggle */}
+                  <div className="flex justify-center">
+                    <div className="inline-flex rounded-lg border border-border bg-card-elevated p-1">
+                      <button
+                        type="button"
+                        onClick={() => setOutputMode("summary")}
+                        className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+                          outputMode === "summary"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-transparent text-foreground-secondary hover:text-foreground"
+                        }`}
+                      >
+                        Summary
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOutputMode("form")}
+                        className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+                          outputMode === "form"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-transparent text-foreground-secondary hover:text-foreground"
+                        }`}
+                      >
+                        Form Output
+                      </button>
+                    </div>
+                  </div>
+
+                  {outputMode === "summary" ? (
+                    <>
+                      <PromptEditor
+                        templates={config?.prompt_templates ?? []}
+                        customTemplates={customTemplates}
+                        onSaveCustomTemplate={saveCustomTemplate}
+                        onDeleteCustomTemplate={deleteCustomTemplate}
+                        languages={config?.languages ?? []}
+                        selectedPrompt={selectedPrompt}
+                        onPromptChange={setSelectedPrompt}
+                        selectedLanguage={selectedLanguage}
+                        onLanguageChange={setSelectedLanguage}
+                        informalGerman={informalGerman}
+                        onInformalGermanChange={setInformalGerman}
+                        meetingDate={meetingDate}
+                        onMeetingDateChange={setMeetingDate}
+                        onGenerate={handleGenerate}
+                        generateDisabled={!transcript || !hasLlmKey || !resolvedSummaryConfig.model}
+                        generating={isGenerating}
+                        hasLlmKey={hasKey(resolvedPromptAssistantConfig.provider)}
+                        onOpenSettings={() => setSettingsOpen(true)}
+                        llmProvider={resolvedPromptAssistantConfig.provider}
+                        llmApiKey={hasKey(resolvedPromptAssistantConfig.provider) ? (getKey(resolvedPromptAssistantConfig.provider) ?? "") : ""}
+                        llmModel={resolvedPromptAssistantConfig.model}
+                        llmAzureConfig={azureConfig}
+                        llmLangdockConfig={langdockConfig}
+                      />
+                      {summary && (
+                        <button
+                          type="button"
+                          onClick={handleShowPreviousOutput}
+                          className="text-sm text-primary hover:text-primary/80 transition-colors"
+                        >
+                          Show previous summary
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <FormTemplateSelector
+                        templates={formTemplates}
+                        selectedTemplateId={selectedFormTemplateId}
+                        onSelectTemplate={setSelectedFormTemplateId}
+                        onSaveTemplate={saveFormTemplate}
+                        onUpdateTemplate={updateFormTemplate}
+                        onDeleteTemplate={deleteFormTemplate}
+                        onFillForm={handleFillForm}
+                        fillDisabled={!transcript || !hasFormOutputKey || !resolvedFormOutputConfig.model}
+                        isFilling={isFillingForm}
+                      />
+                      {Object.keys(formValues).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleShowPreviousOutput}
+                          className="text-sm text-primary hover:text-primary/80 transition-colors"
+                        >
+                          Show previous form output
+                        </button>
+                      )}
+                    </>
+                  )}
+
                   <div className="flex gap-2">
                     <Button variant="ghost" onClick={handleStartOver}>
                       Start Over
@@ -994,20 +1288,33 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
             </>
           ) : null}
 
-          {/* Step 3: Summary (side-by-side with transcript) */}
+          {/* Step 3: Summary or Form Output (side-by-side with transcript) */}
           {currentStep === 3 ? (
             <>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <TranscriptView transcript={transcript} onTranscriptChange={setTranscript} readOnly />
-                <SummaryView
-                  summary={summary}
-                  loading={isGenerating}
-                  onStop={handleStopGenerating}
-                  onRegenerate={handleRegenerate}
-                  onBack={handleBackToTranscript}
-                />
+                {outputMode === "summary" ? (
+                  <SummaryView
+                    summary={summary}
+                    loading={isGenerating}
+                    onStop={handleStopGenerating}
+                    onRegenerate={handleRegenerate}
+                    onBack={handleBackToTranscript}
+                  />
+                ) : (
+                  <FormOutputView
+                    templateName={formTemplates.find((t) => t.id === selectedFormTemplateId)?.name ?? "Form Output"}
+                    fields={formTemplates.find((t) => t.id === selectedFormTemplateId)?.fields ?? []}
+                    values={formValues}
+                    isFilling={isFillingForm}
+                    onManualEdit={handleFormManualEdit}
+                    onRefill={handleFormRefill}
+                    onBack={handleBackToTranscript}
+                    refillDisabled={!transcript || !hasFormOutputKey || !resolvedFormOutputConfig.model}
+                  />
+                )}
               </div>
-              {!isGenerating ? (
+              {!isGenerating && !isFillingForm ? (
                 <div className="flex gap-2">
                   <Button variant="ghost" onClick={handleStartOver}>
                     Start Over
@@ -1072,9 +1379,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
             </DialogTitle>
             <DialogDescription>
               {pendingStep === 1
-                ? currentStep === 3
-                  ? "Your transcript and generated summary will be cleared. This cannot be undone."
-                  : "Your current transcript will be cleared. This cannot be undone."
+                ? "Your session data will be preserved. Upload a new file to start fresh."
                 : isGenerating
                   ? "Summary generation is currently in progress and will be stopped."
                   : "You'll return to the transcript view. Your summary will be discarded if you regenerate."}
@@ -1085,7 +1390,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
               Cancel
             </Button>
             <Button onClick={handleStepNavConfirm}>
-              {pendingStep === 1 ? "Clear & Return" : "Return to Transcript"}
+              {pendingStep === 1 ? "Return to Upload" : "Return to Transcript"}
             </Button>
           </DialogFooter>
         </DialogContent>

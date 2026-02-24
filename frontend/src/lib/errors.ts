@@ -1,6 +1,6 @@
 import { ApiError } from "./api";
 
-export type ErrorContext = "summary" | "keyPoints" | "transcript" | "speakers" | "analyze" | "generate" | "regenerate" | "chatbot";
+export type ErrorContext = "summary" | "keyPoints" | "transcript" | "speakers" | "analyze" | "generate" | "regenerate" | "chatbot" | "formOutput";
 
 export function getErrorMessage(error: unknown, context: ErrorContext): string {
   if (error instanceof ApiError) {
@@ -28,6 +28,9 @@ export function getErrorMessage(error: unknown, context: ErrorContext): string {
       }
       if (context === "chatbot") {
         return "Chat failed. Please try again or select a different model.";
+      }
+      if (context === "formOutput") {
+        return "Form filling failed. Try selecting a different model — not all models support structured output.";
       }
     }
   }

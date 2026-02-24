@@ -27,7 +27,7 @@ import { AzureConfigForm } from "@/components/settings/AzureConfigForm";
 import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
 import { FeatureModelOverrides } from "@/components/settings/FeatureModelOverrides";
 import { ChatbotSettings } from "@/components/settings/ChatbotSettings";
-import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ChatbotTranscriptMode } from "@/lib/types";
 
 interface SettingsSheetProps {
   open: boolean;
@@ -66,6 +66,8 @@ interface SettingsSheetProps {
   onChatbotTranscriptEnabledChange: (enabled: boolean) => void;
   chatbotActionsEnabled: boolean;
   onChatbotActionsEnabledChange: (enabled: boolean) => void;
+  chatbotTranscriptMode: ChatbotTranscriptMode;
+  onChatbotTranscriptModeChange: (mode: ChatbotTranscriptMode) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -131,6 +133,8 @@ export function SettingsSheet({
   onChatbotTranscriptEnabledChange,
   chatbotActionsEnabled,
   onChatbotActionsEnabledChange,
+  chatbotTranscriptMode,
+  onChatbotTranscriptModeChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -362,6 +366,8 @@ export function SettingsSheet({
                       onChatbotTranscriptEnabledChange={onChatbotTranscriptEnabledChange}
                       chatbotActionsEnabled={chatbotActionsEnabled}
                       onChatbotActionsEnabledChange={onChatbotActionsEnabledChange}
+                      chatbotTranscriptMode={chatbotTranscriptMode}
+                      onChatbotTranscriptModeChange={onChatbotTranscriptModeChange}
                     />
                   </div>
 

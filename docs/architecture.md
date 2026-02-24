@@ -34,6 +34,7 @@ Everything you need to know to implement a new feature or change an existing one
   - [Component Hierarchy](#component-hierarchy)
   - [Adding a New Frontend Component](#adding-a-new-frontend-component)
   - [State Management](#state-management)
+  - [Session Data Persistence](#session-data-persistence)
   - [API Client](#api-client)
   - [Streaming Responses](#streaming-responses-frontend)
   - [localStorage & API Keys](#localstorage--api-keys)
@@ -92,6 +93,7 @@ project-root/
 │   │   ├── realtime/router.py    #   WS /ws/realtime, POST /createIncrementalSummary
 │   │   ├── prompt_assistant/router.py  #   POST /prompt-assistant/analyze, POST /prompt-assistant/generate
 │   │   ├── live_questions/router.py    #   POST /live-questions/evaluate
+│   │   ├── form_output/router.py     #   POST /form-output/fill
 │   │   ├── chatbot/router.py      #   POST /chatbot/chat, GET /chatbot/knowledge, WS /chatbot/ws/voice
 │   │   ├── auth/router.py         #   GET /auth/verify (no auth required)
 │   │   └── users/router.py        #   GET /users/me, GET /users, POST /users, DELETE /users/{id}
@@ -102,6 +104,7 @@ project-root/
 │   │   ├── realtime/             #   RealtimeTranscriptionService, SessionManager
 │   │   ├── prompt_assistant/core.py  #   PromptAssistantService (analyze + generate)
 │   │   ├── live_questions/core.py    #   LiveQuestionsService (strict LLM evaluation)
+│   │   ├── form_output/core.py      #   FormOutputService (structured form filling)
 │   │   ├── chatbot/core.py        #   ChatbotService (chat, knowledge base, actions)
 │   │   ├── chatbot/actions.py     #   ACTION_REGISTRY (available chatbot actions)
 │   │   ├── auth/core.py           #   AuthService (email verification against DB)
@@ -115,6 +118,7 @@ project-root/
 │   │   ├── realtime.py            #   IncrementalSummaryRequest/Response
 │   │   ├── prompt_assistant.py    #   AssistantQuestion, AnalyzeRequest/Response, GenerateRequest/Response
 │   │   ├── live_questions.py      #   EvaluateQuestionsRequest/Response, QuestionInput, QuestionEvaluation
+│   │   ├── form_output.py        #   FormFieldType, FormFieldDefinition, FillFormRequest/Response
 │   │   └── chatbot.py            #   ChatRole, ChatMessage, ActionProposal, ChatRequest/ChatResponse
 │   ├── db/                         # Database layer (SQLAlchemy async)
 │   │   ├── engine.py              #   async_engine, AsyncSessionLocal, get_db(), Base
@@ -148,12 +152,13 @@ project-root/
 │   │   │   └── globals.css         # Theme variables, animations
 │   │   ├── components/
 │   │   │   ├── admin/              # AddUserDialog, DeleteUserDialog
-│   │   ├── auth/               # SessionWrapper, UserMenu
+│   │   ├── auth/               # SessionWrapper, UserMenu, StorageModeDialog, ConfigExportDialog
 │   │   │   ├── layout/             # Header, Footer, StepIndicator, SettingsSheet
 │   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm
 │   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor (+ Prompt Assistant trigger), SummaryView
 │   │   │   ├── realtime/          # RealtimeMode, RealtimeControls, RealtimeTranscriptView, RealtimeSummaryView, ConnectionStatus
 │   │   │   ├── live-transcript/   # LiveQuestions, LiveQuestionItem, AddQuestionInput, useLiveQuestions hook
+│   │   │   ├── form-output/      # FormTemplateEditor, FormTemplateSelector, FormOutputView, RealtimeFormOutput, useFormOutput hook
 │   │   │   ├── prompt-assistant/  # PromptAssistantModal, StepBasePrompt, StepQuestions, StepSummary, StepResult, QuestionField, usePromptAssistant hook
 │   │   │   ├── chatbot/          # ChatbotFAB, ChatbotModal, ChatMessage, ChatMessageList, ChatInputBar, TranscriptBadge, ActionConfirmCard
 │   │   │   └── ui/                 # shadcn/ui primitives + AudioPlayer composite component
@@ -161,11 +166,14 @@ project-root/
 │   │   │   ├── useApiKeys.ts       # localStorage key management
 │   │   │   ├── useConfig.ts        # Backend config fetching
 │   │   │   ├── useCustomTemplates.ts # Custom prompt template CRUD (localStorage + server sync)
+│   │   │   ├── useFormTemplates.ts  # Form template CRUD (localStorage + server sync)
 │   │   │   ├── usePreferences.ts   # Server preference sync (loads on mount, fire-and-forget saves)
+│   │   │   ├── useSessionPersistence.ts # Session data persistence (localStorage: transcript, summary, form output, questions)
 │   │   │   ├── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
 │   │   │   └── useChatbot.ts      # Chatbot hook (messages, streaming, actions, persistent voice session, mic device selection)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
+│   │       ├── config-export.ts    # Settings export/import: collect, serialize, compress (pako), encode (Base64), validate, restore
 │   │       ├── errors.ts           # getErrorMessage() — maps ApiError status codes to user-friendly strings
 │   │       ├── types.ts            # TypeScript types (mirrors backend models)
 │   │       └── utils.ts            # cn() Tailwind merge utility
@@ -218,8 +226,9 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 | `src/app/api/auth/[...nextauth]/route.ts` | Auth.js route handler (GET/POST for OAuth callbacks)                                                 |
 | `src/app/login/page.tsx`                  | Server Component login page with "Sign in with Google" button                                        |
 | `src/components/auth/SessionWrapper.tsx`  | Client `<SessionProvider>` wrapper (needed because `layout.tsx` is a Server Component)               |
-| `src/components/auth/UserMenu.tsx`        | Client component: dropdown with user avatar, storage mode toggle, admin panel link, and sign-out     |
+| `src/components/auth/UserMenu.tsx`        | Client component: dropdown with user avatar, storage mode toggle, config export/import, admin panel link, and sign-out     |
 | `src/components/auth/StorageModeDialog.tsx` | Dialog for switching between local and account storage modes (uploads/downloads preferences)       |
+| `src/components/auth/ConfigExportDialog.tsx` | Dialog for exporting/importing settings as a portable compressed config string                    |
 
 **Database access control**: The `signIn` callback in `auth.ts` calls `GET {BACKEND_INTERNAL_URL}/auth/verify?email=...` server-side. Only emails that exist in the `users` DB table are allowed in. Denied users are redirected to `/login?error=AccessDenied`. The `jwt` callback fetches the user's `role` and stores it in the session token; the `session` callback exposes it as `session.user.role`.
 
@@ -388,6 +397,7 @@ Key models:
 | `models/realtime.py`         | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                                        |
 | `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest`, `AnalyzeResponse` (incl. `suggested_target_system`), `GenerateRequest/Response` |
 | `models/live_questions.py`   | `QuestionInput`, `EvaluateQuestionsRequest`, `QuestionEvaluation`, `EvaluateQuestionsResponse`                                                    |
+| `models/form_output.py`     | `FormFieldType` (enum), `FormFieldDefinition`, `FillFormRequest`, `FillFormResponse`             |
 | `models/chatbot.py`         | `ChatRole` (enum), `ChatMessage`, `ActionProposal`, `ChatRequest`, `ChatResponse`                |
 
 ### Configuration & Environment
@@ -597,9 +607,11 @@ Step 1 has two modes controlled by `step1Mode` state (`"upload"` | `"record"`), 
 Transitions:
 
 - **1 -> 2**: `handleFileSelected()` — uploads/sends file, calls `/createTranscript`
-- **2 -> 3**: `handleGenerate()` — calls `/createSummary` with streaming
+- **2 -> 3**: `handleGenerate()` — calls `/createSummary` with streaming (forward navigation goes directly without confirmation)
 - **3 -> 2**: "Back to Transcript" button
-- **3 -> 1**: "Start Over" resets all state
+- **3 -> 1**: "Start Over" returns to step 1 but transcript/summary persist in localStorage until a new file is uploaded
+- **On mount**: step is derived from loaded session data (e.g., if transcript + summary exist, starts at step 3)
+- **"Show previous" links**: allow returning to existing transcript/summary/form data from earlier steps
 
 ### Realtime Mode
 
@@ -618,11 +630,19 @@ The realtime mode provides live transcription and incremental summarization:
          Desktop: two-column grid / Mobile: tabbed
 ```
 
+**Always-mounted**: `RealtimeMode` is always mounted in the DOM (hidden with CSS `display: none` when in standard mode) so that WebSocket connections and session state survive mode switching. Initial values (transcript, summary, questions, form values) are passed as props from `useSessionPersistence`.
+
 The `useRealtimeSession` hook manages the entire lifecycle:
 1. **Start**: getUserMedia → AudioContext → AudioWorklet (PCM16 @ 16kHz, buffered in 100ms chunks) → WebSocket to backend → relay to AssemblyAI
 2. **During session**: transcript accumulates from WS `turn` events; summary timer fires at configurable interval (1-10 min, set in Settings panel) calling `POST /createIncrementalSummary`; countdown timer (`mm:ss`) shown in controls bar; timer pauses when recording is paused and restarts on resume
 3. **Manual summary**: "Refresh Summary" button in controls triggers immediate summary and resets the auto-timer from that point
 4. **Stop**: sends stop message → closes WS → triggers final full-transcript summary → shows copy buttons
+
+**Clear actions**: Each realtime panel has a trash icon with a confirmation dialog:
+- **Live Transcript**: trash icon left of copy button, clears accumulated transcript via `clearTranscript()` on `useRealtimeSession`
+- **Summary**: trash icon left of fullscreen button, clears summary via `clearSummary()` on `useRealtimeSession`
+- **Questions & Topics**: trash icon in header, clears all questions via `clearAll()` on `useLiveQuestions`
+- **Form Output**: "No template" option added to template dropdown to deselect the current template
 
 ### Component Hierarchy
 
@@ -635,8 +655,9 @@ RootLayout (layout.tsx)
     └── / ── Home (page.tsx) ─── Outer shell: useConfig() + usePreferences(), loading gate
         └── HomeInner ──────────── All state lives here (mounts after prefs loaded)
         ├── Header
-        │   ├── UserMenu       ← dropdown: avatar, storage mode, admin panel link, sign-out
-        │   │   └── StorageModeDialog ← upload/download prefs when switching storage modes
+        │   ├── UserMenu       ← dropdown: avatar, storage mode, config export/import, admin panel link, sign-out
+        │   │   ├── StorageModeDialog ← upload/download prefs when switching storage modes
+        │   │   └── ConfigExportDialog ← export/import settings as portable compressed config string (CFG1_ prefix + Base64 + pako deflate)
         │   └── Settings gear icon
         ├── SettingsSheet (right-side drawer, 380px)
         │   ├── ApiKeyManager          ← uses useApiKeys() hook
@@ -652,20 +673,22 @@ RootLayout (layout.tsx)
         │   ├── StepIndicator          ← visual 3-step progress bar
         │   └── Step Content (conditional):
         │       ├── Step 1: tab toggle → FileUpload | AudioRecorder
-        │       ├── Step 2: TranscriptView + SpeakerMapper + PromptEditor
-        │       │               └── PromptAssistantModal (Dialog, triggered by "Prompt Assistant" button)
-        │       │                   ├── StepBasePrompt   ← Step 1: optional existing prompt
-        │       │                   ├── StepQuestions    ← Step 2: dynamic QuestionField list
-        │       │                   ├── StepSummary      ← Step 3: answer review + additional notes
-        │       │                   └── StepResult       ← Step 4: editable generated prompt
-        │       └── Step 3: TranscriptView (readonly) + SummaryView
+        │       ├── Step 2: TranscriptView + SpeakerMapper + [Summary|Form Output] toggle
+        │       │               ├── (Summary mode) PromptEditor
+        │       │               │   └── PromptAssistantModal (Dialog)
+        │       │               │       ├── StepBasePrompt, StepQuestions, StepSummary, StepResult
+        │       │               └── (Form Output mode) FormTemplateSelector + FormTemplateEditor (Dialog)
+        │       └── Step 3: TranscriptView (readonly) + SummaryView | FormOutputView
         │
-        ├── (Realtime mode):
-        │   └── RealtimeMode           ← orchestrator, uses useRealtimeSession() hook; exposes full transcript (accumulated + partials) to parent via onTranscriptChange for chatbot context
+        ├── RealtimeMode (always mounted, hidden via CSS when in standard mode):
+        │   └── orchestrator, uses useRealtimeSession() + useFormOutput() + useLiveQuestions() hooks
         │       ├── RealtimeControls   ← Start/Pause/Stop, mic selector, elapsed timer, countdown + Refresh button
         │       │   └── ConnectionStatus
-        │       ├── RealtimeTranscriptView  ← live transcript with auto-scroll
-        │       └── RealtimeSummaryView     ← markdown summary with periodic updates
+        │       ├── RealtimeTranscriptView  ← live transcript with auto-scroll + trash/clear icon
+        │       ├── RealtimeSummaryView     ← markdown summary with periodic updates + trash/clear icon
+        │       └── [Questions & Topics | Form Output] tab bar
+        │           ├── LiveQuestions        ← questions + topics evaluation + clear all icon
+        │           └── RealtimeFormOutput   ← live form filling with template selector ("No template" option)
         │
         ├── (Chatbot overlay, when chatbotEnabled):
         │   ├── ChatbotFAB            ← Floating action button (bottom-right, shifts when settings open)
@@ -738,8 +761,11 @@ All application state lives in `page.tsx` using `useState`. There is no global s
 | Chatbot Q&A toggle  | Yes (localStorage) | Yes               | `aias:v1:chatbot_qa`        |
 | Chatbot transcript  | Yes (localStorage) | Yes               | `aias:v1:chatbot_transcript`|
 | Chatbot actions     | Yes (localStorage) | Yes               | `aias:v1:chatbot_actions`   |
+| Chatbot transcript mode | Yes (localStorage) | Yes           | `aias:v1:chatbot_transcript_mode` |
 | Mic device ID       | Yes (localStorage) | No                | `aias:v1:mic_device_id` (shared by AudioRecorder, RealtimeControls, useChatbot) |
-| Workflow state      | No                 | No                | -                           |
+| Session data (std)  | Yes (localStorage) | No                | `aias:v1:session:standard:*` (transcript, summary, form, output_mode) |
+| Session data (rt)   | Yes (localStorage) | No                | `aias:v1:session:realtime:*` (transcript, summary, form, questions) |
+| Workflow state      | No (derived)       | No                | - (step derived from persisted session data on mount) |
 | Prompt/language     | No                 | No                | -                           |
 | Realtime session    | No (hook state)    | No                | -                           |
 | Realtime transcript | No (page state)    | No                | - (lifted from RealtimeMode via onTranscriptChange for chatbot context) |
@@ -760,6 +786,43 @@ const handleProviderChange = useCallback((provider: LLMProvider) => {
 }, [savePreferences]);
 ```
 
+### Session Data Persistence
+
+The `useSessionPersistence` hook (`frontend/src/hooks/useSessionPersistence.ts`) persists session data to localStorage so transcripts, summaries, form outputs, and questions survive page reloads and navigation.
+
+**Storage keys** follow the `aias:v1:session:` prefix convention:
+
+| Mode | Persisted Fields |
+|---|---|
+| Standard | `transcript`, `summary`, `form_template_id`, `form_values`, `output_mode`, `updated_at` |
+| Realtime | `transcript`, `summary`, `form_template_id`, `form_values`, `questions`, `updated_at` |
+
+**Design decision**: localStorage only (no server sync). Session data can be very large (full transcripts, summaries, form output) and re-uploading on every preference change would be expensive. The primary use case is surviving page reloads on the same browser.
+
+**How it works**:
+
+- **Standard mode**: On mount, transcript, summary, form values, selected template, and output mode are initialized from localStorage. The current step is derived from the loaded data (e.g., transcript + summary present implies step 3).
+- **Realtime mode**: `RealtimeMode` is always mounted (hidden via CSS when in standard mode) so WebSocket connections survive mode switching. Initial values (`initialTranscript`, `initialSummary`, `initialQuestions`, `initialValues`) are passed as props to sub-hooks.
+- **"Start Over"**: Returns to step 1 but transcript/summary persist in localStorage until a new file is uploaded.
+- **Step navigation**: Forward navigation (e.g., step 2 to 3) goes directly without confirmation. "Show previous transcript/summary/form" links allow returning to existing data.
+
+**Sub-hooks that accept initial values**:
+
+| Hook | Initial Value Props |
+|---|---|
+| `useRealtimeSession` | `initialTranscript`, `initialSummary` |
+| `useLiveQuestions` | `initialQuestions` |
+| `useFormOutput` | `initialValues` |
+
+**Chatbot transcript mode** (`chatbot_transcript_mode`): Controls which transcript the chatbot uses as context. Stored as `aias:v1:chatbot_transcript_mode` in localStorage and synced via `usePreferences`.
+
+| Value | Behaviour |
+|---|---|
+| `"current_mode"` (default) | Chatbot uses the transcript from the active Standard/Realtime mode |
+| `"latest"` | Chatbot uses the most recently updated transcript regardless of current mode, comparing `updated_at` timestamps |
+
+The setting is exposed as a radio group in `ChatbotSettings.tsx` (nested under the "Transcript Context" toggle). The type `ChatbotTranscriptMode` is defined in `lib/types.ts`.
+
 ### API Client
 
 All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which routes all requests through the Next.js API proxy layer (`src/app/api/proxy/[...path]/route.ts`). The proxy forwards to the backend using `BACKEND_INTERNAL_URL`.
@@ -776,6 +839,7 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 | `analyzePrompt()`              | POST   | `/prompt-assistant/analyze`  | `PromptAssistantAnalyzeResponse`              |
 | `generatePrompt()`             | POST   | `/prompt-assistant/generate` | `PromptAssistantGenerateResponse`             |
 | `evaluateLiveQuestions()`      | POST   | `/live-questions/evaluate`   | `EvaluateQuestionsResponse`                   |
+| `fillForm()`                   | POST   | `/form-output/fill`          | `FillFormResponse`                            |
 | `chatbotChat()`                | POST   | `/chatbot/chat`              | `string` (streaming, same pattern as summary) |
 | `getMe()`                      | GET    | `/users/me`                  | `UserProfile`                                 |
 | `getUsers()`                   | GET    | `/users`                     | `UserProfile[]` (admin only)                  |
@@ -787,7 +851,7 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 
 Error handling: `ApiError` class with `status` and `message`. The `handleResponse<T>()` helper extracts `detail` from FastAPI error JSON. Use `getErrorMessage(error, context)` from `lib/errors.ts` in catch blocks to map `ApiError` status codes to user-friendly toast messages — never show raw backend error strings to the user.
 
-`ErrorContext` values: `"summary"` | `"keyPoints"` | `"transcript"` | `"speakers"` | `"analyze"` | `"generate"` | `"regenerate"` | `"chatbot"`. The `analyze`/`generate`/`regenerate` contexts are used by the Prompt Assistant hook; `chatbot` is used by the `useChatbot` hook.
+`ErrorContext` values: `"summary"` | `"keyPoints"` | `"transcript"` | `"speakers"` | `"analyze"` | `"generate"` | `"regenerate"` | `"chatbot"` | `"formOutput"`. The `analyze`/`generate`/`regenerate` contexts are used by the Prompt Assistant hook; `chatbot` is used by the `useChatbot` hook; `formOutput` is used by the form output feature.
 
 **To add a new API call**: add a function in `api.ts`, add types in `types.ts`, call it from `page.tsx` or a component.
 
@@ -862,7 +926,7 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 | `aias:v1:model:{provider}`      | Selected model per provider     | Yes     |
 | `aias:v1:app_mode`              | App mode (`standard` or `realtime`) | Yes |
 | `aias:v1:realtime_interval`     | Realtime auto-summary interval (minutes: 1/2/3/5/10) | Yes |
-| `aias:v1:feature_overrides`     | JSON: per-feature model overrides (`Partial<Record<LLMFeature, FeatureModelOverride>>`); features: `summary_generation`, `realtime_summary`, `key_point_extraction`, `prompt_assistant`, `live_question_evaluation` | Yes |
+| `aias:v1:feature_overrides`     | JSON: per-feature model overrides (`Partial<Record<LLMFeature, FeatureModelOverride>>`); features: `summary_generation`, `realtime_summary`, `key_point_extraction`, `prompt_assistant`, `live_question_evaluation`, `form_output` | Yes |
 | `aias:v1:auto_key_points`       | Auto-extract key points toggle (`"true"`/`"false"`) | Yes |
 | `aias:v1:speaker_labels`        | Auto-suggest speaker names from transcript (`"true"`/`"false"`) | Yes |
 | `aias:v1:min_speakers`          | Minimum expected speakers (number) | Yes  |
@@ -870,6 +934,10 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 | `aias:v1:realtime_final_summary`| Generate final summary on stop (`"true"`/`"false"`) | Yes |
 | `aias:v1:realtime_system_prompt`| Custom realtime summary system prompt | Yes |
 | `aias:v1:custom_templates`      | JSON array of custom prompt templates (`PromptTemplate[]`) | Yes |
+| `aias:v1:form_templates`        | JSON array of form templates (`FormTemplate[]`) for structured form output | Yes |
+| `aias:v1:chatbot_transcript_mode` | Chatbot transcript source: `"current_mode"` or `"latest"` | Yes |
+| `aias:v1:session:standard:*`   | Standard mode session data (transcript, summary, form_template_id, form_values, output_mode, updated_at) | No |
+| `aias:v1:session:realtime:*`   | Realtime mode session data (transcript, summary, form_template_id, form_values, questions, updated_at) | No |
 
 ### Styling & Theme
 
@@ -935,6 +1003,7 @@ import { cn } from "@/lib/utils";
 
 ```tsx
 export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai";
+export type ChatbotTranscriptMode = "current_mode" | "latest";
 
 export interface ProviderInfo {
   id: LLMProvider;
@@ -1187,7 +1256,7 @@ User opens chatbot via floating action button (ChatbotFAB, bottom-right)
     │  Chatbot enabled by default (toggle in Settings → AI Chatbot)
     │  Four independently toggleable capabilities:
     │    - App Usage Q&A (knowledge base)
-    │    - Transcript Context (auto-attaches current transcript in standard mode; live transcript including in-progress partials in realtime mode)
+    │    - Transcript Context (auto-attaches transcript; source controlled by chatbot_transcript_mode setting — "current_mode" uses active mode, "latest" compares updated_at timestamps)
     │    - App Control (agentic actions)
     │    - Voice Input (via AssemblyAI realtime STT, persistent session, mic device selector)
     │

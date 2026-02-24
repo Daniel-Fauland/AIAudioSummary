@@ -18,8 +18,13 @@ export interface LiveQuestionsLlmConfig {
   langdockConfig?: LangdockConfig;
 }
 
-export function useLiveQuestions() {
-  const [questions, setQuestions] = useState<LiveQuestion[]>([]);
+export interface UseLiveQuestionsOptions {
+  initialQuestions?: LiveQuestion[];
+}
+
+export function useLiveQuestions(options?: UseLiveQuestionsOptions) {
+  const { initialQuestions } = options ?? {};
+  const [questions, setQuestions] = useState<LiveQuestion[]>(initialQuestions ?? []);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [warningDismissed, setWarningDismissed] = useState(false);
 
@@ -149,6 +154,13 @@ export function useLiveQuestions() {
     [shouldEvaluate]
   );
 
+  const clearAll = useCallback(() => {
+    setQuestions([]);
+    questionsRef.current = [];
+    lastEvaluatedTranscriptLengthRef.current = 0;
+    lastEvaluatedQuestionIdsRef.current = [];
+  }, []);
+
   const resetEvaluationTracking = useCallback(() => {
     lastEvaluatedTranscriptLengthRef.current = 0;
     lastEvaluatedQuestionIdsRef.current = [];
@@ -164,6 +176,7 @@ export function useLiveQuestions() {
     dismissWarning,
     shouldEvaluate,
     triggerEvaluation,
+    clearAll,
     resetEvaluationTracking,
   };
 }

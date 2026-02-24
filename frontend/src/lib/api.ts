@@ -8,6 +8,8 @@ import type {
   EvaluateQuestionsResponse,
   ExtractKeyPointsRequest,
   ExtractKeyPointsResponse,
+  FillFormRequest,
+  FillFormResponse,
   GetSpeakersResponse,
   IncrementalSummaryRequest,
   IncrementalSummaryResponse,
@@ -193,6 +195,17 @@ export async function generatePrompt(
     body: JSON.stringify(request),
   });
   return handleResponse<PromptAssistantGenerateResponse>(response);
+}
+
+export async function fillForm(
+  request: FillFormRequest,
+): Promise<FillFormResponse> {
+  const response = await fetch(`${API_BASE}/form-output/fill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<FillFormResponse>(response);
 }
 
 export async function evaluateLiveQuestions(

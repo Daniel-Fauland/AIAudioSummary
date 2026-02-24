@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, HardDrive, Cloud, Loader2 } from "lucide-react";
+import { LogOut, Shield, HardDrive, Cloud, Loader2, ArrowLeftRight } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StorageModeDialog } from "@/components/auth/StorageModeDialog";
+import { ConfigExportDialog } from "@/components/auth/ConfigExportDialog";
 import { getMe } from "@/lib/api";
 import type { UserProfile } from "@/lib/types";
 
@@ -26,6 +27,7 @@ export function UserMenu({ onStorageModeChange }: UserMenuProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [storageModeDialogOpen, setStorageModeDialogOpen] = useState(false);
+  const [configExportDialogOpen, setConfigExportDialogOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const handleOpenChange = useCallback(
@@ -49,6 +51,11 @@ export function UserMenu({ onStorageModeChange }: UserMenuProps) {
   const handleStorageModeClick = useCallback(() => {
     setDropdownOpen(false);
     setStorageModeDialogOpen(true);
+  }, []);
+
+  const handleConfigExportClick = useCallback(() => {
+    setDropdownOpen(false);
+    setConfigExportDialogOpen(true);
   }, []);
 
   const handleModeChanged = useCallback(
@@ -127,6 +134,12 @@ export function UserMenu({ onStorageModeChange }: UserMenuProps) {
             </div>
           </DropdownMenuItem>
 
+          {/* Export / Import Settings */}
+          <DropdownMenuItem onClick={handleConfigExportClick} className="gap-2 cursor-pointer">
+            <ArrowLeftRight className="h-4 w-4 text-foreground-muted" />
+            <span className="text-sm">Export / Import Settings</span>
+          </DropdownMenuItem>
+
           {/* Admin Panel (admin only) */}
           {isAdmin ? (
             <>
@@ -159,6 +172,11 @@ export function UserMenu({ onStorageModeChange }: UserMenuProps) {
         currentMode={currentStorageMode}
         onClose={() => setStorageModeDialogOpen(false)}
         onModeChanged={handleModeChanged}
+      />
+
+      <ConfigExportDialog
+        open={configExportDialogOpen}
+        onClose={() => setConfigExportDialogOpen(false)}
       />
     </>
   );
