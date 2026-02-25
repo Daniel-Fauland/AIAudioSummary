@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Send, Mic, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+export interface ChatInputBarHandle {
+  focus: () => void;
+}
+
 interface ChatInputBarProps {
   onSend: (text: string) => void;
   disabled: boolean;
@@ -38,7 +42,7 @@ interface ChatInputBarProps {
   onDeviceChange?: (deviceId: string) => void;
 }
 
-export function ChatInputBar({
+export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(function ChatInputBar({
   onSend,
   disabled,
   placeholder,
@@ -52,9 +56,13 @@ export function ChatInputBar({
   audioDevices,
   selectedDeviceId,
   onDeviceChange,
-}: ChatInputBarProps) {
+}, ref) {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => textareaRef.current?.focus(),
+  }));
 
   // Append finalized voice text to the input field (not replace)
   useEffect(() => {
@@ -199,4 +207,4 @@ export function ChatInputBar({
       </Button>
     </div>
   );
-}
+});

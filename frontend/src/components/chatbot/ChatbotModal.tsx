@@ -1,17 +1,19 @@
 "use client";
 
-import { X, Trash2, Minus } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Trash2, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ChatMessageList } from "./ChatMessageList";
 import { ChatInputBar } from "./ChatInputBar";
+import type { ChatInputBarHandle } from "./ChatInputBar";
 import { TranscriptBadge } from "./TranscriptBadge";
 import type { ChatMessageType } from "@/lib/types";
 
 interface ChatbotModalProps {
   open: boolean;
   onClose: () => void;
-  onMinimize: () => void;
+
   messages: ChatMessageType[];
   isStreaming: boolean;
   hasApiKey: boolean;
@@ -21,6 +23,7 @@ interface ChatbotModalProps {
   transcriptAttached: boolean;
   transcriptWordCount: number;
   isLiveTranscript?: boolean;
+  isLiveTranscriptActive?: boolean;
   onDetachTranscript: () => void;
   onConfirmAction: (messageId: string) => void;
   onCancelAction: (messageId: string) => void;
@@ -40,7 +43,7 @@ interface ChatbotModalProps {
 export function ChatbotModal({
   open,
   onClose,
-  onMinimize,
+
   messages,
   isStreaming,
   hasApiKey,
@@ -50,6 +53,7 @@ export function ChatbotModal({
   transcriptAttached,
   transcriptWordCount,
   isLiveTranscript,
+  isLiveTranscriptActive,
   onDetachTranscript,
   onConfirmAction,
   onCancelAction,
@@ -65,17 +69,82 @@ export function ChatbotModal({
   onDeviceChange,
   isSettingsOpen,
 }: ChatbotModalProps) {
+  const inputBarRef = useRef<ChatInputBarHandle>(null);
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  // Keyboard shortcut indicators
+  const [altPressed, setAltPressed] = useState(false);
+  const [cPressed, setCPressed] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Alt") setAltPressed(true);
+      if (e.code === "KeyC") setCPressed(true);
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Alt") setAltPressed(false);
+      if (e.code === "KeyC") setCPressed(false);
+    };
+    const handleBlur = () => {
+      setAltPressed(false);
+      setCPressed(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [open]);
+
+  // Auto-focus input when chatbot opens
+  useEffect(() => {
+    if (open) {
+      // Small delay to ensure the DOM is rendered
+      const timer = setTimeout(() => inputBarRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
+
+  const kbdBase =
+    "flex h-6 min-w-6 items-center justify-center rounded border px-1.5 text-[11px] font-semibold transition-colors";
+  const kbdDefault = "border-border bg-card-elevated text-foreground-secondary";
+  const kbdActive = "border-foreground/30 bg-foreground/10 text-foreground";
+
   if (!open) return null;
 
   return (
+    <>
+    {/* Backdrop — click outside to restore from maximized */}
+    {isMaximized && <div className="fixed inset-0 z-[40]" onClick={() => setIsMaximized(false)} />}
     <div className={cn(
-      "fixed bottom-20 z-[41] flex w-[420px] max-h-[600px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200 transition-[right] ease-in-out",
-      isSettingsOpen ? "right-[404px]" : "right-6",
-      "max-md:bottom-0 max-md:right-0 max-md:left-0 max-md:w-full max-md:max-h-[80vh] max-md:rounded-t-xl max-md:rounded-b-none"
+      "fixed z-[41] flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200 transition-[right,left,top,width,max-height,bottom] ease-in-out",
+      isMaximized
+        ? "top-[88px] bottom-[56px] left-12 right-12 w-auto max-h-none"
+        : "bottom-20 w-[420px] max-h-[600px]",
+      !isMaximized && (isSettingsOpen ? "right-[404px]" : "right-6"),
+      "max-md:bottom-0 max-md:right-0 max-md:left-0 max-md:top-auto max-md:w-full max-md:max-h-[80vh] max-md:rounded-t-xl max-md:rounded-b-none"
     )}>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h3 className="text-sm font-semibold text-foreground">AI Assistant</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground">AI Assistant</h3>
+          <div className="hidden md:flex items-center gap-1">
+            <kbd className={`${kbdBase} ${altPressed ? kbdActive : kbdDefault}`}>
+              {typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? (
+                <span className="text-xs leading-none">⌥</span>
+              ) : (
+                "Alt"
+              )}
+            </kbd>
+            <kbd className={`${kbdBase} ${cPressed ? kbdActive : kbdDefault}`}>C</kbd>
+          </div>
+        </div>
         <div className="flex items-center gap-1">
           {messages.length > 0 && (
             <Button
@@ -91,11 +160,11 @@ export function ChatbotModal({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
-            onClick={onMinimize}
-            title="Minimize"
+            className="hidden md:inline-flex h-7 w-7"
+            onClick={() => setIsMaximized((v) => !v)}
+            title={isMaximized ? "Restore" : "Maximize"}
           >
-            <Minus className="h-3.5 w-3.5" />
+            {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </Button>
           <Button
             variant="ghost"
@@ -133,10 +202,12 @@ export function ChatbotModal({
             <TranscriptBadge
               wordCount={transcriptWordCount}
               isLive={isLiveTranscript}
+              isLiveActive={isLiveTranscriptActive}
               onDetach={onDetachTranscript}
             />
           )}
           <ChatInputBar
+            ref={inputBarRef}
             onSend={onSendMessage}
             disabled={isStreaming}
             isVoiceActive={isVoiceActive}
@@ -153,5 +224,6 @@ export function ChatbotModal({
         </>
       )}
     </div>
+    </>
   );
 }

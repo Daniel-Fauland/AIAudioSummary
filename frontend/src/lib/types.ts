@@ -175,6 +175,7 @@ export type SummaryInterval = 1 | 2 | 3 | 5 | 10;
 
 export type RealtimeWsMessage =
   | { type: "session_started"; session_id: string }
+  | { type: "session_ready" }
   | { type: "turn"; transcript: string; is_final: boolean }
   | { type: "error"; message: string }
   | { type: "reconnecting"; attempt: number }
@@ -319,6 +320,27 @@ export interface UserPreferences {
   chatbot_actions?: boolean;
   speaker_labels_enabled?: boolean;
   chatbot_transcript_mode?: ChatbotTranscriptMode;
+  sync_standard_realtime?: boolean;
+  session_standard?: {
+    transcript?: string;
+    summary?: string;
+    form_template_id?: string | null;
+    form_values?: Record<string, unknown>;
+    output_mode?: string;
+    updated_at?: number | null;
+  };
+  session_realtime?: {
+    transcript?: string;
+    summary?: string;
+    form_template_id?: string | null;
+    form_values?: Record<string, unknown>;
+    questions?: LiveQuestion[];
+    updated_at?: number | null;
+  };
+  session_chatbot?: {
+    messages?: { role: string; content: string }[];
+    updated_at?: number | null;
+  };
 }
 
 export interface PreferencesResponse {
@@ -357,4 +379,25 @@ export interface FillFormRequest {
 
 export interface FillFormResponse {
   values: Record<string, unknown>;
+}
+
+export interface GenerateTemplateRequest {
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  azure_config?: AzureConfig;
+  langdock_config?: LangdockConfig;
+  description: string;
+}
+
+export interface GeneratedField {
+  label: string;
+  type: FormFieldType;
+  description?: string;
+  options?: string[];
+}
+
+export interface GenerateTemplateResponse {
+  name: string;
+  fields: GeneratedField[];
 }

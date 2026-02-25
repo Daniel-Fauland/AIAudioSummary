@@ -112,7 +112,6 @@ export function RealtimeSummaryView({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-foreground-muted hover:text-destructive"
                   onClick={() => setConfirmClear(true)}
                 >
                   <Trash2 className="h-4 w-4" />

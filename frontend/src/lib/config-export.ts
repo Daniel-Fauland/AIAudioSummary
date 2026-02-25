@@ -3,18 +3,42 @@ import { deflate, inflate } from "pako";
 const CONFIG_PREFIX = "CFG1_";
 const SETTINGS_PREFIX = "aias:v1:";
 const API_KEY_PREFIX = "aias:v1:apikey:";
+const SESSION_PREFIX = "aias:v1:session:";
+const CHATBOT_PREFIX = "aias:v1:chatbot";
+const AZURE_PREFIX = "aias:v1:azure:";
+const LANGDOCK_KEY = "aias:v1:langdock_config";
+
+/** Standard Base64 → Base64URL (URL-safe, no padding) */
+function toBase64Url(base64: string): string {
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Base64URL → Standard Base64 (restores padding) */
+function fromBase64Url(base64url: string): string {
+  let s = base64url.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = s.length % 4;
+  if (pad === 2) s += "==";
+  else if (pad === 3) s += "=";
+  return s;
+}
+
+interface CollectOptions {
+  includeApiKeys?: boolean;
+  includeSessionData?: boolean;
+}
 
 /**
  * Collect all aias:v1:* settings from localStorage.
- * @param includeApiKeys - Whether to include API keys (aias:v1:apikey:*).
  */
-export function collectSettings(includeApiKeys: boolean): Record<string, string> {
+export function collectSettings(options: CollectOptions = {}): Record<string, string> {
+  const { includeApiKeys = false, includeSessionData = true } = options;
   const settings: Record<string, string> = {};
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key || !key.startsWith(SETTINGS_PREFIX)) continue;
       if (!includeApiKeys && key.startsWith(API_KEY_PREFIX)) continue;
+      if (!includeSessionData && (key.startsWith(SESSION_PREFIX) || key.startsWith(CHATBOT_PREFIX))) continue;
       const value = localStorage.getItem(key);
       if (value !== null) settings[key] = value;
     }
@@ -26,14 +50,14 @@ export function collectSettings(includeApiKeys: boolean): Record<string, string>
 
 /**
  * Serialize settings to a portable config string.
- * Format: CFG1_ + Base64(pako.deflate(JSON.stringify(settings)))
+ * Format: CFG1_ + Base64URL(pako.deflate(JSON.stringify(settings)))
  */
-export function exportSettings(includeApiKeys: boolean): string {
-  const settings = collectSettings(includeApiKeys);
+export function exportSettings(options: CollectOptions = {}): string {
+  const settings = collectSettings(options);
   const json = JSON.stringify(settings);
   const compressed = deflate(new TextEncoder().encode(json));
-  const base64 = btoa(String.fromCharCode(...compressed));
-  return CONFIG_PREFIX + base64;
+  const base64 = btoa(Array.from(compressed, (b) => String.fromCharCode(b)).join(""));
+  return CONFIG_PREFIX + toBase64Url(base64);
 }
 
 /**
@@ -45,10 +69,13 @@ export function parseConfigString(configString: string): Record<string, string> 
     throw new Error("Invalid config string: missing version prefix");
   }
 
-  const base64 = trimmed.slice(CONFIG_PREFIX.length);
-  if (!base64) {
+  const raw = trimmed.slice(CONFIG_PREFIX.length);
+  if (!raw) {
     throw new Error("Invalid config string: empty payload");
   }
+
+  // Convert Base64URL → standard Base64 (also handles legacy standard Base64 transparently)
+  const base64 = fromBase64Url(raw);
 
   let binary: string;
   try {
@@ -117,3 +144,45 @@ export function importSettings(configString: string): number {
 export function configContainsApiKeys(settings: Record<string, string>): boolean {
   return Object.keys(settings).some((key) => key.startsWith(API_KEY_PREFIX));
 }
+
+/**
+ * Build a full import URL for the given config string.
+ */
+export function buildImportUrl(configString: string): string {
+  return `${window.location.origin}/?import=${encodeURIComponent(configString)}`;
+}
+
+/**
+ * Export only API keys and related connection config (Azure, Langdock).
+ * Produces a compact config string suitable for QR codes.
+ * Throws if no API keys are found.
+ */
+export function exportApiKeys(): string {
+  const settings: Record<string, string> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (
+        key.startsWith(API_KEY_PREFIX) ||
+        key.startsWith(AZURE_PREFIX) ||
+        key === LANGDOCK_KEY
+      ) {
+        const value = localStorage.getItem(key);
+        if (value !== null) settings[key] = value;
+      }
+    }
+  } catch {
+    // localStorage unavailable
+  }
+  if (Object.keys(settings).length === 0) {
+    throw new Error("No API keys configured. Add your API keys in Settings first.");
+  }
+  const json = JSON.stringify(settings);
+  const compressed = deflate(new TextEncoder().encode(json));
+  const base64 = btoa(Array.from(compressed, (b) => String.fromCharCode(b)).join(""));
+  return CONFIG_PREFIX + toBase64Url(base64);
+}
+
+/** Practical URL-length ceiling for reliable QR scanning on phones (~350px image). */
+export const QR_URL_MAX_LENGTH = 1000;

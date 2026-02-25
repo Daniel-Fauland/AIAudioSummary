@@ -47,6 +47,8 @@ interface UseChatbotProps {
   appContext?: AppContext;
   isChatOpen: boolean;
   chatbotEnabled: boolean;
+  initialMessages?: ChatMessageType[];
+  onMessagesChange?: (messages: ChatMessageType[]) => void;
 }
 
 interface UseChatbotReturn {
@@ -104,9 +106,13 @@ export function useChatbot({
   appContext,
   isChatOpen,
   chatbotEnabled,
+  initialMessages,
+  onMessagesChange,
 }: UseChatbotProps): UseChatbotReturn {
-  const [messages, setMessages] = useState<ChatMessageType[]>([]);
+  const [messages, setMessages] = useState<ChatMessageType[]>(initialMessages ?? []);
   const [isStreaming, setIsStreaming] = useState(false);
+  const onMessagesChangeRef = useRef(onMessagesChange);
+  onMessagesChangeRef.current = onMessagesChange;
   const abortRef = useRef<AbortController | null>(null);
 
   // Streaming: accumulate text in refs and write directly to DOM (bypasses React)
@@ -303,6 +309,18 @@ export function useChatbot({
       setIsStreaming(false);
     }
   }, [isStreaming, hasApiKey, apiKey, messages, provider, model, azureConfig, langdockConfig, chatbotQAEnabled, chatbotTranscriptEnabled, chatbotActionsEnabled, transcript, actionHandlers, appContext]);
+
+  // Persist messages when they change (skip during streaming and initial mount)
+  const isFirstRenderRef = useRef(true);
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      return;
+    }
+    if (!isStreaming) {
+      onMessagesChangeRef.current?.(messages);
+    }
+  }, [messages, isStreaming]);
 
   const clearMessages = useCallback(() => {
     abortRef.current?.abort();
@@ -595,9 +613,19 @@ export function useChatbot({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isChatOpen, chatbotEnabled]);
 
+  // Keep in sync when AudioRecorder or RealtimeControls changes the device
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ deviceId: string }>) => {
+      setSelectedDeviceId(e.detail.deviceId);
+    };
+    window.addEventListener("aias:mic-change", handler as EventListener);
+    return () => window.removeEventListener("aias:mic-change", handler as EventListener);
+  }, []);
+
   const onDeviceChange = useCallback((deviceId: string) => {
     setSelectedDeviceId(deviceId);
     saveMicId(deviceId);
+    window.dispatchEvent(new CustomEvent("aias:mic-change", { detail: { deviceId } }));
   }, []);
 
   const clearVoiceText = useCallback(() => setVoiceText(""), []);

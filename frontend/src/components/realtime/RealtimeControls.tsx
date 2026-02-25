@@ -157,10 +157,20 @@ export function RealtimeControls({
     );
   }, []);
 
+  // Keep in sync when the other mic selector (AudioRecorder) changes the device
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ deviceId: string }>) => {
+      setSelectedDevice(e.detail.deviceId);
+    };
+    window.addEventListener("aias:mic-change", handler as EventListener);
+    return () => window.removeEventListener("aias:mic-change", handler as EventListener);
+  }, []);
+
   const handleDeviceChange = (deviceId: string) => {
     setSelectedDevice(deviceId);
     saveMicId(deviceId);
     onMicChange(deviceId);
+    window.dispatchEvent(new CustomEvent("aias:mic-change", { detail: { deviceId } }));
   };
 
   // ── Pre-recording / Session-ended state (Start / Continue Session) ──────────

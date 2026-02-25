@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FormTemplateEditor } from "./FormTemplateEditor";
-import type { FormTemplate } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, FormTemplate, LLMProvider } from "@/lib/types";
 
 const FIELD_TYPE_LABELS: Record<string, string> = {
   string: "Text",
@@ -35,6 +35,11 @@ interface FormTemplateSelectorProps {
   onFillForm: () => void;
   fillDisabled: boolean;
   isFilling: boolean;
+  llmProvider?: LLMProvider;
+  llmApiKey?: string;
+  llmModel?: string;
+  llmAzureConfig?: AzureConfig | null;
+  llmLangdockConfig?: LangdockConfig;
 }
 
 export function FormTemplateSelector({
@@ -47,6 +52,11 @@ export function FormTemplateSelector({
   onFillForm,
   fillDisabled,
   isFilling,
+  llmProvider,
+  llmApiKey,
+  llmModel,
+  llmAzureConfig,
+  llmLangdockConfig,
 }: FormTemplateSelectorProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<FormTemplate | null>(
@@ -199,6 +209,11 @@ export function FormTemplateSelector({
         onOpenChange={setEditorOpen}
         template={editingTemplate}
         onSave={handleEditorSave}
+        llmProvider={llmProvider}
+        llmApiKey={llmApiKey}
+        llmModel={llmModel}
+        llmAzureConfig={llmAzureConfig}
+        llmLangdockConfig={llmLangdockConfig}
       />
     </>
   );

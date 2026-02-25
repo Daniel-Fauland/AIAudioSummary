@@ -104,7 +104,9 @@ class ChatbotService:
                 "Do NOT invent or guess model names.\n"
                 "- For change_provider, ONLY use providers from the enum list. "
                 "Azure OpenAI has no predefined models (it uses a deployment name configured in settings).\n"
-                "- Do NOT confuse 'switch_app_mode' (standard/realtime transcription mode) with storage mode (local/account)."
+                "- Do NOT confuse 'switch_app_mode' (standard/realtime transcription mode) with storage mode (local/account).\n"
+                "- For save_prompt_template: write a complete, production-ready prompt. Use {language} as placeholder for the target language. Do NOT include field IDs — only name and content.\n"
+                "- For save_form_template: choose appropriate field types. For enum/multi_select fields, always include an options array. Do NOT include field IDs — only label, type, description, and options."
             )
 
         if request.confirmed_action:

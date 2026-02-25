@@ -1,10 +1,18 @@
 from typing import Optional
 
-from pydantic import Field as PydanticField, create_model
+from pydantic import BaseModel, Field as PydanticField, create_model
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
-from models.form_output import FillFormRequest, FillFormResponse, FormFieldDefinition, FormFieldType
+from models.form_output import (
+    FillFormRequest,
+    FillFormResponse,
+    FormFieldDefinition,
+    FormFieldType,
+    GenerateTemplateRequest,
+    GenerateTemplateResponse,
+    GeneratedField,
+)
 from service.llm.core import LLMService
 from utils.logging import logger
 
@@ -66,6 +74,31 @@ def _build_dynamic_model(fields: list[FormFieldDefinition]):
     return create_model("FormOutput", **field_definitions)
 
 
+_GENERATE_TEMPLATE_SYSTEM_PROMPT = """You are an expert form designer. Given a user's natural language description, design a form template with appropriate fields.
+
+RULES:
+- Choose a concise, descriptive template name that reflects the form's purpose.
+- Design fields that best capture the information described by the user.
+- Use appropriate field types:
+  - "string" for free-text (names, descriptions, notes)
+  - "number" for numeric values (counts, scores, amounts)
+  - "date" for dates (YYYY-MM-DD format)
+  - "boolean" for yes/no questions
+  - "list_str" for lists of items (action items, attendees, topics)
+  - "enum" for single-choice from predefined options (provide options list)
+  - "multi_select" for multiple-choice from predefined options (provide options list)
+- For enum and multi_select fields, always provide a reasonable set of options.
+- Add a brief description to each field to guide the LLM during form filling.
+- Order fields logically (most important first, related fields grouped together).
+- Keep the number of fields reasonable (typically 4-10 fields).
+- Do not create redundant or overlapping fields."""
+
+
+class _GenerateTemplateOutput(BaseModel):
+    name: str = PydanticField(..., description="Suggested template name")
+    fields: list[GeneratedField] = PydanticField(..., description="Generated field definitions")
+
+
 class FormOutputService:
     async def fill_form(self, request: FillFormRequest) -> FillFormResponse:
         model = _llm_service._create_model(
@@ -115,3 +148,28 @@ FORM FIELDS:
         values = result.output.model_dump()
 
         return FillFormResponse(values=values)
+
+    async def generate_template(self, request: GenerateTemplateRequest) -> GenerateTemplateResponse:
+        model = _llm_service._create_model(
+            provider=request.provider,
+            model_name=request.model,
+            api_key=request.api_key,
+            azure_config=request.azure_config,
+            langdock_config=request.langdock_config,
+        )
+
+        agent: Agent[None, _GenerateTemplateOutput] = Agent(
+            model=model,
+            output_type=_GenerateTemplateOutput,
+            model_settings=ModelSettings(temperature=0.3),
+            system_prompt=_GENERATE_TEMPLATE_SYSTEM_PROMPT,
+        )
+
+        user_prompt = f"Design a form template for the following use case:\n\n{request.description}"
+
+        logger.info(f"Generating form template using {request.provider}/{request.model}")
+
+        result = await agent.run(user_prompt)
+        output = result.output
+
+        return GenerateTemplateResponse(name=output.name, fields=output.fields)

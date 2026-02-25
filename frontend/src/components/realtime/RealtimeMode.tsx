@@ -18,6 +18,7 @@ import type {
   FormTemplate,
   LiveQuestion,
   LLMProvider,
+  RealtimeConnectionStatus,
   SummaryInterval,
 } from "@/lib/types";
 import type { RealtimeSessionData } from "@/hooks/useSessionPersistence";
@@ -41,8 +42,12 @@ interface RealtimeModeProps {
   liveQuestionsProvider: LLMProvider;
   liveQuestionsModel: string;
   onTranscriptChange?: (transcript: string) => void;
+  onConnectionStatusChange?: (status: RealtimeConnectionStatus) => void;
   formOutputProvider: LLMProvider;
   formOutputModel: string;
+  formOutputApiKey?: string;
+  formOutputAzureConfig?: AzureConfig | null;
+  formOutputLangdockConfig?: LangdockConfig;
   formTemplates: FormTemplate[];
   onSaveFormTemplate: (template: FormTemplate) => void;
   onUpdateFormTemplate: (template: FormTemplate) => void;
@@ -54,6 +59,7 @@ interface RealtimeModeProps {
   onPersistFormValues?: (values: Record<string, unknown>) => void;
   onPersistFormTemplateId?: (id: string | null) => void;
   onClearRealtimeSession?: () => void;
+  onSavePreferences?: () => void;
 }
 
 export function RealtimeMode({
@@ -74,8 +80,12 @@ export function RealtimeMode({
   liveQuestionsProvider,
   liveQuestionsModel,
   onTranscriptChange,
+  onConnectionStatusChange,
   formOutputProvider,
   formOutputModel,
+  formOutputApiKey,
+  formOutputAzureConfig,
+  formOutputLangdockConfig,
   formTemplates,
   onSaveFormTemplate,
   onUpdateFormTemplate,
@@ -87,6 +97,7 @@ export function RealtimeMode({
   onPersistFormValues,
   onPersistFormTemplateId,
   onClearRealtimeSession,
+  onSavePreferences,
 }: RealtimeModeProps) {
   const session = useRealtimeSession({
     initialTranscript: initialRealtimeSession?.transcript,
@@ -117,6 +128,11 @@ export function RealtimeMode({
     onTranscriptChange?.(full);
   }, [session.accumulatedTranscript, session.committedPartial, session.currentPartial, onTranscriptChange]);
 
+  // Notify parent of connection status changes
+  useEffect(() => {
+    onConnectionStatusChange?.(session.connectionStatus);
+  }, [session.connectionStatus, onConnectionStatusChange]);
+
   // Persist session data to localStorage on changes
   useEffect(() => {
     if (session.accumulatedTranscript) onPersistTranscript?.(session.accumulatedTranscript);
@@ -137,6 +153,20 @@ export function RealtimeMode({
   useEffect(() => {
     onPersistFormTemplateId?.(selectedFormTemplateId);
   }, [selectedFormTemplateId, onPersistFormTemplateId]);
+
+  // Sync preferences when realtime session ends (includes final summary)
+  const prevIsSessionEndedRef = useRef(false);
+  useEffect(() => {
+    if (session.isSessionEnded && !prevIsSessionEndedRef.current) {
+      // Small delay to let final summary persist to localStorage first
+      const timer = setTimeout(() => onSavePreferences?.(), 500);
+      prevIsSessionEndedRef.current = true;
+      return () => clearTimeout(timer);
+    }
+    if (!session.isSessionEnded) {
+      prevIsSessionEndedRef.current = false;
+    }
+  }, [session.isSessionEnded, onSavePreferences]);
 
   // Track previous isSummaryUpdating value to detect when a summary run starts
   const prevIsSummaryUpdatingRef = useRef(false);
@@ -257,7 +287,8 @@ export function RealtimeMode({
     liveQuestions.resetEvaluationTracking();
     formOutput.resetForm();
     onClearRealtimeSession?.();
-  }, [session, liveQuestions, formOutput, onClearRealtimeSession]);
+    onSavePreferences?.();
+  }, [session, liveQuestions, formOutput, onClearRealtimeSession, onSavePreferences]);
 
   const handleClearTranscript = useCallback(() => {
     session.clearTranscript();
@@ -293,6 +324,11 @@ export function RealtimeMode({
       isComplete={formOutput.isComplete}
       onManualEdit={formOutput.setManualValue}
       onToggleComplete={formOutput.toggleComplete}
+      llmProvider={formOutputProvider}
+      llmApiKey={formOutputApiKey}
+      llmModel={formOutputModel}
+      llmAzureConfig={formOutputAzureConfig}
+      llmLangdockConfig={formOutputLangdockConfig}
     />
   );
 

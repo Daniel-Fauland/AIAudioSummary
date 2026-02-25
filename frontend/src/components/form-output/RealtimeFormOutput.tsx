@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FormTemplateEditor } from "./FormTemplateEditor";
-import type { FormFieldDefinition, FormFieldType, FormTemplate } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, FormFieldDefinition, FormFieldType, FormTemplate, LLMProvider } from "@/lib/types";
 
 function CompactFieldRow({
   field,
@@ -160,6 +160,11 @@ interface RealtimeFormOutputProps {
   isComplete: boolean;
   onManualEdit: (fieldId: string, value: unknown) => void;
   onToggleComplete: () => void;
+  llmProvider?: LLMProvider;
+  llmApiKey?: string;
+  llmModel?: string;
+  llmAzureConfig?: AzureConfig | null;
+  llmLangdockConfig?: LangdockConfig;
 }
 
 export function RealtimeFormOutput({
@@ -174,6 +179,11 @@ export function RealtimeFormOutput({
   isComplete,
   onManualEdit,
   onToggleComplete,
+  llmProvider,
+  llmApiKey,
+  llmModel,
+  llmAzureConfig,
+  llmLangdockConfig,
 }: RealtimeFormOutputProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<FormTemplate | null>(
@@ -332,6 +342,11 @@ export function RealtimeFormOutput({
         onOpenChange={setEditorOpen}
         template={editingTemplate}
         onSave={handleEditorSave}
+        llmProvider={llmProvider}
+        llmApiKey={llmApiKey}
+        llmModel={llmModel}
+        llmAzureConfig={llmAzureConfig}
+        llmLangdockConfig={llmLangdockConfig}
       />
     </>
   );

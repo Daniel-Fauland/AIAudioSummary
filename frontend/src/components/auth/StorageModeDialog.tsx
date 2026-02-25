@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getPreferences, putPreferences, deletePreferences } from "@/lib/api";
+import type { UserPreferences, LiveQuestion } from "@/lib/types";
 
 interface StorageModeDialogProps {
   open: boolean;
@@ -28,6 +29,66 @@ function safeLocalSet(key: string, value: string): void {
 }
 
 const ALL_PROVIDERS = ["openai", "anthropic", "gemini", "azure_openai", "langdock"];
+
+function applyLocalSessionData(p: UserPreferences) {
+  function applyMode(data: UserPreferences["session_standard"] | UserPreferences["session_realtime"] | undefined, mode: "standard" | "realtime") {
+    if (!data) return;
+    const prefix = `aias:v1:session:${mode}`;
+    if (data.transcript) safeLocalSet(`${prefix}:transcript`, data.transcript);
+    if (data.summary) safeLocalSet(`${prefix}:summary`, data.summary);
+    if (data.form_template_id !== undefined) {
+      if (data.form_template_id) safeLocalSet(`${prefix}:form_template_id`, data.form_template_id);
+      else try { localStorage.removeItem(`${prefix}:form_template_id`); } catch {}
+    }
+    if (data.form_values) safeLocalSet(`${prefix}:form_values`, JSON.stringify(data.form_values));
+    if (mode === "standard" && "output_mode" in data && data.output_mode) safeLocalSet(`${prefix}:output_mode`, data.output_mode);
+    if (mode === "realtime" && "questions" in data && data.questions) safeLocalSet(`${prefix}:questions`, JSON.stringify(data.questions));
+    if (data.updated_at) safeLocalSet(`${prefix}:updated_at`, String(data.updated_at));
+  }
+
+  applyMode(p.session_standard, "standard");
+  applyMode(p.session_realtime, "realtime");
+}
+
+function collectLocalSessionData() {
+  function get(key: string) {
+    try { return localStorage.getItem(key) || undefined; } catch { return undefined; }
+  }
+
+  function collectMode(mode: "standard" | "realtime") {
+    const prefix = `aias:v1:session:${mode}`;
+    const transcript = get(`${prefix}:transcript`);
+    const summary = get(`${prefix}:summary`);
+    const formTemplateId = get(`${prefix}:form_template_id`);
+    const updatedAtRaw = get(`${prefix}:updated_at`);
+    const updatedAt = updatedAtRaw ? Number(updatedAtRaw) : null;
+
+    let formValues: Record<string, unknown> | undefined;
+    try {
+      const raw = get(`${prefix}:form_values`);
+      if (raw) formValues = JSON.parse(raw);
+    } catch {}
+
+    if (mode === "realtime") {
+      let questions: LiveQuestion[] | undefined;
+      try {
+        const raw = get(`${prefix}:questions`);
+        if (raw) questions = JSON.parse(raw);
+      } catch {}
+      if (!transcript && !summary && !formTemplateId && !formValues && !questions && !updatedAt) return undefined;
+      return { transcript, summary, form_template_id: formTemplateId ?? null, form_values: formValues, questions, updated_at: updatedAt };
+    }
+
+    const outputMode = get(`${prefix}:output_mode`);
+    if (!transcript && !summary && !formTemplateId && !formValues && !outputMode && !updatedAt) return undefined;
+    return { transcript, summary, form_template_id: formTemplateId ?? null, form_values: formValues, output_mode: outputMode, updated_at: updatedAt };
+  }
+
+  return {
+    session_standard: collectMode("standard"),
+    session_realtime: collectMode("realtime"),
+  };
+}
 
 function collectLocalPreferences() {
   const models: Record<string, string> = {};
@@ -77,6 +138,7 @@ function collectLocalPreferences() {
     realtime_final_summary: realtimeFinalSummary ? realtimeFinalSummary !== "false" : undefined,
     realtime_system_prompt: get("aias:v1:realtime_system_prompt"),
     custom_templates: customTemplates,
+    ...collectLocalSessionData(),
   };
 }
 
@@ -125,6 +187,8 @@ export function StorageModeDialog({ open, currentMode, onClose, onModeChanged }:
         if (p.realtime_final_summary !== undefined) safeLocalSet("aias:v1:realtime_final_summary", p.realtime_final_summary ? "true" : "false");
         if (p.realtime_system_prompt) safeLocalSet("aias:v1:realtime_system_prompt", p.realtime_system_prompt);
         if (p.custom_templates) safeLocalSet("aias:v1:custom_templates", JSON.stringify(p.custom_templates));
+        // Restore session data
+        applyLocalSessionData(p);
       }
       // Clear from server
       await deletePreferences();

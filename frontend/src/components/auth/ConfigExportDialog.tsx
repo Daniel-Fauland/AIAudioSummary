@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { Copy, Check, Upload, AlertTriangle, Info } from "lucide-react";
+import { Copy, Check, Upload, AlertTriangle, Info, QrCode, ClipboardPaste } from "lucide-react";
 import { toast } from "sonner";
+import QRCode from "qrcode";
 import {
   Dialog,
   DialogContent,
@@ -16,9 +17,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   exportSettings,
+  exportApiKeys,
   importSettings,
   parseConfigString,
   configContainsApiKeys,
+  buildImportUrl,
+  QR_URL_MAX_LENGTH,
 } from "@/lib/config-export";
 
 interface ConfigExportDialogProps {
@@ -28,6 +32,7 @@ interface ConfigExportDialogProps {
 
 export function ConfigExportDialog({ open, onClose }: ConfigExportDialogProps) {
   const [includeApiKeys, setIncludeApiKeys] = useState(false);
+  const [includeSessionData, setIncludeSessionData] = useState(true);
   const [exportString, setExportString] = useState("");
   const [copied, setCopied] = useState(false);
   const [importValue, setImportValue] = useState("");
@@ -36,17 +41,21 @@ export function ConfigExportDialog({ open, onClose }: ConfigExportDialogProps) {
     hasApiKeys: boolean;
   } | null>(null);
   const [importError, setImportError] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrError, setQrError] = useState("");
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const handleExport = useCallback(() => {
     try {
-      const result = exportSettings(includeApiKeys);
+      const result = exportSettings({ includeApiKeys, includeSessionData });
       setExportString(result);
       setCopied(false);
+      setQrDataUrl("");
+      setQrError("");
     } catch {
       toast.error("Failed to export settings");
     }
-  }, [includeApiKeys]);
+  }, [includeApiKeys, includeSessionData]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -59,29 +68,63 @@ export function ConfigExportDialog({ open, onClose }: ConfigExportDialogProps) {
     }
   }, [exportString]);
 
+  const handleShowQr = useCallback(async () => {
+    try {
+      const apiKeysConfig = exportApiKeys();
+      const url = buildImportUrl(apiKeysConfig);
+      if (url.length > QR_URL_MAX_LENGTH) {
+        setQrError("API key config is too large for a QR code.");
+        setQrDataUrl("");
+        return;
+      }
+      const dataUrl = await QRCode.toDataURL(url, {
+        margin: 2,
+        width: 350,
+        errorCorrectionLevel: "L",
+      });
+      setQrDataUrl(dataUrl);
+      setQrError("");
+    } catch (err) {
+      setQrError(err instanceof Error ? err.message : "Failed to generate QR code");
+      setQrDataUrl("");
+    }
+  }, []);
+
+  const validateImportValue = useCallback((value: string) => {
+    setImportValue(value);
+    setImportError("");
+    setImportPreview(null);
+
+    if (!value.trim()) return;
+
+    try {
+      const settings = parseConfigString(value);
+      setImportPreview({
+        keyCount: Object.keys(settings).length,
+        hasApiKeys: configContainsApiKeys(settings),
+      });
+    } catch (err) {
+      setImportError(
+        err instanceof Error ? err.message : "Invalid config string"
+      );
+    }
+  }, []);
+
   const handleImportValueChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const value = e.target.value;
-      setImportValue(value);
-      setImportError("");
-      setImportPreview(null);
-
-      if (!value.trim()) return;
-
-      try {
-        const settings = parseConfigString(value);
-        setImportPreview({
-          keyCount: Object.keys(settings).length,
-          hasApiKeys: configContainsApiKeys(settings),
-        });
-      } catch (err) {
-        setImportError(
-          err instanceof Error ? err.message : "Invalid config string"
-        );
-      }
+      validateImportValue(e.target.value);
     },
-    []
+    [validateImportValue]
   );
+
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) validateImportValue(text);
+    } catch {
+      toast.error("Clipboard access denied. Please paste manually (Ctrl+V / Cmd+V).");
+    }
+  }, [validateImportValue]);
 
   const handleImport = useCallback(() => {
     try {
@@ -106,6 +149,9 @@ export function ConfigExportDialog({ open, onClose }: ConfigExportDialogProps) {
         setImportPreview(null);
         setImportError("");
         setIncludeApiKeys(false);
+        setIncludeSessionData(true);
+        setQrDataUrl("");
+        setQrError("");
       }
     },
     [onClose]
@@ -142,6 +188,8 @@ export function ConfigExportDialog({ open, onClose }: ConfigExportDialogProps) {
                   setIncludeApiKeys(checked === true);
                   setExportString("");
                   setCopied(false);
+                  setQrDataUrl("");
+                  setQrError("");
                 }}
               />
               <div className="grid gap-1">
@@ -153,6 +201,31 @@ export function ConfigExportDialog({ open, onClose }: ConfigExportDialogProps) {
                 </Label>
                 <p className="text-xs text-foreground-muted">
                   API keys are excluded by default for security
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="include-session-data"
+                checked={includeSessionData}
+                onCheckedChange={(checked) => {
+                  setIncludeSessionData(checked === true);
+                  setExportString("");
+                  setCopied(false);
+                  setQrDataUrl("");
+                  setQrError("");
+                }}
+              />
+              <div className="grid gap-1">
+                <Label
+                  htmlFor="include-session-data"
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Include session data
+                </Label>
+                <p className="text-xs text-foreground-muted">
+                  Transcripts, summaries, and chat history — disable for smaller QR codes
                 </p>
               </div>
             </div>
@@ -183,8 +256,8 @@ export function ConfigExportDialog({ open, onClose }: ConfigExportDialogProps) {
                 />
                 <Button
                   variant="secondary"
-                  className="w-full"
                   onClick={handleCopy}
+                  className="w-full"
                 >
                   {copied ? (
                     <>
@@ -194,20 +267,67 @@ export function ConfigExportDialog({ open, onClose }: ConfigExportDialogProps) {
                   ) : (
                     <>
                       <Copy className="mr-2 h-4 w-4" />
-                      Copy to Clipboard
+                      Copy
                     </>
                   )}
                 </Button>
               </div>
             ) : null}
+
+            {/* QR Code — API Keys only */}
+            <div className="border-t border-border pt-4 space-y-2">
+              <Button
+                variant="secondary"
+                onClick={handleShowQr}
+                className="w-full"
+              >
+                <QrCode className="mr-2 h-4 w-4" />
+                QR Code (API Keys)
+              </Button>
+              <p className="text-xs text-foreground-muted text-center">
+                Generates a QR code containing only your API keys for easy mobile setup
+              </p>
+
+              {qrError ? (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-error-muted p-3">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-destructive mt-0.5" />
+                  <p className="text-xs text-destructive">{qrError}</p>
+                </div>
+              ) : null}
+
+              {qrDataUrl ? (
+                <div className="flex flex-col items-center gap-2 rounded-md border border-border bg-white p-4">
+                  <img
+                    src={qrDataUrl}
+                    alt="QR code to import API keys"
+                    width={350}
+                    height={350}
+                  />
+                  <p className="text-xs text-foreground-muted">
+                    Scan to import API keys on another device
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </TabsContent>
 
           {/* Import Tab */}
           <TabsContent value="import" className="space-y-4 pt-4">
             <div>
-              <Label htmlFor="import-config" className="text-sm font-medium mb-2 block">
-                Paste config string
-              </Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="import-config" className="text-sm font-medium">
+                  Paste config string
+                </Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handlePaste}
+                  className="h-7 px-2 text-xs"
+                >
+                  <ClipboardPaste className="mr-1.5 h-3.5 w-3.5" />
+                  Paste
+                </Button>
+              </div>
               <textarea
                 id="import-config"
                 value={importValue}

@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionWrapper } from "@/components/auth/SessionWrapper";
 import { ThemeProvider } from "next-themes";
+import { GlobalProviders } from "@/components/global/GlobalProviders";
 import "./globals.css";
 
 const inter = Inter({
@@ -34,7 +35,9 @@ export default function RootLayout({
         >
           <SessionWrapper>
             <TooltipProvider delayDuration={100}>
-              {children}
+              <GlobalProviders>
+                {children}
+              </GlobalProviders>
               <Toaster position="top-right" offset="72px" duration={5000} />
             </TooltipProvider>
           </SessionWrapper>

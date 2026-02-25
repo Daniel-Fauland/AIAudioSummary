@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Header } from "@/components/layout/Header";
@@ -36,11 +36,16 @@ import { useFormTemplates } from "@/hooks/useFormTemplates";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useSessionPersistence } from "@/hooks/useSessionPersistence";
 import { useChatbot } from "@/hooks/useChatbot";
+import { useGlobalRecording } from "@/contexts/GlobalRecordingContext";
+import { useGlobalSync } from "@/contexts/GlobalSyncContext";
 import { createTranscript, createSummary, extractKeyPoints, fillForm } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, ChatbotTranscriptMode } from "@/lib/types";
+import { parseConfigString, importSettings, configContainsApiKeys } from "@/lib/config-export";
+import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType, ChatbotTranscriptMode } from "@/lib/types";
 import { APP_VERSION } from "@/lib/constants";
 import { changelog } from "@/lib/changelog";
+
+const PENDING_IMPORT_KEY = "aias:pending_import";
 
 const PROVIDER_KEY = "aias:v1:selected_provider";
 const MODEL_KEY_PREFIX = "aias:v1:model:";
@@ -58,6 +63,7 @@ const CHATBOT_QA_KEY = "aias:v1:chatbot_qa";
 const CHATBOT_TRANSCRIPT_KEY = "aias:v1:chatbot_transcript";
 const CHATBOT_ACTIONS_KEY = "aias:v1:chatbot_actions";
 const CHATBOT_TRANSCRIPT_MODE_KEY = "aias:v1:chatbot_transcript_mode";
+const SYNC_STANDARD_REALTIME_KEY = "aias:v1:sync_standard_realtime";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -101,11 +107,14 @@ interface HomeInnerProps {
   savePreferences: () => void;
   setStorageMode: (mode: "local" | "account") => void;
   serverPreferences: import("@/lib/types").UserPreferences | null;
+  pendingImportConfig?: string;
 }
 
-function HomeInner({ config, savePreferences, setStorageMode, serverPreferences }: HomeInnerProps) {
+function HomeInner({ config, savePreferences, setStorageMode, serverPreferences, pendingImportConfig }: HomeInnerProps) {
   const { getKey, setKey, hasKey, getAzureConfig, getLangdockConfig, setLangdockConfig } = useApiKeys();
   const { theme, setTheme } = useTheme();
+  const globalRecording = useGlobalRecording();
+  const globalSync = useGlobalSync();
   const {
     templates: customTemplates,
     saveTemplate: rawSaveCustomTemplate,
@@ -150,9 +159,55 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
   const sessionPersistence = useSessionPersistence();
   const initialStandardSession = useMemo(() => sessionPersistence.loadStandardSession(), [sessionPersistence.loadStandardSession]);
   const initialRealtimeSession = useMemo(() => sessionPersistence.loadRealtimeSession(), [sessionPersistence.loadRealtimeSession]);
+  const initialChatbotSession = useMemo(() => sessionPersistence.loadChatbotSession(), [sessionPersistence.loadChatbotSession]);
 
   // Settings panel
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Auto-import from URL
+  const pendingImportRef = useRef(!!pendingImportConfig);
+  pendingImportRef.current = !!pendingImportConfig;
+  const [autoImportDialog, setAutoImportDialog] = useState<{
+    configString: string;
+    keyCount: number;
+    hasApiKeys: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    const configString = pendingImportConfig;
+    if (!configString) return;
+
+    try {
+      const settings = parseConfigString(configString);
+      setAutoImportDialog({
+        configString,
+        keyCount: Object.keys(settings).length,
+        hasApiKeys: configContainsApiKeys(settings),
+      });
+    } catch {
+      toast.error("Invalid config string in URL");
+      try { localStorage.removeItem(PENDING_IMPORT_KEY); } catch { /* noop */ }
+    }
+  }, [pendingImportConfig]);
+
+  const handleAutoImportConfirm = useCallback(() => {
+    if (!autoImportDialog) return;
+    try {
+      const count = importSettings(autoImportDialog.configString);
+      // Clear pending import so it doesn't re-trigger after reload
+      try { localStorage.removeItem(PENDING_IMPORT_KEY); } catch { /* noop */ }
+      toast.success(`Imported ${count} setting${count !== 1 ? "s" : ""}. Reloading...`);
+      setAutoImportDialog(null);
+      setTimeout(() => window.location.replace(window.location.pathname), 500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to import settings");
+    }
+  }, [autoImportDialog]);
+
+  const handleAutoImportCancel = useCallback(() => {
+    setAutoImportDialog(null);
+    try { localStorage.removeItem(PENDING_IMPORT_KEY); } catch { /* noop */ }
+  }, []);
 
   // App mode
   const [appMode, setAppMode] = useState<"standard" | "realtime">(
@@ -275,6 +330,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     () => (serverPreferences?.chatbot_transcript_mode as ChatbotTranscriptMode) || safeGet(CHATBOT_TRANSCRIPT_MODE_KEY, "current_mode") as ChatbotTranscriptMode,
   );
 
+  // Sync Standard + Realtime setting
+  const [syncStandardRealtime, setSyncStandardRealtime] = useState(
+    () => serverPreferences?.sync_standard_realtime !== undefined ? serverPreferences.sync_standard_realtime : safeGet(SYNC_STANDARD_REALTIME_KEY, "false") === "true",
+  );
+
   // Form output state — initialize from persisted session
   const [outputMode, setOutputMode] = useState<"summary" | "form">(initialStandardSession.outputMode);
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState<string | null>(initialStandardSession.formTemplateId);
@@ -285,8 +345,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatbotTranscriptDetached, setChatbotTranscriptDetached] = useState(false);
 
-  // Realtime transcript for chatbot context
+  // Realtime transcript and connection status for chatbot context
   const [realtimeTranscript, setRealtimeTranscript] = useState("");
+  const [realtimeConnectionStatus, setRealtimeConnectionStatus] = useState<"disconnected" | "connecting" | "connected" | "reconnecting" | "error">("disconnected");
 
   // Compute chatbot transcript (auto-attach logic)
   const chatbotTranscript = (() => {
@@ -322,6 +383,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     }
     return appMode === "realtime" && !!chatbotTranscript;
   })();
+
+  const isLiveTranscriptActive =
+    isLiveTranscript &&
+    (realtimeConnectionStatus === "connected" || realtimeConnectionStatus === "reconnecting");
 
   // Auto-reattach transcript when content changes
   useEffect(() => {
@@ -359,6 +424,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
   const settingsOpenRef = useRef(settingsOpen);
   settingsOpenRef.current = settingsOpen;
 
+  // Global keyboard shortcut: Alt/Option + C to toggle chatbot
+  const isChatOpenRef = useRef(isChatOpen);
+  isChatOpenRef.current = isChatOpen;
+
   useEffect(() => {
     let closeTimeout: ReturnType<typeof setTimeout>;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -371,6 +440,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
           setSettingsOpen(true);
         }
       }
+      if (e.altKey && e.code === "KeyC") {
+        e.preventDefault();
+        if (isChatOpenRef.current) {
+          closeTimeout = setTimeout(() => setIsChatOpen(false), 200);
+        } else {
+          setIsChatOpen(true);
+        }
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => {
@@ -379,12 +456,16 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     };
   }, []);
 
-  // Set default prompt from first template
+  // Set default prompt from first template (once, when config loads)
+  const promptInitializedRef = useRef(false);
   useEffect(() => {
-    if (config && config.prompt_templates.length > 0 && !selectedPrompt) {
-      setSelectedPrompt(config.prompt_templates[0].content);
+    if (config && config.prompt_templates.length > 0 && !promptInitializedRef.current) {
+      promptInitializedRef.current = true;
+      if (!selectedPrompt) {
+        setSelectedPrompt(config.prompt_templates[0].content);
+      }
     }
-  }, [config, selectedPrompt]);
+  }, [config]);
 
   // Provider change: persist + update model
   const handleProviderChange = useCallback(
@@ -502,6 +583,25 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     savePreferences();
   }, [savePreferences]);
 
+  const handleSyncStandardRealtimeChange = useCallback((enabled: boolean) => {
+    setSyncStandardRealtime(enabled);
+    safeSet(SYNC_STANDARD_REALTIME_KEY, enabled ? "true" : "false");
+    globalSync.setSyncEnabled(enabled);
+    savePreferences();
+  }, [savePreferences, globalSync]);
+
+  // Keep sync context's AssemblyAI key up to date
+  useEffect(() => {
+    const key = getKey("assemblyai");
+    if (key) globalSync.setAssemblyAiKey(key);
+  }, [getKey, globalSync]);
+
+  // Initialize sync enabled state from page-level state into the context
+  useEffect(() => {
+    globalSync.setSyncEnabled(syncStandardRealtime);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Chatbot action handlers
   const chatbotActionHandlers = useMemo<Record<string, (params: Record<string, unknown>) => Promise<void>>>(() => ({
     change_theme: async ({ theme }) => {
@@ -546,7 +646,36 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     update_api_key: async ({ provider, key }) => {
       setKey(provider as LLMProvider | "assemblyai", key as string);
     },
-  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleAutoKeyPointsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, setKey, config, selectedProvider]);
+    save_prompt_template: async ({ name, content }) => {
+      if (!name || typeof name !== "string") throw new Error("Template name is required");
+      if (!content || typeof content !== "string") throw new Error("Template content is required");
+      saveCustomTemplate(name, content);
+      toast.success(`Prompt template "${name}" saved`);
+    },
+    save_form_template: async ({ name, fields }) => {
+      if (!name || typeof name !== "string") throw new Error("Template name is required");
+      if (!Array.isArray(fields) || fields.length === 0) throw new Error("At least one field is required");
+      const validTypes: FormFieldType[] = ["string", "number", "date", "boolean", "list_str", "enum", "multi_select"];
+      for (const field of fields) {
+        const f = field as Record<string, unknown>;
+        if (!f.label || typeof f.label !== "string") throw new Error("Each field must have a label");
+        if (!validTypes.includes(f.type as FormFieldType)) throw new Error(`Invalid field type: ${f.type}`);
+      }
+      const template: FormTemplate = {
+        id: `form:${Date.now()}`,
+        name: name,
+        fields: (fields as Record<string, unknown>[]).map((f) => ({
+          id: crypto.randomUUID(),
+          label: f.label as string,
+          type: f.type as FormFieldType,
+          description: (f.description as string) || undefined,
+          options: Array.isArray(f.options) ? (f.options as string[]) : undefined,
+        })),
+      };
+      saveFormTemplate(template);
+      toast.success(`Form template "${name}" saved`);
+    },
+  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleAutoKeyPointsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, setKey, config, selectedProvider, saveCustomTemplate, saveFormTemplate]);
 
   const getAssemblyAiKey = useCallback((): string | null => {
     const key = getKey("assemblyai");
@@ -569,6 +698,15 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     };
   }, [selectedProvider, selectedModel, appMode, theme]);
 
+  const onChatbotMessagesChange = useCallback((msgs: import("@/lib/types").ChatMessageType[]) => {
+    if (msgs.length === 0) {
+      sessionPersistence.clearChatbotSession();
+    } else {
+      sessionPersistence.saveChatbotMessages(msgs);
+    }
+    savePreferences();
+  }, [sessionPersistence.saveChatbotMessages, sessionPersistence.clearChatbotSession, savePreferences]);
+
   const { messages: chatMessages, isStreaming: isChatStreaming, sendMessage: sendChatMessage, clearMessages: clearChatMessages, hasApiKey: hasChatApiKey, confirmAction: confirmChatAction, cancelAction: cancelChatAction, isVoiceActive: isChatVoiceActive, voiceConnecting: isChatVoiceConnecting, partialTranscript: chatPartialTranscript, voiceText: chatVoiceText, clearVoiceText: clearChatVoiceText, toggleVoice: toggleChatVoice, audioDevices: chatAudioDevices, selectedDeviceId: chatSelectedDeviceId, onDeviceChange: onChatDeviceChange } = useChatbot({
     chatbotQAEnabled,
     chatbotTranscriptEnabled,
@@ -586,7 +724,15 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     appContext: chatbotAppContext,
     isChatOpen,
     chatbotEnabled,
+    initialMessages: initialChatbotSession.messages,
+    onMessagesChange: onChatbotMessagesChange,
   });
+
+  const handleClearChatMessages = useCallback(() => {
+    clearChatMessages();
+    sessionPersistence.clearChatbotSession();
+    savePreferences();
+  }, [clearChatMessages, sessionPersistence.clearChatbotSession, savePreferences]);
 
   const applyRenames = useCallback((keyPoints: Record<string, string>): Record<string, string> => {
     const renames = speakerRenamesRef.current;
@@ -603,8 +749,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
       const { provider: kpProvider, model: kpModel } = resolveModelConfig("key_point_extraction");
       const llmKey = getKey(kpProvider);
       if (!llmKey) {
-        toast.error(`Please add your ${kpProvider} API key in Settings.`);
-        setSettingsOpen(true);
+        // Suppress toast + settings auto-open when an import is pending (e.g. QR code link)
+        if (!pendingImportRef.current && !autoImportDialog) {
+          toast.error(`Please add your ${kpProvider} API key in Settings.`);
+          setSettingsOpen(true);
+        }
         return;
       }
 
@@ -713,6 +862,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
       hasAutoExtractedKeyPointsRef.current = false;
       speakerRenamesRef.current = {};
       sessionPersistence.clearStandardSession();
+      savePreferences();
 
       setIsUploading(true);
       setCurrentStep(2);
@@ -722,6 +872,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
       try {
         const result = await createTranscript(file, assemblyAiKey, undefined, minSpeakers, maxSpeakers);
         setTranscript(result);
+        sessionPersistence.saveStandardTranscript(result);
+        savePreferences();
         toast.success("Transcription complete!");
       } catch (e) {
         toast.error(getErrorMessage(e, "transcript"));
@@ -732,7 +884,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
         setIsTranscribing(false);
       }
     },
-    [getKey, minSpeakers, maxSpeakers, sessionPersistence.clearStandardSession],
+    [getKey, minSpeakers, maxSpeakers, sessionPersistence.clearStandardSession, savePreferences],
   );
 
   // Skip upload: go directly to step 2 with empty transcript
@@ -748,12 +900,13 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     hasAutoExtractedKeyPointsRef.current = false;
     speakerRenamesRef.current = {};
     sessionPersistence.clearStandardSession();
+    savePreferences();
 
     setCurrentStep(2);
     setMaxReachedStep(2);
     setTranscript("");
     setSelectedFile(null);
-  }, [sessionPersistence.clearStandardSession]);
+  }, [sessionPersistence.clearStandardSession, savePreferences]);
 
   // Step 2 → 3: generate summary
   const handleGenerate = useCallback(async () => {
@@ -773,6 +926,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    let accumulatedSummary = "";
 
     try {
       await createSummary(
@@ -791,6 +945,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
           author: authorSpeaker,
         },
         (chunk) => {
+          accumulatedSummary += chunk;
           setSummary((prev) => prev + chunk);
         },
         controller.signal,
@@ -804,6 +959,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     } finally {
       abortControllerRef.current = null;
       setIsGenerating(false);
+      if (accumulatedSummary) sessionPersistence.saveStandardSummary(accumulatedSummary);
+      savePreferences();
     }
   }, [
     resolveModelConfig,
@@ -816,6 +973,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
     informalGerman,
     meetingDate,
     authorSpeaker,
+    savePreferences,
   ]);
 
   const handleStopGenerating = useCallback(() => {
@@ -853,12 +1011,16 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
         setCurrentStep(step);
         return;
       }
-      // Navigating backward — show confirmation if going to step 1 or if generation is in progress
+      // Navigating backward to step 1 — go directly (data is persisted)
       if (step === 1 && currentStep > 1) {
-        setPendingStep(step);
-        setStepNavDialogOpen(true);
+        abortControllerRef.current?.abort();
+        setCurrentStep(1);
+        setSelectedFile(null);
+        setIsGenerating(false);
+        setIsTranscribing(false);
         return;
       }
+      // Navigating backward to step 2 while generating — show confirmation
       if (step === 2 && currentStep === 3 && isGenerating) {
         setPendingStep(step);
         setStepNavDialogOpen(true);
@@ -872,14 +1034,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
 
   const handleStepNavConfirm = useCallback(() => {
     if (pendingStep === null) return;
-    if (pendingStep === 1) {
-      abortControllerRef.current?.abort();
-      setCurrentStep(1);
-      setSelectedFile(null);
-      setIsGenerating(false);
-      setIsTranscribing(false);
-      // Keep transcript/summary/form in state and storage — data persists until a new file is uploaded
-    } else if (pendingStep === 2) {
+    if (pendingStep === 2) {
       abortControllerRef.current?.abort();
       setIsGenerating(false);
       setCurrentStep(2);
@@ -936,12 +1091,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
         fields: template.fields,
       });
       setFormValues(response.values);
+      sessionPersistence.saveStandardFormValues(response.values);
     } catch (e) {
       toast.error(getErrorMessage(e, "formOutput"));
     } finally {
       setIsFillingForm(false);
+      savePreferences();
     }
-  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript]);
+  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, savePreferences]);
 
   const handleFormManualEdit = useCallback((fieldId: string, value: unknown) => {
     setFormValues((prev) => ({ ...prev, [fieldId]: value }));
@@ -972,12 +1129,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
         previous_values: formValues,
       });
       setFormValues(response.values);
+      sessionPersistence.saveStandardFormValues(response.values);
     } catch (e) {
       toast.error(getErrorMessage(e, "formOutput"));
     } finally {
       setIsFillingForm(false);
+      savePreferences();
     }
-  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, formValues]);
+  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, formValues, savePreferences]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -1023,6 +1182,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
         onChatbotActionsEnabledChange={handleChatbotActionsEnabledChange}
         chatbotTranscriptMode={chatbotTranscriptMode}
         onChatbotTranscriptModeChange={handleChatbotTranscriptModeChange}
+        syncStandardRealtime={syncStandardRealtime}
+        onSyncStandardRealtimeChange={handleSyncStandardRealtimeChange}
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
@@ -1032,24 +1193,30 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
             <button
               type="button"
               onClick={() => handleModeChange("standard")}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+              className={`relative rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                 appMode === "standard"
                   ? "bg-primary text-primary-foreground"
                   : "bg-transparent text-foreground-secondary hover:text-foreground"
               }`}
             >
               Standard
+              {appMode !== "standard" && (globalRecording.recorderState === "recording" || globalRecording.recorderState === "paused") && (
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 animate-pulse rounded-full bg-destructive" />
+              )}
             </button>
             <button
               type="button"
               onClick={() => handleModeChange("realtime")}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+              className={`relative rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                 appMode === "realtime"
                   ? "bg-primary text-primary-foreground"
                   : "bg-transparent text-foreground-secondary hover:text-foreground"
               }`}
             >
               Realtime
+              {appMode !== "realtime" && (realtimeConnectionStatus === "connected" || realtimeConnectionStatus === "reconnecting") && (
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 animate-pulse rounded-full bg-primary" />
+              )}
             </button>
           </div>
         </div>
@@ -1075,8 +1242,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
             liveQuestionsProvider={resolvedLiveQuestionsConfig.provider}
             liveQuestionsModel={resolvedLiveQuestionsConfig.model}
             onTranscriptChange={setRealtimeTranscript}
+            onConnectionStatusChange={setRealtimeConnectionStatus}
             formOutputProvider={resolvedFormOutputConfig.provider}
             formOutputModel={resolvedFormOutputConfig.model}
+            formOutputApiKey={getKey(resolvedFormOutputConfig.provider)}
+            formOutputAzureConfig={azureConfig}
+            formOutputLangdockConfig={langdockConfig}
             formTemplates={formTemplates}
             onSaveFormTemplate={saveFormTemplate}
             onUpdateFormTemplate={updateFormTemplate}
@@ -1088,12 +1259,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
             onPersistFormValues={sessionPersistence.saveRealtimeFormValues}
             onPersistFormTemplateId={sessionPersistence.saveRealtimeFormTemplateId}
             onClearRealtimeSession={sessionPersistence.clearRealtimeSession}
+            onSavePreferences={savePreferences}
           />
         </div>
 
-        {/* Standard mode */}
-        {appMode === "standard" && (
-          <>
+        {/* Standard mode — always mounted so recording persists during mode switches */}
+        <div className={appMode === "standard" ? "step-content-wrapper" : "hidden"}>
         <StepIndicator
           currentStep={currentStep}
           maxReachedStep={maxReachedStep}
@@ -1193,7 +1364,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
                     <div className="inline-flex rounded-lg border border-border bg-card-elevated p-1">
                       <button
                         type="button"
-                        onClick={() => setOutputMode("summary")}
+                        onClick={() => { setOutputMode("summary"); sessionPersistence.saveStandardOutputMode("summary"); savePreferences(); }}
                         className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                           outputMode === "summary"
                             ? "bg-primary text-primary-foreground"
@@ -1204,7 +1375,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
                       </button>
                       <button
                         type="button"
-                        onClick={() => setOutputMode("form")}
+                        onClick={() => { setOutputMode("form"); sessionPersistence.saveStandardOutputMode("form"); savePreferences(); }}
                         className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                           outputMode === "form"
                             ? "bg-primary text-primary-foreground"
@@ -1265,6 +1436,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
                         onFillForm={handleFillForm}
                         fillDisabled={!transcript || !hasFormOutputKey || !resolvedFormOutputConfig.model}
                         isFilling={isFillingForm}
+                        llmProvider={resolvedFormOutputConfig.provider}
+                        llmApiKey={getKey(resolvedFormOutputConfig.provider)}
+                        llmModel={resolvedFormOutputConfig.model}
+                        llmAzureConfig={azureConfig}
+                        llmLangdockConfig={langdockConfig}
                       />
                       {Object.keys(formValues).length > 0 && (
                         <button
@@ -1324,8 +1500,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
             </>
           ) : null}
         </div>
-          </>
-        )}
+        </div>
       </div>
       </div>{/* end flex-1 */}
 
@@ -1341,16 +1516,16 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
           <ChatbotModal
             open={isChatOpen}
             onClose={() => setIsChatOpen(false)}
-            onMinimize={() => setIsChatOpen(false)}
             messages={chatMessages}
             isStreaming={isChatStreaming}
             hasApiKey={hasChatApiKey}
             onSendMessage={sendChatMessage}
-            onClearMessages={clearChatMessages}
+            onClearMessages={handleClearChatMessages}
             onOpenSettings={() => setSettingsOpen(true)}
             transcriptAttached={!!chatbotTranscript}
             transcriptWordCount={chatbotTranscript ? chatbotTranscript.split(/\s+/).filter(Boolean).length : 0}
             isLiveTranscript={isLiveTranscript}
+            isLiveTranscriptActive={isLiveTranscriptActive}
             onDetachTranscript={() => setChatbotTranscriptDetached(true)}
             onConfirmAction={confirmChatAction}
             onCancelAction={cancelChatAction}
@@ -1375,14 +1550,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
-              {pendingStep === 1 ? "Return to Upload?" : "Return to Transcript?"}
+              Return to Transcript?
             </DialogTitle>
             <DialogDescription>
-              {pendingStep === 1
-                ? "Your session data will be preserved. Upload a new file to start fresh."
-                : isGenerating
-                  ? "Summary generation is currently in progress and will be stopped."
-                  : "You'll return to the transcript view. Your summary will be discarded if you regenerate."}
+              {isGenerating
+                ? "Summary generation is currently in progress and will be stopped."
+                : "You'll return to the transcript view. Your summary will be discarded if you regenerate."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1390,7 +1563,50 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
               Cancel
             </Button>
             <Button onClick={handleStepNavConfirm}>
-              {pendingStep === 1 ? "Return to Upload" : "Return to Transcript"}
+              Return to Transcript
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto-import confirmation dialog */}
+      <Dialog open={!!autoImportDialog} onOpenChange={(open) => { if (!open) handleAutoImportCancel(); }}>
+        <DialogContent className="max-w-sm bg-card">
+          <DialogHeader>
+            <DialogTitle>Import Settings</DialogTitle>
+            <DialogDescription>
+              Settings were received via a shared link. Would you like to import them?
+            </DialogDescription>
+          </DialogHeader>
+          {autoImportDialog ? (
+            <div className="space-y-2">
+              <div className="flex items-start gap-2 rounded-md border border-border bg-card-elevated p-3">
+                <Info className="h-4 w-4 shrink-0 text-foreground-muted mt-0.5" />
+                <div className="text-xs text-foreground-secondary space-y-1">
+                  <p>
+                    Ready to import{" "}
+                    <strong className="text-foreground">
+                      {autoImportDialog.keyCount} setting{autoImportDialog.keyCount !== 1 ? "s" : ""}
+                    </strong>
+                  </p>
+                  {autoImportDialog.hasApiKeys ? (
+                    <p className="text-warning">
+                      This config includes API keys which will overwrite your current keys.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <p className="text-xs text-foreground-muted">
+                Existing settings with matching keys will be overwritten. The page will reload after import.
+              </p>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="ghost" onClick={handleAutoImportCancel}>
+              Cancel
+            </Button>
+            <Button onClick={handleAutoImportConfirm}>
+              Import Settings
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1408,6 +1624,30 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences 
 export default function Home() {
   const { config, loading: configLoading, error: configError, refetch } = useConfig();
   const { setStorageMode, isLoading: prefsLoading, savePreferences, serverPreferences } = usePreferences();
+
+  // Detect ?import= URL parameter and persist it for after-login import
+  const [pendingImportConfig, setPendingImportConfig] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const importParam = params.get("import");
+    if (importParam) {
+      // Clean the URL immediately so the config string isn't visible
+      window.history.replaceState({}, "", window.location.pathname);
+      // Store in localStorage so it survives the login redirect
+      try { localStorage.setItem(PENDING_IMPORT_KEY, importParam); } catch { /* noop */ }
+      setPendingImportConfig(importParam);
+    } else {
+      // Check for a previously-stored pending import (e.g. after login redirect)
+      try {
+        const stored = localStorage.getItem(PENDING_IMPORT_KEY);
+        if (stored) {
+          localStorage.removeItem(PENDING_IMPORT_KEY);
+          setPendingImportConfig(stored);
+        }
+      } catch { /* noop */ }
+    }
+  }, []);
 
   if (configLoading || prefsLoading) {
     return (
@@ -1446,6 +1686,7 @@ export default function Home() {
       savePreferences={savePreferences}
       setStorageMode={setStorageMode}
       serverPreferences={serverPreferences}
+      pendingImportConfig={pendingImportConfig}
     />
   );
 }

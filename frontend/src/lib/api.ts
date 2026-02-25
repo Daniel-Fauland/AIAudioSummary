@@ -10,6 +10,8 @@ import type {
   ExtractKeyPointsResponse,
   FillFormRequest,
   FillFormResponse,
+  GenerateTemplateRequest,
+  GenerateTemplateResponse,
   GetSpeakersResponse,
   IncrementalSummaryRequest,
   IncrementalSummaryResponse,
@@ -206,6 +208,17 @@ export async function fillForm(
     body: JSON.stringify(request),
   });
   return handleResponse<FillFormResponse>(response);
+}
+
+export async function generateTemplate(
+  request: GenerateTemplateRequest,
+): Promise<GenerateTemplateResponse> {
+  const response = await fetch(`${API_BASE}/form-output/generate-template`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<GenerateTemplateResponse>(response);
 }
 
 export async function evaluateLiveQuestions(

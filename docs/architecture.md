@@ -31,6 +31,7 @@ Everything you need to know to implement a new feature or change an existing one
 - [Frontend Architecture](#frontend-architecture)
   - [App Structure](#app-structure)
   - [3-Step Workflow](#3-step-workflow)
+  - [Sync Mode (Standard + Realtime in Parallel)](#sync-mode-standard--realtime-in-parallel)
   - [Component Hierarchy](#component-hierarchy)
   - [Adding a New Frontend Component](#adding-a-new-frontend-component)
   - [State Management](#state-management)
@@ -49,10 +50,11 @@ Everything you need to know to implement a new feature or change an existing one
 
 ## Project Overview
 
-AIAudioSummary is a web app for uploading or recording audio files (meeting recordings) and generating transcripts + AI-powered summaries. It supports two modes:
+AIAudioSummary is a web app for uploading or recording audio files (meeting recordings) and generating transcripts + AI-powered summaries. It supports two modes that can run independently or in parallel:
 
 - **Standard mode**: Upload/record audio → batch transcription → streaming summary generation
 - **Realtime mode**: Live microphone capture → streaming transcription via WebSocket → periodic incremental summaries
+- **Sync mode** (optional): Both modes run simultaneously with a shared microphone — starting one automatically starts the other, and pause/stop actions are coordinated via a confirmation dialog
 
 It uses:
 
@@ -93,7 +95,7 @@ project-root/
 │   │   ├── realtime/router.py    #   WS /ws/realtime, POST /createIncrementalSummary
 │   │   ├── prompt_assistant/router.py  #   POST /prompt-assistant/analyze, POST /prompt-assistant/generate
 │   │   ├── live_questions/router.py    #   POST /live-questions/evaluate
-│   │   ├── form_output/router.py     #   POST /form-output/fill
+│   │   ├── form_output/router.py     #   POST /form-output/fill, POST /form-output/generate-template
 │   │   ├── chatbot/router.py      #   POST /chatbot/chat, GET /chatbot/knowledge, WS /chatbot/ws/voice
 │   │   ├── auth/router.py         #   GET /auth/verify (no auth required)
 │   │   └── users/router.py        #   GET /users/me, GET /users, POST /users, DELETE /users/{id}
@@ -104,7 +106,7 @@ project-root/
 │   │   ├── realtime/             #   RealtimeTranscriptionService, SessionManager
 │   │   ├── prompt_assistant/core.py  #   PromptAssistantService (analyze + generate)
 │   │   ├── live_questions/core.py    #   LiveQuestionsService (strict LLM evaluation)
-│   │   ├── form_output/core.py      #   FormOutputService (structured form filling)
+│   │   ├── form_output/core.py      #   FormOutputService (structured form filling + AI template generation)
 │   │   ├── chatbot/core.py        #   ChatbotService (chat, knowledge base, actions)
 │   │   ├── chatbot/actions.py     #   ACTION_REGISTRY (available chatbot actions)
 │   │   ├── auth/core.py           #   AuthService (email verification against DB)
@@ -161,7 +163,12 @@ project-root/
 │   │   │   ├── form-output/      # FormTemplateEditor, FormTemplateSelector, FormOutputView, RealtimeFormOutput, useFormOutput hook
 │   │   │   ├── prompt-assistant/  # PromptAssistantModal, StepBasePrompt, StepQuestions, StepSummary, StepResult, QuestionField, usePromptAssistant hook
 │   │   │   ├── chatbot/          # ChatbotFAB, ChatbotModal, ChatMessage, ChatMessageList, ChatInputBar, TranscriptBadge, ActionConfirmCard
+│   │   │   ├── global/           # GlobalProviders (context nesting), RecordingIndicator (persistent header bar on non-home pages)
 │   │   │   └── ui/                 # shadcn/ui primitives + AudioPlayer composite component
+│   │   ├── contexts/
+│   │   │   ├── GlobalRecordingContext.tsx  # Standard recording state (mic stream, audio context, recorder state)
+│   │   │   ├── GlobalRealtimeContext.tsx   # Realtime session state (WS connection, transcript, partials)
+│   │   │   └── GlobalSyncContext.tsx       # Sync orchestrator (auto-start, pause/resume sync, stop dialog)
 │   │   ├── hooks/
 │   │   │   ├── useApiKeys.ts       # localStorage key management
 │   │   │   ├── useConfig.ts        # Backend config fetching
@@ -170,6 +177,7 @@ project-root/
 │   │   │   ├── usePreferences.ts   # Server preference sync (loads on mount, fire-and-forget saves)
 │   │   │   ├── useSessionPersistence.ts # Session data persistence (localStorage: transcript, summary, form output, questions)
 │   │   │   ├── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
+│   │   │   ├── useRealtimeSummary.ts # Realtime summary logic (extracted from useRealtimeSession)
 │   │   │   └── useChatbot.ts      # Chatbot hook (messages, streaming, actions, persistent voice session, mic device selection)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
@@ -365,7 +373,7 @@ HTTP Request
   - `SessionState` dataclass: `session_id`, `accumulated_transcript`, `current_partial`, `created_at`, `last_activity`
 - The **chatbot service** (`service/chatbot/`) contains:
   - `ChatbotService` (`core.py`): manages chat conversations with streaming, system prompt assembly based on enabled capabilities (Q&A, transcript context, actions), knowledge base loading from `usage_guide/usage_guide.md`, and conversation history trimming (last 20 messages)
-  - `actions.py`: `ACTION_REGISTRY` — list of available chatbot actions (change theme, switch app mode, change provider/model, toggle settings, open settings, update API key). Each action has an `action_id`, `description`, and typed `params` schema. Also includes `PROVIDER_MODELS` — a mapping of valid models per provider used for LLM-side and frontend-side validation.
+  - `actions.py`: `ACTION_REGISTRY` — list of available chatbot actions (change theme, switch app mode, change provider/model, toggle settings, open settings, update API key, save prompt template, save form template). Each action has an `action_id`, `description`, and typed `params` schema. Also includes `PROVIDER_MODELS` — a mapping of valid models per provider used for LLM-side and frontend-side validation.
   - The chatbot router (`api/chatbot/router.py`) exposes three endpoints:
     - `POST /chatbot/chat` — streaming chat (same `StreamingResponse` pattern as `/createSummary`)
     - `GET /chatbot/knowledge` — returns knowledge base loaded status and size
@@ -397,7 +405,7 @@ Key models:
 | `models/realtime.py`         | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                                        |
 | `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest`, `AnalyzeResponse` (incl. `suggested_target_system`), `GenerateRequest/Response` |
 | `models/live_questions.py`   | `QuestionInput`, `EvaluateQuestionsRequest`, `QuestionEvaluation`, `EvaluateQuestionsResponse`                                                    |
-| `models/form_output.py`     | `FormFieldType` (enum), `FormFieldDefinition`, `FillFormRequest`, `FillFormResponse`             |
+| `models/form_output.py`     | `FormFieldType` (enum), `FormFieldDefinition`, `FillFormRequest/Response`, `GenerateTemplateRequest/Response`, `GeneratedField` |
 | `models/chatbot.py`         | `ChatRole` (enum), `ChatMessage`, `ActionProposal`, `ChatRequest`, `ChatResponse`                |
 
 ### Configuration & Environment
@@ -644,17 +652,47 @@ The `useRealtimeSession` hook manages the entire lifecycle:
 - **Questions & Topics**: trash icon in header, clears all questions via `clearAll()` on `useLiveQuestions`
 - **Form Output**: "No template" option added to template dropdown to deselect the current template
 
+### Sync Mode (Standard + Realtime in Parallel)
+
+When the user enables **Sync Standard + Realtime** in Settings, both recording modes run simultaneously with a shared microphone. This is managed by three global React contexts nested in `GlobalProviders`:
+
+```
+GlobalRecordingProvider          ← Standard recording state (media stream, audio context, recorder state)
+  └── GlobalRealtimeProvider     ← Realtime session state (WS connection, transcript accumulation)
+      └── GlobalSyncProvider     ← Orchestrator: watches both contexts, coordinates lifecycle
+          ├── BeforeUnloadGuard  ← Prevents accidental page unload during active recording/realtime
+          ├── RecordingIndicator ← Persistent header bar on non-home pages
+          └── {children}
+```
+
+**GlobalSyncContext** implements three reactive effects:
+
+1. **Auto-start**: When standard recording transitions from `"idle"` → `"recording"` (or vice versa), the sync context automatically starts the other mode using the same mic device — only if `syncEnabled` is true, the other mode is disconnected, and the required API key is available.
+2. **Pause/resume sync**: When standard recording pauses or resumes, the realtime session pauses or resumes in tandem.
+3. **Stop confirmation**: When either mode stops while the other is still active, a dialog offers three choices: cancel (keep both running), stop only the stopped mode, or stop both modes.
+
+**Microphone sharing**: Both modes use the same device via the `aias:v1:mic_device_id` localStorage key and synchronize changes through a custom `aias:mic-change` DOM event. When one mode's mic selector changes, the event fires and the other mode picks it up.
+
+**RecordingIndicator** (`components/global/RecordingIndicator.tsx`): A persistent header bar visible on all pages except the home page whenever at least one mode is active. It shows:
+- Active mode label: "Standard Recording", "Realtime Session", or "Standard + Realtime" (dual mode, destructive red)
+- Elapsed time
+- Pause/Resume and Stop controls
+- "Back to app" navigation link
+
 ### Component Hierarchy
 
 ```
 RootLayout (layout.tsx)
 └── SessionWrapper             ← Auth.js SessionProvider (client boundary)
-    │
-    ├── /login ── LoginPage    ← Server Component, redirects to / if authenticated
-    │
-    └── / ── Home (page.tsx) ─── Outer shell: useConfig() + usePreferences(), loading gate
-        └── HomeInner ──────────── All state lives here (mounts after prefs loaded)
-        ├── Header
+    └── GlobalProviders        ← Context nesting: GlobalRecording → GlobalRealtime → GlobalSync
+        ├── BeforeUnloadGuard  ← Prevents page unload during active recording/realtime
+        ├── RecordingIndicator ← Persistent header bar on non-home pages (shows active mode, elapsed time, pause/stop)
+        │
+        ├── /login ── LoginPage    ← Server Component, redirects to / if authenticated
+        │
+        └── / ── Home (page.tsx) ─── Outer shell: useConfig() + usePreferences(), loading gate
+            └── HomeInner ──────────── All state lives here (mounts after prefs loaded)
+            ├── Header
         │   ├── UserMenu       ← dropdown: avatar, storage mode, config export/import, admin panel link, sign-out
         │   │   ├── StorageModeDialog ← upload/download prefs when switching storage modes
         │   │   └── ConfigExportDialog ← export/import settings as portable compressed config string (CFG1_ prefix + Base64 + pako deflate)
@@ -677,7 +715,7 @@ RootLayout (layout.tsx)
         │       │               ├── (Summary mode) PromptEditor
         │       │               │   └── PromptAssistantModal (Dialog)
         │       │               │       ├── StepBasePrompt, StepQuestions, StepSummary, StepResult
-        │       │               └── (Form Output mode) FormTemplateSelector + FormTemplateEditor (Dialog)
+        │       │               └── (Form Output mode) FormTemplateSelector + FormTemplateEditor (Dialog, with AI Generate)
         │       └── Step 3: TranscriptView (readonly) + SummaryView | FormOutputView
         │
         ├── RealtimeMode (always mounted, hidden via CSS when in standard mode):
@@ -710,6 +748,7 @@ RootLayout (layout.tsx)
    - `components/workflow/` — standard mode step-specific workflow components
    - `components/realtime/` — realtime mode components (RealtimeMode, Controls, TranscriptView, SummaryView, ConnectionStatus)
    - `components/chatbot/` — chatbot overlay components (ChatbotFAB, ChatbotModal, ChatMessage, ChatMessageList, ChatInputBar, TranscriptBadge, ActionConfirmCard)
+   - `components/global/` — app-wide components (GlobalProviders context wrapper, RecordingIndicator persistent header bar)
 
 2. **Define a props interface**:
 
@@ -739,7 +778,7 @@ Key conventions:
 
 ### State Management
 
-All application state lives in `page.tsx` using `useState`. There is no global state library.
+Most application state lives in `page.tsx` using `useState`. Three React contexts (`GlobalRecordingContext`, `GlobalRealtimeContext`, `GlobalSyncContext`) manage cross-page recording state so that the `RecordingIndicator` and sync orchestration work on all routes.
 
 | State Category      | Persisted?         | Synced to server? | Storage Key Pattern         |
 | ------------------- | ------------------ | ----------------- | --------------------------- |
@@ -762,6 +801,7 @@ All application state lives in `page.tsx` using `useState`. There is no global s
 | Chatbot transcript  | Yes (localStorage) | Yes               | `aias:v1:chatbot_transcript`|
 | Chatbot actions     | Yes (localStorage) | Yes               | `aias:v1:chatbot_actions`   |
 | Chatbot transcript mode | Yes (localStorage) | Yes           | `aias:v1:chatbot_transcript_mode` |
+| Sync std + realtime | Yes (localStorage) | Yes               | `aias:v1:sync_standard_realtime` |
 | Mic device ID       | Yes (localStorage) | No                | `aias:v1:mic_device_id` (shared by AudioRecorder, RealtimeControls, useChatbot) |
 | Session data (std)  | Yes (localStorage) | No                | `aias:v1:session:standard:*` (transcript, summary, form, output_mode) |
 | Session data (rt)   | Yes (localStorage) | No                | `aias:v1:session:realtime:*` (transcript, summary, form, questions) |
@@ -797,7 +837,7 @@ The `useSessionPersistence` hook (`frontend/src/hooks/useSessionPersistence.ts`)
 | Standard | `transcript`, `summary`, `form_template_id`, `form_values`, `output_mode`, `updated_at` |
 | Realtime | `transcript`, `summary`, `form_template_id`, `form_values`, `questions`, `updated_at` |
 
-**Design decision**: localStorage only (no server sync). Session data can be very large (full transcripts, summaries, form output) and re-uploading on every preference change would be expensive. The primary use case is surviving page reloads on the same browser.
+**Sync behaviour**: Session data is persisted to localStorage by `useSessionPersistence` and additionally synced to the server via `usePreferences` in account mode. The server stores session data under `session_standard` and `session_realtime` fields in the `UserPreferences` object (JSONB column — `extra="allow"` on the backend means no schema change was needed). This means transcripts and summaries follow you across devices when using Account Storage.
 
 **How it works**:
 
@@ -805,6 +845,8 @@ The `useSessionPersistence` hook (`frontend/src/hooks/useSessionPersistence.ts`)
 - **Realtime mode**: `RealtimeMode` is always mounted (hidden via CSS when in standard mode) so WebSocket connections survive mode switching. Initial values (`initialTranscript`, `initialSummary`, `initialQuestions`, `initialValues`) are passed as props to sub-hooks.
 - **"Start Over"**: Returns to step 1 but transcript/summary persist in localStorage until a new file is uploaded.
 - **Step navigation**: Forward navigation (e.g., step 2 to 3) goes directly without confirmation. "Show previous transcript/summary/form" links allow returning to existing data.
+- **Server sync (account mode)**: `savePreferences()` is called at discrete completion points — after transcription, after summary streaming ends, after form fill/refill, after output mode toggle, and after session clear. Each call writes the current session state directly to localStorage first (bypassing the React effect cycle) then calls `savePreferences()` so the server receives the latest values. On load, `applyPreferences()` restores session data with a clear-then-set strategy: all session keys for a mode are removed before writing server values, preventing stale data when syncing across devices.
+- **RealtimeMode sync**: An `onSavePreferences` prop is passed to `RealtimeMode`. It is called in `handleResetSession` (after clear) and via a `useEffect` triggered when `session.isSessionEnded` transitions to `true` (with a 500 ms delay to let the final summary persist to localStorage first).
 
 **Sub-hooks that accept initial values**:
 
@@ -840,6 +882,7 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 | `generatePrompt()`             | POST   | `/prompt-assistant/generate` | `PromptAssistantGenerateResponse`             |
 | `evaluateLiveQuestions()`      | POST   | `/live-questions/evaluate`   | `EvaluateQuestionsResponse`                   |
 | `fillForm()`                   | POST   | `/form-output/fill`          | `FillFormResponse`                            |
+| `generateTemplate()`           | POST   | `/form-output/generate-template` | `GenerateTemplateResponse`                |
 | `chatbotChat()`                | POST   | `/chatbot/chat`              | `string` (streaming, same pattern as summary) |
 | `getMe()`                      | GET    | `/users/me`                  | `UserProfile`                                 |
 | `getUsers()`                   | GET    | `/users`                     | `UserProfile[]` (admin only)                  |
@@ -908,9 +951,10 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 
 - On mount (when the user is authenticated): fetches `GET /users/me` to determine `storage_mode`, then if `"account"` fetches `GET /users/me/preferences`, writes them to localStorage via `applyPreferences()`, and stores them in `serverPreferences` state. All state updates (`setStorageMode`, `setServerPreferences`, `setIsLoading`) are batched after async work completes to avoid mid-flight cancellation.
 - The outer `Home` component passes `serverPreferences` directly to `HomeInner` as a prop. `HomeInner`'s `useState` initialisers prefer `serverPreferences` over localStorage, ensuring correct values even if `applyPreferences()` fails.
-- `savePreferences()`: fire-and-forget `PUT /users/me/preferences` — collects current non-API-key values from localStorage and pushes them to the server. Called after every settings change handler in `page.tsx` (only actually sends if `storageMode === "account"`).
+- `savePreferences()`: fire-and-forget `PUT /users/me/preferences` — collects current non-API-key values from localStorage (including session data) and pushes them to the server. Called after every settings change handler in `page.tsx` and at session completion points (transcription, summary, form fill, output mode toggle). Only actually sends if `storageMode === "account"`.
 - API keys are **never** included in the synced payload.
-- The `StorageModeDialog` handles initial upload (local → account) and download (account → local) of preferences, including all synced fields.
+- The `StorageModeDialog` handles initial upload (local → account) and download (account → local) of preferences, including session data fields.
+- `collectSessionData(mode)` reads `aias:v1:session:{mode}:*` keys into a structured object. `applySessionData(prefs)` uses a replace strategy: clears all keys for a mode before writing server values, ensuring cross-device state is always consistent.
 
 | Key                             | Contents                        | Synced? |
 | ------------------------------- | ------------------------------- | ------- |
@@ -936,8 +980,9 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 | `aias:v1:custom_templates`      | JSON array of custom prompt templates (`PromptTemplate[]`) | Yes |
 | `aias:v1:form_templates`        | JSON array of form templates (`FormTemplate[]`) for structured form output | Yes |
 | `aias:v1:chatbot_transcript_mode` | Chatbot transcript source: `"current_mode"` or `"latest"` | Yes |
-| `aias:v1:session:standard:*`   | Standard mode session data (transcript, summary, form_template_id, form_values, output_mode, updated_at) | No |
-| `aias:v1:session:realtime:*`   | Realtime mode session data (transcript, summary, form_template_id, form_values, questions, updated_at) | No |
+| `aias:v1:sync_standard_realtime` | Sync Standard + Realtime toggle (`true`/`false`) | Yes |
+| `aias:v1:session:standard:*`   | Standard mode session data (transcript, summary, form_template_id, form_values, output_mode, updated_at) | Yes (as `session_standard` object) |
+| `aias:v1:session:realtime:*`   | Realtime mode session data (transcript, summary, form_template_id, form_values, questions, updated_at) | Yes (as `session_realtime` object) |
 
 ### Styling & Theme
 
@@ -1379,6 +1424,8 @@ The chatbot shares the same `aias:v1:mic_device_id` localStorage key as `AudioRe
 | `toggle_final_summary` | Toggle final summary | `enabled`: boolean | — |
 | `update_api_key` | Set API key | `provider`, `key`: string | — |
 | `open_settings` | Open settings panel | (none) | — |
+| `save_prompt_template` | Save a custom prompt template | `name`: string, `content`: string | Validates name and content are non-empty |
+| `save_form_template` | Save a custom form template | `name`: string, `fields`: array of field definitions | Validates name non-empty, fields array non-empty, each field has label and valid type |
 
 > **Note**: Storage mode (local/account) is **not** available as a chatbot action. It requires the StorageModeDialog flow (avatar menu → Storage Mode) which involves data upload/download confirmation. The system prompt explicitly instructs the LLM to explain this to users.
 

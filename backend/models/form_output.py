@@ -36,3 +36,24 @@ class FillFormRequest(BaseModel):
 
 class FillFormResponse(BaseModel):
     values: dict[str, object] = Field(..., description="Mapping of field_id to extracted value (or null)")
+
+
+class GenerateTemplateRequest(BaseModel):
+    provider: LLMProvider = Field(..., description="Which LLM provider to use")
+    api_key: str = Field(..., min_length=1, description="Provider API key (sent per-request)")
+    model: str = Field(..., min_length=1, description="Model identifier")
+    azure_config: AzureConfig | None = Field(None, description="Required only when provider is 'azure_openai'")
+    langdock_config: LangdockConfig | None = Field(None, description="Langdock region config")
+    description: str = Field(..., min_length=1, description="Natural language description of the desired form template")
+
+
+class GeneratedField(BaseModel):
+    label: str = Field(..., description="Human-readable field label")
+    type: FormFieldType = Field(..., description="Field data type")
+    description: str | None = Field(None, description="Optional hint for the LLM about what this field expects")
+    options: list[str] | None = Field(None, description="Allowed values for enum and multi_select fields")
+
+
+class GenerateTemplateResponse(BaseModel):
+    name: str = Field(..., description="Suggested template name")
+    fields: list[GeneratedField] = Field(..., description="Generated field definitions")

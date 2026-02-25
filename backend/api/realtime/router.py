@@ -335,6 +335,7 @@ async def _handle_aai_event(ws: WebSocket, event: dict, session_id: str):
 
     elif msg_type == "Begin":
         logger.info(f"AAI session confirmed for {session_id}")
+        await ws.send_json({"type": "session_ready"})
 
     elif msg_type == "Termination":
         logger.info(f"AAI session terminated for {session_id}")

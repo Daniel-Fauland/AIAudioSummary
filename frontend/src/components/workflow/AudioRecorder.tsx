@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { Mic, Square, Pause, Play, Download, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,41 +15,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { toast } from "sonner";
 import { AudioPlayer } from "@/components/ui/audio-player";
-
-const MIC_STORAGE_KEY = "aias:v1:mic_device_id";
-
-function getSavedMicId(): string {
-  try {
-    return localStorage.getItem(MIC_STORAGE_KEY) || "default";
-  } catch {
-    return "default";
-  }
-}
-
-function saveMicId(deviceId: string) {
-  try {
-    localStorage.setItem(MIC_STORAGE_KEY, deviceId);
-  } catch {
-    // localStorage not available
-  }
-}
+import { useGlobalRecording } from "@/contexts/GlobalRecordingContext";
 
 function resolveDeviceId(inputs: MediaDeviceInfo[], preferred: string): string {
   if (inputs.find((d) => d.deviceId === preferred)) return preferred;
   const fallback = inputs.find((d) => d.deviceId === "default");
   return fallback?.deviceId || inputs[0]?.deviceId || "";
-}
-
-function getSupportedMimeType(): string {
-  const types = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/mp4;codecs=aac",
-    "audio/mp4",
-  ];
-  return types.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
 }
 
 function getExtensionForMime(mimeType: string): string {
@@ -64,8 +36,6 @@ interface AudioRecorderProps {
   uploading?: boolean;
   hasAssemblyAiKey: boolean;
 }
-
-type RecorderState = "idle" | "recording" | "paused" | "done";
 
 const BAR_COUNT = 40;
 const BAR_GAP = 2;
@@ -135,109 +105,60 @@ export function AudioRecorder({
   uploading,
   hasAssemblyAiKey,
 }: AudioRecorderProps) {
-  const [recorderState, setRecorderState] = useState<RecorderState>("idle");
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const {
+    recorderState,
+    elapsedSeconds,
+    recordedBlob,
+    audioUrl,
+    micDevices,
+    selectedDeviceId,
+    recordMode,
+    supportsSystemAudio,
+    analyserNode,
+    startRecording,
+    stopRecording,
+    pauseRecording,
+    resumeRecording,
+    resetRecording,
+    setSelectedDeviceId,
+    setRecordMode,
+  } = useGlobalRecording();
 
-  // Microphone device state
-  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>(getSavedMicId);
-
-  // Recording mode: "mic" (mic only) or "meeting" (mic + system audio)
-  const [recordMode, setRecordMode] = useState<"mic" | "meeting">("mic");
-  // Whether the browser supports getDisplayMedia with audio (Chromium only)
-  const [supportsSystemAudio, setSupportsSystemAudio] = useState(false);
-
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const displayStreamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const mimeTypeRef = useRef<string>("");
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const liveCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const doneCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const elapsedRef = useRef(0);
-  const audioUrlRef = useRef<string | null>(null);
 
-  // Enumerate audio input devices and update state
-  const refreshDevices = useCallback(async () => {
-    try {
-      const all = await navigator.mediaDevices.enumerateDevices();
-      const inputs = all.filter((d) => d.kind === "audioinput");
-      setMicDevices(inputs);
-      // If the currently selected device was removed, fall back to "default"
-      setSelectedDeviceId((prev) => resolveDeviceId(inputs, prev));
-    } catch {
-      // enumerateDevices not supported — ignore
+  // Waveform animation loop
+  const scheduleDraw = useCallback(() => {
+    if (!liveCanvasRef.current) {
+      animationFrameRef.current = requestAnimationFrame(scheduleDraw);
+      return;
     }
-  }, []);
+    drawBars(liveCanvasRef.current, true, analyserNode ?? undefined);
+    animationFrameRef.current = requestAnimationFrame(scheduleDraw);
+  }, [analyserNode]);
 
-  // Enumerate on mount and listen for device changes
+  // Start/stop animation based on recorder state
   useEffect(() => {
-    refreshDevices();
-    const mmd = navigator.mediaDevices;
-    if (mmd?.addEventListener) {
-      mmd.addEventListener("devicechange", refreshDevices);
-      return () => mmd.removeEventListener("devicechange", refreshDevices);
-    }
-  }, [refreshDevices]);
-
-  // Detect Chromium-based browser with getDisplayMedia support (SSR-safe)
-  useEffect(() => {
-    setSupportsSystemAudio(
-      typeof window !== "undefined" &&
-        "chrome" in window &&
-        typeof navigator.mediaDevices?.getDisplayMedia === "function",
-    );
-  }, []);
-
-  // On mount: if device labels are already available (permission previously granted),
-  // just re-enumerate — no need to activate the mic. Only call getUserMedia when
-  // labels are absent (Safari before first permission grant) to unlock them.
-  // This prevents triggering the iPhone Continuity Mic popup on Chrome.
-  useEffect(() => {
-    navigator.mediaDevices
-      .enumerateDevices()
-      .then((devices) => {
-        const hasLabels = devices
-          .filter((d) => d.kind === "audioinput")
-          .some((d) => d.label !== "");
-        if (hasLabels) {
-          refreshDevices();
-        } else {
-          navigator.mediaDevices
-            .getUserMedia({ audio: true })
-            .then((stream) => {
-              stream.getTracks().forEach((t) => t.stop());
-              refreshDevices();
-            })
-            .catch(() => {});
-        }
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopMic();
+    if (recorderState === "recording" && analyserNode) {
+      animationFrameRef.current = requestAnimationFrame(scheduleDraw);
+    } else {
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
-      if (timerRef.current !== null) {
-        clearInterval(timerRef.current);
+      // Draw static bars when paused
+      if (recorderState === "paused" && liveCanvasRef.current) {
+        drawBars(liveCanvasRef.current, false);
       }
-      if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current);
+    }
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [recorderState, analyserNode, scheduleDraw]);
 
   // Draw static waveform once "done" canvas is mounted
   useEffect(() => {
@@ -245,228 +166,6 @@ export function AudioRecorder({
       drawBars(doneCanvasRef.current, false);
     }
   }, [recorderState]);
-
-  function stopMic() {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (displayStreamRef.current) {
-      displayStreamRef.current.getTracks().forEach((t) => t.stop());
-      displayStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-      analyserRef.current = null;
-    }
-  }
-
-  function stopTimer() {
-    if (timerRef.current !== null) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }
-
-  function startTimer() {
-    timerRef.current = setInterval(() => {
-      elapsedRef.current += 1;
-      setElapsedSeconds(elapsedRef.current);
-    }, 1000);
-  }
-
-  function scheduleDraw() {
-    if (!liveCanvasRef.current) {
-      animationFrameRef.current = requestAnimationFrame(scheduleDraw);
-      return;
-    }
-    drawBars(liveCanvasRef.current, true, analyserRef.current ?? undefined);
-    animationFrameRef.current = requestAnimationFrame(scheduleDraw);
-  }
-
-  const startRecording = useCallback(async () => {
-    const audioConstraints: MediaTrackConstraints = selectedDeviceId
-      ? { deviceId: { exact: selectedDeviceId } }
-      : (true as unknown as MediaTrackConstraints);
-
-    try {
-      let recordStream: MediaStream;
-
-      if (recordMode === "meeting") {
-        // 1. Prompt user to pick a tab/window (must share audio)
-        let displayStream: MediaStream;
-        try {
-          displayStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: true,
-          });
-        } catch {
-          // User cancelled the screen-share dialog — return silently
-          return;
-        }
-
-        // Stop video tracks — we only need audio
-        displayStream.getVideoTracks().forEach((t) => t.stop());
-        displayStreamRef.current = displayStream;
-
-        // Check that audio was actually shared
-        if (displayStream.getAudioTracks().length === 0) {
-          displayStream.getTracks().forEach((t) => t.stop());
-          displayStreamRef.current = null;
-          toast.error(
-            "No audio was shared. Make sure to check 'Share audio' in the share dialog.",
-          );
-          return;
-        }
-
-        // 2. Capture mic separately
-        let micStream: MediaStream;
-        try {
-          micStream = await navigator.mediaDevices.getUserMedia({
-            audio: audioConstraints,
-          });
-        } catch {
-          // Mic denied — clean up display stream first
-          displayStream.getTracks().forEach((t) => t.stop());
-          displayStreamRef.current = null;
-          toast.error(
-            "Microphone permission denied. Please allow microphone access in your browser settings.",
-          );
-          return;
-        }
-        streamRef.current = micStream;
-
-        // Re-enumerate after permission grant to pick up real device labels
-        refreshDevices();
-
-        // 3. Merge both streams via AudioContext
-        const audioContext = new AudioContext();
-        audioContextRef.current = audioContext;
-        const destination = audioContext.createMediaStreamDestination();
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
-        analyserRef.current = analyser;
-
-        const micSource = audioContext.createMediaStreamSource(micStream);
-        const sysSource = audioContext.createMediaStreamSource(displayStream);
-
-        micSource.connect(analyser);
-        micSource.connect(destination);
-        sysSource.connect(analyser);
-        sysSource.connect(destination);
-
-        recordStream = destination.stream;
-      } else {
-        // Mic-only path (original behaviour)
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: audioConstraints,
-        });
-        streamRef.current = stream;
-
-        // Re-enumerate after permission grant to pick up real device labels
-        refreshDevices();
-
-        const audioContext = new AudioContext();
-        audioContextRef.current = audioContext;
-        const source = audioContext.createMediaStreamSource(stream);
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
-        analyserRef.current = analyser;
-
-        recordStream = stream;
-      }
-
-      chunksRef.current = [];
-      const mimeType = getSupportedMimeType();
-      mimeTypeRef.current = mimeType;
-      const recorder = new MediaRecorder(
-        recordStream,
-        mimeType ? { mimeType } : undefined,
-      );
-      mediaRecorderRef.current = recorder;
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, {
-          type: mimeTypeRef.current || "audio/webm",
-        });
-        setRecordedBlob(blob);
-        const url = URL.createObjectURL(blob);
-        audioUrlRef.current = url;
-        setAudioUrl(url);
-        setRecorderState("done");
-        stopMic();
-        if (animationFrameRef.current !== null) {
-          cancelAnimationFrame(animationFrameRef.current);
-          animationFrameRef.current = null;
-        }
-      };
-
-      recorder.start();
-      setRecorderState("recording");
-      elapsedRef.current = 0;
-      setElapsedSeconds(0);
-      startTimer();
-      animationFrameRef.current = requestAnimationFrame(scheduleDraw);
-    } catch {
-      toast.error(
-        "Microphone permission denied. Please allow microphone access in your browser settings.",
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDeviceId, refreshDevices, recordMode]);
-
-  const pauseRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.pause();
-      setRecorderState("paused");
-      stopTimer();
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-      if (liveCanvasRef.current) {
-        drawBars(liveCanvasRef.current, false);
-      }
-    }
-  }, []);
-
-  const resumeRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "paused") {
-      mediaRecorderRef.current.resume();
-      setRecorderState("recording");
-      startTimer();
-      animationFrameRef.current = requestAnimationFrame(scheduleDraw);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const stopRecording = useCallback(() => {
-    stopTimer();
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== "inactive"
-    ) {
-      mediaRecorderRef.current.stop();
-    }
-  }, []);
-
-  const handleRecordAgain = useCallback(() => {
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current);
-      audioUrlRef.current = null;
-      setAudioUrl(null);
-    }
-    setRecordedBlob(null);
-    elapsedRef.current = 0;
-    setElapsedSeconds(0);
-    setRecorderState("idle");
-  }, []);
 
   const handleDownload = useCallback(() => {
     if (!recordedBlob) return;
@@ -491,16 +190,10 @@ export function AudioRecorder({
 
   const isDisabled = disabled || uploading;
 
-  const handleMicChange = useCallback((deviceId: string) => {
-    setSelectedDeviceId(deviceId);
-    saveMicId(deviceId);
-  }, []);
-
-  // The mic selector — only shown in idle state when multiple devices exist
   const micSelector = micDevices.length > 1 && (
     <Select
       value={resolveDeviceId(micDevices, selectedDeviceId)}
-      onValueChange={handleMicChange}
+      onValueChange={setSelectedDeviceId}
       disabled={isDisabled}
     >
       <SelectTrigger className="h-9 w-52 text-sm">
@@ -714,7 +407,7 @@ export function AudioRecorder({
             <div className="flex flex-wrap justify-center gap-2">
               <Button
                 variant="ghost"
-                onClick={handleRecordAgain}
+                onClick={resetRecording}
                 className="gap-2"
               >
                 <Mic className="h-4 w-4" />

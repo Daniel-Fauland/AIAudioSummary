@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { getMe, getPreferences, putPreferences } from "@/lib/api";
-import type { UserPreferences } from "@/lib/types";
+import type { UserPreferences, LiveQuestion } from "@/lib/types";
 
 const ALL_PROVIDERS = ["openai", "anthropic", "gemini", "azure_openai", "langdock"];
 
@@ -20,6 +20,125 @@ function safeLocalSet(key: string, value: string): void {
   try {
     if (typeof window !== "undefined") localStorage.setItem(key, value);
   } catch {}
+}
+
+function safeLocalRemove(key: string): void {
+  try {
+    if (typeof window !== "undefined") localStorage.removeItem(key);
+  } catch {}
+}
+
+function collectSessionData(mode: "standard" | "realtime"): UserPreferences["session_standard"] | UserPreferences["session_realtime"] | undefined {
+  const prefix = `aias:v1:session:${mode}`;
+  const transcript = safeLocalGet(`${prefix}:transcript`);
+  const summary = safeLocalGet(`${prefix}:summary`);
+  const formTemplateId = safeLocalGet(`${prefix}:form_template_id`);
+  const updatedAtRaw = safeLocalGet(`${prefix}:updated_at`);
+  const updatedAt = updatedAtRaw ? Number(updatedAtRaw) : null;
+
+  let formValues: Record<string, unknown> | undefined;
+  try {
+    const raw = safeLocalGet(`${prefix}:form_values`);
+    if (raw) formValues = JSON.parse(raw);
+  } catch {}
+
+  // No session data stored at all
+  if (!transcript && !summary && !formTemplateId && !formValues && !updatedAt) {
+    if (mode === "realtime") {
+      // Also check questions for realtime
+      const questionsRaw = safeLocalGet(`${prefix}:questions`);
+      if (!questionsRaw) return undefined;
+    } else {
+      const outputMode = safeLocalGet(`${prefix}:output_mode`);
+      if (!outputMode) return undefined;
+    }
+  }
+
+  if (mode === "realtime") {
+    let questions: LiveQuestion[] | undefined;
+    try {
+      const raw = safeLocalGet(`${prefix}:questions`);
+      if (raw) questions = JSON.parse(raw);
+    } catch {}
+    return {
+      transcript: transcript || undefined,
+      summary: summary || undefined,
+      form_template_id: formTemplateId || null,
+      form_values: formValues,
+      questions,
+      updated_at: updatedAt,
+    };
+  }
+
+  return {
+    transcript: transcript || undefined,
+    summary: summary || undefined,
+    form_template_id: formTemplateId || null,
+    form_values: formValues,
+    output_mode: safeLocalGet(`${prefix}:output_mode`) || undefined,
+    updated_at: updatedAt,
+  };
+}
+
+function collectChatbotSessionData(): UserPreferences["session_chatbot"] | undefined {
+  const prefix = "aias:v1:chatbot";
+  const updatedAtRaw = safeLocalGet(`${prefix}:updated_at`);
+  const updatedAt = updatedAtRaw ? Number(updatedAtRaw) : null;
+
+  let messages: { role: string; content: string }[] | undefined;
+  try {
+    const raw = safeLocalGet(`${prefix}:messages`);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { role: string; content: string }[];
+      // Only persist role + content for backend sync
+      messages = parsed.map(m => ({ role: m.role, content: m.content }));
+    }
+  } catch {}
+
+  if (!messages && !updatedAt) return undefined;
+
+  return { messages, updated_at: updatedAt };
+}
+
+function applySessionData(prefs: UserPreferences): void {
+  const standardKeys = ["transcript", "summary", "form_template_id", "form_values", "output_mode", "updated_at"];
+  const realtimeKeys = ["transcript", "summary", "form_template_id", "form_values", "questions", "updated_at"];
+
+  if (prefs.session_standard) {
+    const s = prefs.session_standard;
+    const prefix = "aias:v1:session:standard";
+    // Clear all standard session keys first, then set present values
+    for (const key of standardKeys) safeLocalRemove(`${prefix}:${key}`);
+    if (s.transcript) safeLocalSet(`${prefix}:transcript`, s.transcript);
+    if (s.summary) safeLocalSet(`${prefix}:summary`, s.summary);
+    if (s.form_template_id) safeLocalSet(`${prefix}:form_template_id`, s.form_template_id);
+    if (s.form_values) safeLocalSet(`${prefix}:form_values`, JSON.stringify(s.form_values));
+    if (s.output_mode) safeLocalSet(`${prefix}:output_mode`, s.output_mode);
+    if (s.updated_at) safeLocalSet(`${prefix}:updated_at`, String(s.updated_at));
+  }
+  if (prefs.session_realtime) {
+    const r = prefs.session_realtime;
+    const prefix = "aias:v1:session:realtime";
+    // Clear all realtime session keys first, then set present values
+    for (const key of realtimeKeys) safeLocalRemove(`${prefix}:${key}`);
+    if (r.transcript) safeLocalSet(`${prefix}:transcript`, r.transcript);
+    if (r.summary) safeLocalSet(`${prefix}:summary`, r.summary);
+    if (r.form_template_id) safeLocalSet(`${prefix}:form_template_id`, r.form_template_id);
+    if (r.form_values) safeLocalSet(`${prefix}:form_values`, JSON.stringify(r.form_values));
+    if (r.questions) safeLocalSet(`${prefix}:questions`, JSON.stringify(r.questions));
+    if (r.updated_at) safeLocalSet(`${prefix}:updated_at`, String(r.updated_at));
+  }
+  {
+    const prefix = "aias:v1:chatbot";
+    const chatbotKeys = ["messages", "updated_at"];
+    // Always clear chatbot keys first; re-populate only if server has data
+    for (const key of chatbotKeys) safeLocalRemove(`${prefix}:${key}`);
+    if (prefs.session_chatbot) {
+      const c = prefs.session_chatbot;
+      if (c.messages) safeLocalSet(`${prefix}:messages`, JSON.stringify(c.messages));
+      if (c.updated_at) safeLocalSet(`${prefix}:updated_at`, String(c.updated_at));
+    }
+  }
 }
 
 /** Collect all non-API-key preferences from localStorage into a payload. */
@@ -56,6 +175,12 @@ function collectPreferences(): UserPreferences {
   const realtimeSystemPrompt = safeLocalGet("aias:v1:realtime_system_prompt");
 
   const chatbotTranscriptMode = safeLocalGet("aias:v1:chatbot_transcript_mode");
+  const syncStandardRealtime = safeLocalGet("aias:v1:sync_standard_realtime");
+
+  // Session data
+  const sessionStandard = collectSessionData("standard");
+  const sessionRealtime = collectSessionData("realtime");
+  const sessionChatbot = collectChatbotSessionData();
 
   return {
     selected_provider: safeLocalGet("aias:v1:selected_provider") || undefined,
@@ -78,6 +203,10 @@ function collectPreferences(): UserPreferences {
     custom_templates: customTemplates,
     form_templates: formTemplates,
     chatbot_transcript_mode: (chatbotTranscriptMode as import("@/lib/types").ChatbotTranscriptMode) || undefined,
+    sync_standard_realtime: syncStandardRealtime ? syncStandardRealtime === "true" : undefined,
+    session_standard: sessionStandard,
+    session_realtime: sessionRealtime,
+    session_chatbot: sessionChatbot,
   };
 }
 
@@ -105,6 +234,8 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.custom_templates) safeLocalSet("aias:v1:custom_templates", JSON.stringify(prefs.custom_templates));
   if (prefs.form_templates) safeLocalSet("aias:v1:form_templates", JSON.stringify(prefs.form_templates));
   if (prefs.chatbot_transcript_mode) safeLocalSet("aias:v1:chatbot_transcript_mode", prefs.chatbot_transcript_mode);
+  if (prefs.sync_standard_realtime !== undefined) safeLocalSet("aias:v1:sync_standard_realtime", prefs.sync_standard_realtime ? "true" : "false");
+  applySessionData(prefs);
 }
 
 export interface UsePreferencesResult {

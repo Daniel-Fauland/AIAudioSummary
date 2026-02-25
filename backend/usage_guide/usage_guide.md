@@ -27,6 +27,8 @@
    - [4.15 Theme Toggle](#415-theme-toggle)
    - [4.16 Admin Panel](#416-admin-panel)
    - [4.17 Session Data Persistence](#417-session-data-persistence)
+   - [4.18 AI Assistant (Chatbot)](#418-ai-assistant-chatbot)
+   - [4.19 Sync Standard + Realtime](#419-sync-standard--realtime)
 5. [Common Workflows](#5-common-workflows)
    - [5.1 Transcribing and Summarising a Recording](#51-transcribing-and-summarising-a-recording)
    - [5.2 Recording Live Audio and Getting a Summary](#52-recording-live-audio-and-getting-a-summary)
@@ -34,6 +36,7 @@
    - [5.4 Creating a Custom Prompt Template](#54-creating-a-custom-prompt-template)
    - [5.5 Renaming Speakers in a Transcript](#55-renaming-speakers-in-a-transcript)
    - [5.6 Adding a New User (Admin)](#56-adding-a-new-user-admin)
+   - [5.7 Running Both Modes in Parallel (Sync)](#57-running-both-modes-in-parallel-sync)
 6. [FAQ / Troubleshooting](#6-faq--troubleshooting)
 
 ---
@@ -42,10 +45,11 @@
 
 **AI Audio Summary** is a web application that turns audio recordings of meetings, interviews, lectures, or any spoken-word content into structured text transcripts and AI-generated summaries.
 
-It works in two modes:
+It works in two modes that can run independently or in parallel:
 
 - **Standard mode** — Upload a pre-recorded audio file (or record one directly in the browser), wait for transcription, then generate a summary at your own pace.
 - **Realtime mode** — Speak into your microphone (or capture a meeting's audio) and watch the transcript and a running summary update live as the conversation unfolds.
+- **Sync mode** (optional) — Run both modes at the same time with a shared microphone. Get a live transcript and running summary during the meeting (Realtime) while also recording a high-quality audio file for detailed post-meeting transcription (Standard). Enable this in Settings.
 
 **Who it's for:** Anyone who needs to extract key points, decisions, and action items from spoken audio — team leads, project managers, researchers, journalists, or anyone who attends meetings and wants an automatic written record.
 
@@ -123,7 +127,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.4.0** — click to view the changelog of recent updates
+- **v1.5.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -462,6 +466,20 @@ A form template defines which fields to extract. To create one:
 
 Templates are stored in your browser and, if you use Account Storage, synced across devices.
 
+#### AI-Powered Template Generation
+
+Instead of adding fields manually, you can let the AI design a template for you:
+
+1. Open the template editor (click the **+** button to create a new template, or the **pencil icon** to edit an existing one).
+2. Click the **AI Generate** button at the top of the editor. A text input appears.
+3. Describe the form you need in plain language — for example: _"Meeting notes form with date, attendees, action items, and decisions"_ or _"Patient intake form with name, date of birth, symptoms, and insurance provider"_.
+4. Click **Generate** (or press **Enter**). The AI analyses your description and suggests a template name and a set of fields with appropriate types, descriptions, and options.
+5. If the template name field was empty, it is filled with the AI's suggestion. The fields area is populated with the generated fields.
+6. **Review and edit** the generated fields — you can rename labels, change types, add or remove options, reorder fields, or delete any field you don't need. You can also add more fields manually.
+7. Click **Create Template** (or **Save Changes**) when you're satisfied.
+
+> **Note:** AI Generate requires an LLM API key. It uses the same model configured for Form Output (or the default model if no override is set). If no API key is available, the AI Generate button will not appear.
+
 #### Filling a Form (Standard Mode)
 
 1. After transcription, switch to the **Form Output** tab in Step 2.
@@ -494,7 +512,7 @@ Templates are stored in your browser and, if you use Account Storage, synced acr
 
 ### 4.12 Settings Panel
 
-Open the Settings panel by clicking the **gear icon (⚙)** in the header, or using the keyboard shortcut **Alt + S** (⌥S on Mac).
+Open the Settings panel by clicking the **gear icon (⚙)** in the header, or using the keyboard shortcut **Alt + S** (⌥S on Mac). The shortcut is displayed as a key badge (⌥ S) next to the panel title on desktop — the badges highlight as you press each key.
 
 The panel slides in from the right side of the screen. It has three collapsible sections:
 
@@ -562,17 +580,18 @@ This is useful if, for example, you want to use a cheaper model for key point ex
 
 **Realtime** sub-section:
 
-| Setting                             | What it does                                                                  |
-| ----------------------------------- | ----------------------------------------------------------------------------- |
-| **System Prompt** → **Edit** button | Opens an editor to customise the AI instructions for realtime summaries.      |
-| **Summary Interval** dropdown       | How often a new running summary is auto-generated: 1, 2, 3, 5, or 10 minutes. |
-| **Final Summary on Stop** (toggle)  | When on, stopping a realtime session triggers a full final summary.           |
+| Setting                               | What it does                                                                                                                                                                            |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **System Prompt** → **Edit** button   | Opens an editor to customise the AI instructions for realtime summaries.                                                                                                                |
+| **Summary Interval** dropdown         | How often a new running summary is auto-generated: 1, 2, 3, 5, or 10 minutes.                                                                                                           |
+| **Final Summary on Stop** (toggle)    | When on, stopping a realtime session triggers a full final summary.                                                                                                                     |
+| **Sync Standard + Realtime** (toggle) | When on, starting one recording mode automatically starts the other with a shared microphone, and pause/stop actions are coordinated. See [Section 4.19](#419-sync-standard--realtime). |
 
 **AI Chatbot** sub-section:
 
-| Setting                              | What it does                                                                                                                                                                                                                                                                                        |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Transcript Context** (toggle)      | When on, the chatbot includes transcript text as context for its responses.                                                                                                                                                                                                                         |
+| Setting                              | What it does                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Transcript Context** (toggle)      | When on, the chatbot includes transcript text as context for its responses.                                                                                                                                                                                                                                                                                                                                           |
 | **Transcript Context Mode** dropdown | Controls which transcript the chatbot uses. Only visible when Transcript Context is toggled on. **Current mode** (default) — uses the transcript from whichever mode (Standard/Realtime) you're currently viewing. **Latest transcript** — uses the most recently updated transcript regardless of which mode you're in. This is useful when you've generated a transcript in Standard mode but switched to Realtime. |
 
 ---
@@ -581,19 +600,19 @@ This is useful if, for example, you want to use a cheaper model for key point ex
 
 Storage Mode controls where your app preferences (model selection, template choices, settings, etc.) are saved.
 
-**Local Storage (default):** All preferences are stored only in your browser's localStorage. They are device-specific and will be lost if you clear your browser data.
+**Local Storage (default):** All preferences and session data are stored only in your browser's localStorage. They are device-specific and will be lost if you clear your browser data.
 
-**Account Storage:** Preferences are synced to your account on the server. This means your settings follow you across devices and browsers. API keys are **never** included in this sync — they always stay in your browser.
+**Account Storage:** Preferences **and session data** (transcripts, summaries, form output, questions) are synced to your account on the server. This means your settings and the content of your last session follow you across devices and browsers. API keys are **never** included in this sync — they always stay in your browser.
 
 **To switch modes:**
 
 1. Click your **avatar** in the header to open the user menu.
 2. Click **Storage Mode**.
 3. A dialog explains the difference and lets you switch.
-   - Switching from Local → Account: uploads your current local preferences to the server.
-   - Switching from Account → Local: downloads your server preferences to the current browser.
+   - Switching from Local → Account: uploads your current local preferences and session data to the server.
+   - Switching from Account → Local: downloads your server preferences and session data to the current browser.
 
-**To delete server-side preferences:** Switch back to Local Storage — this immediately deletes all stored preferences from the server.
+**To delete server-side data:** Switch back to Local Storage — this immediately deletes all stored preferences and session data from the server.
 
 ---
 
@@ -606,13 +625,27 @@ The **Export / Import Settings** feature lets you transfer all your app settings
 #### Exporting Settings
 
 1. Click the **Export** tab (selected by default).
-2. Optionally check **"Include API keys"** if you want the exported config to also contain your API keys.
-   - **Important:** If you check this box, a warning appears: _"Be cautious when sharing this config string. It will contain your API keys in an encoded (not encrypted) format. Anyone with this string can decode and use your keys."_ Only include API keys when transferring to your own device — never share a config string that contains your keys with others.
+2. Two optional checkboxes let you control what is included:
+   - **Include API keys** — adds your API keys to the export. Unchecked by default for security.
+     - **Important:** If you check this box, a warning appears: _"Be cautious when sharing this config string. It will contain your API keys in an encoded (not encrypted) format. Anyone with this string can decode and use your keys."_ Only include API keys when transferring to your own device — never share a config string that contains your keys with others.
+   - **Include session data** — adds transcripts, summaries, chat history, and other session data. Checked by default. Uncheck this for a much smaller config string (useful if you only want to transfer preferences).
 3. Click **Generate Config String**.
 4. A text box appears containing the config string (it starts with `CFG1_`).
-5. Click **Copy to Clipboard** to copy it. You can also click inside the text box to select all the text.
+5. Click **Copy** to copy it to your clipboard. You can also click inside the text box to select all the text.
 
-The config string contains your settings compressed and encoded. It includes all your preferences (selected provider, model, theme, feature toggles, custom templates, etc.) — but **not** your API keys unless you explicitly check the box.
+The config string contains your settings compressed and encoded. What it includes depends on the checkboxes above — by default it contains preferences (selected provider, model, theme, feature toggles, custom templates, etc.) and session data, but **not** API keys.
+
+#### QR Code (API Keys)
+
+Below the config string section there is a **QR Code (API Keys)** button. This generates a QR code containing **only your API keys** (and related connection config like Azure endpoint settings). This is the easiest way to transfer API keys to a mobile device:
+
+1. Click **QR Code (API Keys)**.
+2. A scannable QR code appears.
+3. Scan the QR code with your phone's camera — it opens a link that automatically imports the API keys on the other device.
+
+> **Tip:** If you use Account Storage, all preferences are already synced across devices — API keys are the only thing that don't sync. The QR code is designed exactly for this use case: quickly getting your API keys onto a new device without typing them manually.
+
+If no API keys are configured yet, the button will show an error message prompting you to add keys in Settings first.
 
 #### Importing Settings
 
@@ -623,6 +656,10 @@ The config string contains your settings compressed and encoded. It includes all
    - If invalid, an error message explains what's wrong.
 4. Click **Import Settings** to apply. Existing settings with matching keys will be overwritten.
 5. **Reload the page** after importing to apply the new settings.
+
+#### Auto-Import via Link
+
+When you scan a QR code or open a shared import link, the app detects the config string in the URL automatically and shows a confirmation dialog. Click **Import Settings** to apply, or **Cancel** to dismiss. The page reloads automatically after a successful import.
 
 > **Note:** This feature works independently of Storage Mode. It directly reads from and writes to your browser's localStorage. If you use Account Storage, you may want to also trigger a sync after importing by switching storage modes or reloading.
 
@@ -671,7 +708,117 @@ Your session data (transcripts, summaries, form output values, questions and top
 - Switching between Standard and Realtime modes preserves both sessions independently. The Realtime WebSocket connection stays alive when you switch to Standard mode and back.
 - Data is cleared when you click **"Start New Session"** (the reset button), which begins a fresh realtime session.
 
-> **Note:** Session data is stored in your browser's localStorage and is device-specific. It is not synced via Account Storage. If you close the browser tab, the data is still available the next time you open the app, but clearing your browser data will remove it.
+#### Account Storage Sync
+
+When **Account Storage** is enabled, session data is also synced to the server alongside your other preferences. This means:
+
+- After transcription, summary generation, form fill, or output mode change completes, the data is automatically pushed to the server.
+- When you open the app on a **different device** or browser (with the same account and Account Storage enabled), your last session is restored from the server.
+- **Switching from Local → Account storage** uploads your current session data to the server.
+- **Switching from Account → Local storage** downloads your server session data to the current browser.
+- Session data can optionally be included in the **Export / Import Settings** config string (check **"Include session data"**), so you can transfer it manually at any time.
+
+> **Note:** API keys are never synced — they always remain in your browser only. Clearing your browser data will remove local session data, but if Account Storage is enabled the server copy is preserved and will be restored on your next visit.
+
+---
+
+### 4.18 AI Assistant (Chatbot)
+
+The **AI Assistant** is a floating chat panel that lets you ask questions about your transcript or get ad-hoc help from the AI without leaving the page.
+
+#### Opening and closing
+
+| Method                                                 | Action                                                          |
+| ------------------------------------------------------ | --------------------------------------------------------------- |
+| **Floating button** (speech-bubble icon, bottom-right) | Click to open the panel. Only visible when the panel is closed. |
+| **Keyboard shortcut** **Alt + C** (⌥C on Mac)          | Toggles the panel open and closed from anywhere on the page.    |
+| **× button** (top-right of panel)                      | Closes the panel.                                               |
+
+> **Desktop only:** The keyboard shortcut and the ⌥ C key badges in the panel header are only shown on screens wide enough to have a keyboard (hidden on mobile). On mobile, use the floating button to open the panel.
+
+#### Maximizing the panel (desktop only)
+
+Click the **maximize icon** (⤢) in the panel header to expand the chatbot into a large overlay that fills most of the screen. This is useful when you want more space to read longer AI responses or scroll through a longer conversation.
+
+| Action                                         | Result                                                                   |
+| ---------------------------------------------- | ------------------------------------------------------------------------ |
+| Click **⤢ maximize button**                    | Expands the panel to fill the main content area with a smooth animation. |
+| Click **⊠ restore button** (same position)     | Returns the panel to its normal compact size.                            |
+| Click **anywhere outside** the maximized panel | Also restores the panel to its compact size.                             |
+
+The maximize button is hidden on mobile — the panel already takes up the full screen width on small devices.
+
+When the panel opens — whether via the button or the keyboard shortcut — the chat input field is **automatically focused**, so you can start typing your question immediately without clicking.
+
+#### Keyboard shortcut indicator
+
+The panel header shows two small key badges: **⌥** and **C**. These highlight as you press each key, giving you visual confirmation of the shortcut. On non-Mac systems the Option badge reads **Alt** instead.
+
+#### Using the chatbot
+
+1. Type your message in the input field at the bottom of the panel and press **Enter** (or click the send button).
+2. The AI streams its response in real time.
+3. If transcript context is enabled (see [AI Chatbot settings](#412-settings-panel)), the assistant automatically uses your current transcript as background context.
+4. Use **Shift + Enter** to insert a line break in your message without sending.
+
+#### Voice input
+
+If an **AssemblyAI API key** is configured, a microphone button appears next to the input field. Click it to start voice input — the button pulses red while listening. Spoken words are appended to the input field as finalised text; you can still edit them before sending. Click the button again to stop.
+
+A **chevron (▾)** next to the mic button lets you select which microphone to use if multiple devices are available.
+
+#### Actions
+
+The AI may propose actions (e.g. applying a speaker rename or updating a prompt). These appear as action cards in the chat. Click **Confirm** to apply the action or **Cancel** to dismiss it.
+
+You can also ask the chatbot to **create custom prompt templates** (e.g. "Create a prompt template for summarizing technical design meetings") or **create form templates** (e.g. "Create a form template for tracking project status with priority, assignee, due date, and status"). The AI will craft the template and propose saving it as an action. Once confirmed, the template appears in the corresponding dropdown (PromptEditor for prompt templates, FormTemplateSelector for form templates).
+
+#### Clearing the chat
+
+Click the **trash icon** (visible in the header when there are messages) to clear the entire conversation history.
+
+---
+
+### 4.19 Sync Standard + Realtime
+
+**Sync Standard + Realtime** lets you run both Standard recording and Realtime live transcription at the same time, using the same microphone. This is useful when you want a high-quality audio file for post-meeting transcription (Standard) while also getting a live transcript and running summary during the meeting (Realtime).
+
+#### Enabling Sync
+
+1. Open the **Settings panel** (gear icon).
+2. Under **Features → Realtime**, turn on the **Sync Standard + Realtime** toggle.
+3. Close the Settings panel. The setting is saved automatically.
+
+#### How it works
+
+Once sync is enabled:
+
+- **Auto-start**: When you start recording in Standard mode (Record Audio tab), the Realtime session starts automatically in the background using the same microphone. The reverse also works — starting a Realtime session auto-starts Standard recording.
+- **Shared microphone**: Both modes use the same microphone device. Changing the mic in one mode's dropdown automatically updates the other.
+- **Pause sync**: When you pause Standard recording, the Realtime session pauses too. Resuming Standard recording resumes both.
+- **Stop confirmation**: When you stop either mode while the other is still running, a dialog appears offering three choices:
+  - **Cancel** — keep both modes running (nothing changes).
+  - **Stop this mode only** — stops just the mode you stopped, the other continues.
+  - **Stop both** — stops both Standard recording and the Realtime session.
+
+#### Recording Indicator
+
+When either or both modes are active, a **recording indicator bar** appears at the top of every page (except the main app page). This bar shows:
+
+- Which mode(s) are active: "Standard Recording", "Realtime Session", or "Standard + Realtime".
+- The elapsed recording time.
+- **Pause/Resume** and **Stop** buttons so you can control the recording from any page.
+- A **"Back to app"** link to return to the main page.
+
+This means you can navigate to the Admin Panel or other pages without losing your recording session — the indicator keeps you informed and in control.
+
+#### Requirements
+
+- **AssemblyAI API key** must be configured (for the Realtime transcription half).
+- **LLM API key** must be configured (for Realtime summary generation).
+- Browser microphone permission must be granted.
+
+> **Tip:** If you only need live transcription without a recorded audio file, you can use Realtime mode on its own without enabling sync. Sync is most valuable when you want both a downloadable recording and live AI insights during the meeting.
 
 ---
 
@@ -766,6 +913,25 @@ To delete a custom template: select it from the dropdown, then click the **trash
 
 ---
 
+### 5.7 Running Both Modes in Parallel (Sync)
+
+**Goal:** Record a meeting while also getting a live transcript and running summary — both at the same time.
+
+1. Open **Settings** (gear icon) and enable **Features → Realtime → Sync Standard + Realtime**.
+2. Make sure both your **AssemblyAI API key** and **LLM API key** are configured.
+3. In **Standard** mode, click the **Record Audio** tab.
+4. Select your **microphone** and **audio source** (Mic Only or Mic + Meeting Audio).
+5. Click **Start Recording**. Because sync is enabled, the Realtime session starts automatically in the background.
+6. Switch to **Realtime** mode using the mode toggle — you'll see the live transcript and running summary updating as the conversation continues. Your Standard recording continues in the background.
+7. Switch back to **Standard** mode if needed — both modes keep running.
+8. When the meeting ends, stop either mode. A dialog will ask whether to stop both or just one.
+9. In **Standard** mode, your recorded audio is ready for high-quality batch transcription and summary generation.
+10. In **Realtime** mode, your live transcript and running summary are already available.
+
+> **Tip:** The recording indicator bar at the top of the page shows "Standard + Realtime" when both modes are active, so you always know your recording status.
+
+---
+
 ## 6. FAQ / Troubleshooting
 
 **Q: I clicked "Sign in with Google" but got "Access denied. Please contact an administrator to request access."**
@@ -808,12 +974,12 @@ A: This usually means your AssemblyAI API key is missing or invalid. Check **Set
 ---
 
 **Q: I switched devices and my settings are gone.**
-A: By default, settings are saved in your browser's **Local Storage**, which is device-specific. You have two options to transfer settings: (1) Switch to **Account Storage** (avatar → Storage Mode) so your preferences sync across devices automatically, or (2) Use **Export / Import Settings** (avatar → Export / Import Settings) to generate a config string on the old device and import it on the new one. API keys are never synced via Account Storage, but can optionally be included in an exported config string.
+A: By default, settings are saved in your browser's **Local Storage**, which is device-specific. You have two options to transfer settings: (1) Switch to **Account Storage** (avatar → Storage Mode) so your preferences sync across devices automatically, or (2) Use **Export / Import Settings** (avatar → Export / Import Settings) to generate a config string on the old device and import it on the new one. API keys are never synced via Account Storage, but you can transfer them using the **QR Code (API Keys)** button in the Export tab or by checking **"Include API keys"** in the config string export.
 
 ---
 
 **Q: How do I transfer my settings to another browser or device?**
-A: Click your **avatar** → **Export / Import Settings**. On the Export tab, click **Generate Config String** and copy the result. On the other browser/device, open the same dialog, switch to the **Import** tab, paste the string, and click **Import Settings**. Then reload the page. If you also want to transfer API keys, check **"Include API keys"** before exporting — but be careful not to share that string with others, as the keys are encoded but not encrypted.
+A: Click your **avatar** → **Export / Import Settings**. On the Export tab, click **Generate Config String** and copy the result. On the other browser/device, open the same dialog, switch to the **Import** tab, paste the string, and click **Import Settings**. Then reload the page. If you also want to transfer API keys, check **"Include API keys"** before exporting — but be careful not to share that string with others, as the keys are encoded but not encrypted. For API keys specifically, you can also use the **QR Code (API Keys)** button to generate a scannable QR code — just scan it with your phone's camera to import the keys instantly.
 
 ---
 
@@ -844,3 +1010,18 @@ A: Yes — you can save API keys for multiple providers and switch between them 
 
 **Q: Where is my data stored? Is my audio or transcript saved on the server?**
 A: No. Audio files are processed by AssemblyAI and deleted from the app's server immediately after transcription. Transcripts and summaries are stored in your browser's localStorage so they persist across page reloads and navigation, but they are never sent to or saved on the app's server. API keys are also stored only in your browser's localStorage. If you have Account Storage enabled, only your app preferences (model settings, templates, theme) are stored server-side — never audio, transcripts, summaries, or API keys. See the full **Privacy Policy** in the footer for details.
+
+---
+
+**Q: I enabled "Sync Standard + Realtime" but only one mode starts.**
+A: Both modes require an **AssemblyAI API key** to be configured. If the key is missing, the Realtime half cannot auto-start. Make sure your AssemblyAI key is saved in **Settings → API Keys**. Also confirm your browser has granted microphone permission — without it, neither mode can access the mic.
+
+---
+
+**Q: I stopped Standard recording and a dialog appeared — what should I do?**
+A: When sync is enabled and both modes are running, stopping one mode shows a confirmation dialog asking whether to stop just that mode or both. Choose **"Stop both"** if the meeting is over. Choose **"Stop this mode only"** if you want the other mode to keep running (for example, stop Standard recording but keep the Realtime live transcript going). Choose **"Cancel"** to keep both modes running.
+
+---
+
+**Q: What is the recording indicator bar at the top of the page?**
+A: When you have an active recording (Standard, Realtime, or both), a coloured bar appears at the top of every page except the main app page. It shows which mode(s) are active, the elapsed time, and provides Pause/Resume and Stop buttons. This lets you control your recording without navigating back to the main page. Click **"Back to app"** to return to the main page.

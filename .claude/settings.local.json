@@ -61,7 +61,10 @@
       "Bash(docker compose:*)",
       "Bash(git diff:*)",
       "mcp__plugin_context7_context7__resolve-library-id",
-      "Bash(npx next build:*)"
+      "Bash(npx next build:*)",
+      "Bash(head:*)",
+      "Bash(cd \"/Users/danielfauland/Documents/Programming/Python/Visual Studio Code/AIAudioSummary/frontend\" && npx next lint 2>&1)",
+      "Bash(cd \"/Users/danielfauland/Documents/Programming/Python/Visual Studio Code/AIAudioSummary/frontend\" && npx eslint src/hooks/usePreferences.ts src/components/auth/StorageModeDialog.tsx src/components/realtime/RealtimeMode.tsx src/lib/types.ts --quiet 2>&1)"
     ]
   }
 }

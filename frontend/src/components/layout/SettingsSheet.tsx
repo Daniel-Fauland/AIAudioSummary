@@ -68,6 +68,8 @@ interface SettingsSheetProps {
   onChatbotActionsEnabledChange: (enabled: boolean) => void;
   chatbotTranscriptMode: ChatbotTranscriptMode;
   onChatbotTranscriptModeChange: (mode: ChatbotTranscriptMode) => void;
+  syncStandardRealtime: boolean;
+  onSyncStandardRealtimeChange: (enabled: boolean) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -135,6 +137,8 @@ export function SettingsSheet({
   onChatbotActionsEnabledChange,
   chatbotTranscriptMode,
   onChatbotTranscriptModeChange,
+  syncStandardRealtime,
+  onSyncStandardRealtimeChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -369,6 +373,22 @@ export function SettingsSheet({
                       chatbotTranscriptMode={chatbotTranscriptMode}
                       onChatbotTranscriptModeChange={onChatbotTranscriptModeChange}
                     />
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="sync-standard-realtime" className="text-sm">
+                          Sync Standard + Realtime
+                        </Label>
+                        <p className="text-xs text-foreground-muted">
+                          Starting one mode automatically starts the other with shared microphone input
+                        </p>
+                      </div>
+                      <Switch
+                        id="sync-standard-realtime"
+                        checked={syncStandardRealtime}
+                        onCheckedChange={onSyncStandardRealtimeChange}
+                      />
+                    </div>
                   </div>
 
                   <Separator />

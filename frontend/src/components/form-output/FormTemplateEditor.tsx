@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Plus, Trash2, GripVertical } from "lucide-react";
+import { Plus, Trash2, GripVertical, Sparkles, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { FormFieldDefinition, FormFieldType, FormTemplate } from "@/lib/types";
+import { generateTemplate } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
+import type { AzureConfig, LangdockConfig, FormFieldDefinition, FormFieldType, FormTemplate, LLMProvider } from "@/lib/types";
 
 const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
   string: "Text",
@@ -37,6 +40,11 @@ interface FormTemplateEditorProps {
   onOpenChange: (open: boolean) => void;
   template?: FormTemplate | null;
   onSave: (template: FormTemplate) => void;
+  llmProvider?: LLMProvider;
+  llmApiKey?: string;
+  llmModel?: string;
+  llmAzureConfig?: AzureConfig | null;
+  llmLangdockConfig?: LangdockConfig;
 }
 
 export function FormTemplateEditor({
@@ -44,17 +52,29 @@ export function FormTemplateEditor({
   onOpenChange,
   template,
   onSave,
+  llmProvider,
+  llmApiKey,
+  llmModel,
+  llmAzureConfig,
+  llmLangdockConfig,
 }: FormTemplateEditorProps) {
   const isEditing = !!template;
 
   const [name, setName] = useState("");
   const [fields, setFields] = useState<FormFieldDefinition[]>([]);
+  const [showAiInput, setShowAiInput] = useState(false);
+  const [aiDescription, setAiDescription] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const hasLlmConfig = !!(llmProvider && llmApiKey && llmModel);
 
   // Sync state when dialog opens or template changes while open
   useEffect(() => {
     if (open) {
       setName(template?.name ?? "");
       setFields(template?.fields ?? []);
+      setShowAiInput(false);
+      setAiDescription("");
     }
   }, [open, template]);
 
@@ -104,6 +124,43 @@ export function FormTemplateEditor({
     });
   }, []);
 
+  const handleGenerate = useCallback(async () => {
+    if (!aiDescription.trim() || !hasLlmConfig) return;
+
+    setIsGenerating(true);
+    try {
+      const response = await generateTemplate({
+        provider: llmProvider!,
+        api_key: llmApiKey!,
+        model: llmModel!,
+        azure_config: llmProvider === "azure_openai" ? llmAzureConfig ?? undefined : undefined,
+        langdock_config: llmProvider === "langdock" ? llmLangdockConfig : undefined,
+        description: aiDescription.trim(),
+      });
+
+      // Set name only if currently empty
+      if (!name.trim()) {
+        setName(response.name);
+      }
+
+      // Replace fields with AI-generated ones (assign new UUIDs)
+      const newFields: FormFieldDefinition[] = response.fields.map((f) => ({
+        id: crypto.randomUUID(),
+        label: f.label,
+        type: f.type,
+        description: f.description || undefined,
+        options: f.options || undefined,
+      }));
+      setFields(newFields);
+      setShowAiInput(false);
+      setAiDescription("");
+    } catch (e) {
+      toast.error(getErrorMessage(e, "formOutput"));
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [aiDescription, hasLlmConfig, llmProvider, llmApiKey, llmModel, llmAzureConfig, llmLangdockConfig, name]);
+
   const handleSave = useCallback(() => {
     if (!name.trim()) return;
     if (fields.length === 0) return;
@@ -140,6 +197,55 @@ export function FormTemplateEditor({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
+          {/* AI generate toggle */}
+          {hasLlmConfig && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setShowAiInput((prev) => !prev)}
+              disabled={isGenerating}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              AI Generate
+            </Button>
+          )}
+
+          {/* AI generation input */}
+          {showAiInput && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <Label className="text-xs text-foreground-secondary">
+                Describe the form template you need
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="e.g., Meeting notes with date, attendees, action items, and decisions"
+                  value={aiDescription}
+                  onChange={(e) => setAiDescription(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleGenerate();
+                    }
+                  }}
+                  disabled={isGenerating}
+                  className="flex-1 text-sm"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleGenerate}
+                  disabled={!aiDescription.trim() || isGenerating}
+                >
+                  {isGenerating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    "Generate"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Template name */}
           <div className="space-y-1.5">
             <Label htmlFor="template-name">Template Name</Label>

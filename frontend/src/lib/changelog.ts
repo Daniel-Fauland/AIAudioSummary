@@ -10,6 +10,43 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.5.0",
+    date: "2026-02-26",
+    title:
+      "Added session persistence, maximizable chatbot, sync standard/realtime mode, and QR code generation for API keys",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Added session persistence feature that allows the user to refresh the page or close and reopen the application without losing their current transcript, summary, chatbot conversation, etc.",
+      },
+      {
+        type: "added",
+        description:
+          "The chatbot now has a maximize button that allows the user to expand the chatbot window to take up more space on the screen for easier interaction and better visibility of the conversation history (desktop only)",
+      },
+      {
+        type: "added",
+        description:
+          "Sync Standard + Realtime mode: enable in Settings to run both recording modes in parallel with a shared microphone. Starting one mode auto-starts the other, pause/resume stay in sync, and a confirmation dialog coordinates stopping",
+      },
+      {
+        type: "added",
+        description:
+          "QR code generation for API keys: quickly transfer your API keys to another device by scanning a QR code instead of typing them manually",
+      },
+      {
+        type: "changed",
+        description: "The microphone device is now shared between the normal/realtime mode and the chatbot",
+      },
+      {
+        type: "fixed",
+        description:
+          "Previously the connection circle indicator in the realtime mode did not accurately reflect wheter the realtime API was ready to transcribe or not. This has been fixed.",
+      },
+    ],
+  },
+  {
     version: "1.4.0",
     date: "2026-02-25",
     title:

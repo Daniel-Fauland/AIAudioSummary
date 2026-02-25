@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import type { LiveQuestion } from "@/lib/types";
+import type { ChatMessageType, LiveQuestion } from "@/lib/types";
 
 // ─── Storage keys ────────────────────────────────────────────────────────────
 
@@ -23,6 +23,10 @@ const KEYS = {
     formValues: `${PREFIX}:realtime:form_values`,
     questions: `${PREFIX}:realtime:questions`,
     updatedAt: `${PREFIX}:realtime:updated_at`,
+  },
+  chatbot: {
+    messages: "aias:v1:chatbot:messages",
+    updatedAt: "aias:v1:chatbot:updated_at",
   },
 } as const;
 
@@ -66,6 +70,11 @@ export interface RealtimeSessionData {
   formTemplateId: string | null;
   formValues: Record<string, unknown>;
   questions: LiveQuestion[];
+  updatedAt: number | null;
+}
+
+export interface ChatbotSessionData {
+  messages: ChatMessageType[];
   updatedAt: number | null;
 }
 
@@ -182,6 +191,32 @@ export function useSessionPersistence() {
     }
   }, []);
 
+  // --- Chatbot session ---
+
+  const loadChatbotSession = useCallback((): ChatbotSessionData => {
+    const updatedAtRaw = safeGet(KEYS.chatbot.updatedAt);
+    const updatedAt = updatedAtRaw ? Number(updatedAtRaw) : null;
+
+    let messages: ChatMessageType[] = [];
+    try {
+      const raw = safeGet(KEYS.chatbot.messages);
+      if (raw) messages = JSON.parse(raw);
+    } catch {}
+
+    return { messages, updatedAt };
+  }, []);
+
+  const saveChatbotMessages = useCallback((messages: ChatMessageType[]) => {
+    safeSet(KEYS.chatbot.messages, JSON.stringify(messages));
+    safeSet(KEYS.chatbot.updatedAt, String(Date.now()));
+  }, []);
+
+  const clearChatbotSession = useCallback(() => {
+    for (const key of Object.values(KEYS.chatbot)) {
+      safeRemove(key);
+    }
+  }, []);
+
   // --- Cross-mode helpers ---
 
   const getLatestTranscript = useCallback((): LatestTranscriptResult | null => {
@@ -219,6 +254,10 @@ export function useSessionPersistence() {
     saveRealtimeFormValues,
     saveRealtimeQuestions,
     clearRealtimeSession,
+    // Chatbot
+    loadChatbotSession,
+    saveChatbotMessages,
+    clearChatbotSession,
     // Cross-mode
     getLatestTranscript,
   };

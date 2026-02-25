@@ -63,4 +63,29 @@ ACTION_REGISTRY = [
         "description": "Open the settings panel",
         "params": {},
     },
+    {
+        "action_id": "save_prompt_template",
+        "description": "Save a new custom prompt template for summary generation. Use this when the user asks you to create, write, or generate a prompt template.",
+        "params": {
+            "name": {"type": "string", "description": "Template name"},
+            "content": {"type": "string", "description": "The full prompt text"},
+        },
+    },
+    {
+        "action_id": "save_form_template",
+        "description": "Save a new form template for structured data extraction. Use this when the user asks you to create or design a form template.",
+        "params": {
+            "name": {"type": "string", "description": "Template name"},
+            "fields": {
+                "type": "array",
+                "description": "List of field definitions",
+                "items": {
+                    "label": {"type": "string"},
+                    "type": {"type": "string", "enum": ["string", "number", "date", "boolean", "list_str", "enum", "multi_select"]},
+                    "description": {"type": "string", "description": "Optional hint for the AI during form filling"},
+                    "options": {"type": "array", "description": "Required for enum and multi_select types"},
+                },
+            },
+        },
+    },
 ]
