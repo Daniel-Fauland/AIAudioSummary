@@ -10,6 +10,18 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.5.1",
+    date: "2026-02-26",
+    title: "Stability improvement",
+    changes: [
+      {
+        type: "fixed",
+        description:
+          "Fixed an issue where transcription and AI requests could occasionally fail when multiple actions were performed at the same time due to synchronous code execution blocking the main thread",
+      },
+    ],
+  },
+  {
     version: "1.5.0",
     date: "2026-02-26",
     title:

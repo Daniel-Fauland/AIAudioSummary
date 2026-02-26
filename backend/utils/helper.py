@@ -1,4 +1,8 @@
+import asyncio
 import os
+
+import aiofiles
+
 from utils.logging import logger
 
 class Helper():
@@ -12,11 +16,12 @@ class Helper():
             list[str]: List of file names in the directory.
         """
         try:
-            # List all files (not directories) in the given directory
-            files = [
-                f for f in os.listdir(directory_path)
-                if os.path.isfile(os.path.join(directory_path, f))
-            ]
+            def _list_files():
+                return [
+                    f for f in os.listdir(directory_path)
+                    if os.path.isfile(os.path.join(directory_path, f))
+                ]
+            files = await asyncio.to_thread(_list_files)
             return files
         except FileNotFoundError:
             logger.error(f"The directory at {directory_path} was not found.")
@@ -24,7 +29,7 @@ class Helper():
         except Exception as e:
             logger.error(f"An error occurred while listing files in {directory_path}: {e}")
             return []
-        
+
 
     async def file_to_str(self, file_path: str) -> str:
         """
@@ -37,8 +42,8 @@ class Helper():
             str: Contents of the file as a string, or None if an error occurs.
         """
         try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                content = file.read()
+            async with aiofiles.open(file_path, 'r', encoding='utf-8') as file:
+                content = await file.read()
             return content
         except FileNotFoundError:
             logger.error(f"The file at {file_path} was not found.")

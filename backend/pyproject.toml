@@ -18,4 +18,5 @@ dependencies = [
     "asyncpg>=0.31.0",
     "alembic>=1.18.4",
     "pyjwt>=2.10.0",
+    "aiofiles>=24.1.0",
 ]

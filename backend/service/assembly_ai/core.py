@@ -1,10 +1,17 @@
+import asyncio
 import os
 import tempfile
+import threading
+
 import assemblyai as aai
 from fastapi import UploadFile
 from utils.logging import logger
 
 aai.settings.base_url = "https://api.eu.assemblyai.com"
+
+# Lock to ensure setting aai.settings.api_key + calling transcribe() is atomic,
+# preventing concurrent requests from overwriting each other's API key.
+_transcribe_lock = threading.Lock()
 
 
 class AssemblyAIService:
@@ -24,8 +31,8 @@ class AssemblyAIService:
             delete=False, suffix=file_extension)
 
         try:
-            # Write the uploaded file content to the temporary file
-            content = uploaded_file.file.read()
+            # Use FastAPI's async read instead of synchronous file.read()
+            content = await uploaded_file.read()
             temp_file.write(content)
             temp_file.flush()
             return temp_file.name
@@ -36,8 +43,6 @@ class AssemblyAIService:
                              lang_code: str = None,
                              min_speaker: int = 1,
                              max_speaker: int = 10):
-        aai.settings.api_key = api_key
-
         if not lang_code:
             language_detection = True
             language_code = None
@@ -51,7 +56,16 @@ class AssemblyAIService:
             language_code=language_code,
             speaker_labels=True,
             speaker_options={"min_speakers_expected": min_speaker, "max_speakers_expected": max_speaker})
-        transcript = aai.Transcriber(config=config).transcribe(path_to_file)
+
+        # Run the synchronous transcribe() call in a thread pool to avoid
+        # blocking the event loop. The lock ensures api_key + transcribe()
+        # are atomic per thread (prevents key race conditions).
+        def _transcribe():
+            with _transcribe_lock:
+                aai.settings.api_key = api_key
+                return aai.Transcriber(config=config).transcribe(path_to_file)
+
+        transcript = await asyncio.to_thread(_transcribe)
 
         if transcript.status == "error":
             logger.error(

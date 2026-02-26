@@ -39,6 +39,9 @@ COPY --from=builder /app/.venv /app/.venv
 # Place the venv executables at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Ensure Python output is sent straight to the container logs (no buffering)
+ENV PYTHONUNBUFFERED=1
+
 # Default to production (disables uvicorn hot-reload)
 ENV ENVIRONMENT=production
 

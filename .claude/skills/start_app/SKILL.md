@@ -15,4 +15,6 @@ Rebuild and restart the AIAudioSummary Docker containers.
 
 3. **Rebuild and start** by running `docker compose up --build -d` in the project root.
 
-4. **Report the result** to the user — whether the app started successfully or if there were errors.
+4. **Prune old Docker artifacts** by running `docker image prune -f` and `docker builder prune -f` to remove dangling images and stale build cache.
+
+5. **Report the result** to the user — whether the app started successfully or if there were errors.

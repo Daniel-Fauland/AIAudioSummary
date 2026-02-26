@@ -8,12 +8,26 @@ function getBackendInternalUrl(): string {
   return `https://${raw}`;
 }
 
+// In-memory TTL cache for verifyEmailAccess results (5-minute window).
+// Reduces backend round-trips from the jwt callback which fires on every
+// token validation (multiple times per browser action).
+const VERIFY_CACHE_TTL_MS = 5 * 60 * 1000;
+const verifyCache = new Map<string, { result: { allowed: boolean; name?: string; role?: string }; expiresAt: number }>();
+
 async function verifyEmailAccess(email: string): Promise<{ allowed: boolean; name?: string; role?: string }> {
+  const now = Date.now();
+  const cached = verifyCache.get(email);
+  if (cached && cached.expiresAt > now) {
+    return cached.result;
+  }
+
   try {
     const url = `${getBackendInternalUrl()}/auth/verify?email=${encodeURIComponent(email)}`;
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return { allowed: false };
-    return res.json();
+    const result = await res.json();
+    verifyCache.set(email, { result, expiresAt: now + VERIFY_CACHE_TTL_MS });
+    return result;
   } catch {
     return { allowed: false };
   }
@@ -28,6 +42,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user }) {
       if (!user.email) return false;
+      // Always call backend on sign-in (bypass cache) to get fresh access check
+      verifyCache.delete(user.email);
       const result = await verifyEmailAccess(user.email);
       return result.allowed;
     },

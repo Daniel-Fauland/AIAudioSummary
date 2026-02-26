@@ -127,7 +127,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.5.0** — click to view the changelog of recent updates
+- **v1.5.1** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 

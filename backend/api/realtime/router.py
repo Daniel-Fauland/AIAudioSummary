@@ -42,12 +42,16 @@ _LANG_CODE_MAP: dict[str, str] = {
 }
 
 
-def _detect_language(text: str) -> str:
+def _detect_language_sync(text: str) -> str:
     try:
         code = detect(text)
         return _LANG_CODE_MAP.get(code, "English")
     except LangDetectException:
         return "English"
+
+
+async def _detect_language(text: str) -> str:
+    return await asyncio.to_thread(_detect_language_sync, text)
 
 
 realtime_router = APIRouter()
@@ -84,7 +88,7 @@ async def create_incremental_summary(
         )
 
         # Detect language from the transcript; substitute {language} in the prompt
-        language = _detect_language(request.full_transcript)
+        language = await _detect_language(request.full_transcript)
         system_prompt = request.system_prompt.replace("{language}", language)
 
         # Build user prompt based on mode
