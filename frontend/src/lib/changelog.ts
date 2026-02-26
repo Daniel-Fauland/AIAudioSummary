@@ -10,6 +10,33 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.5.2",
+    date: "2026-02-26",
+    title: "Improved chatbot capabilities, simplified transcript context and suspend/reattach",
+    changes: [
+      {
+        type: "added",
+        description:
+          'The chatbot now knows the user\'s current time and last visit timestamp, allowing it to answer questions like "What time is it?" and "What has changed since my last visit?" by correlating visit history with the changelog',
+      },
+      {
+        type: "changed",
+        description:
+          'Detaching the transcript in the chatbot now suspends it instead of removing it entirely — the badge stays visible in a dimmed "Transcript paused" state with a reattach button to resume using it',
+      },
+      {
+        type: "changed",
+        description:
+          "Clicking Start or Continue Session in Realtime mode now shows a confirmation dialog when existing transcript or summary data is present — choose to continue with existing data, clear only transcript and summary, or clear all session data including questions, form output, and template selection",
+      },
+      {
+        type: "removed",
+        description:
+          'Simplified the chatbot Transcript Context setting by removing the "Current mode" / "Latest transcript" selector — the chatbot now always uses the transcript from the active mode',
+      },
+    ],
+  },
+  {
     version: "1.5.1",
     date: "2026-02-26",
     title: "Stability improvement",

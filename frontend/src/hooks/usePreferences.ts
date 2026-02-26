@@ -174,7 +174,6 @@ function collectPreferences(): UserPreferences {
   const realtimeFinalSummary = safeLocalGet("aias:v1:realtime_final_summary");
   const realtimeSystemPrompt = safeLocalGet("aias:v1:realtime_system_prompt");
 
-  const chatbotTranscriptMode = safeLocalGet("aias:v1:chatbot_transcript_mode");
   const syncStandardRealtime = safeLocalGet("aias:v1:sync_standard_realtime");
 
   // Session data
@@ -202,7 +201,6 @@ function collectPreferences(): UserPreferences {
     realtime_system_prompt: realtimeSystemPrompt || undefined,
     custom_templates: customTemplates,
     form_templates: formTemplates,
-    chatbot_transcript_mode: (chatbotTranscriptMode as import("@/lib/types").ChatbotTranscriptMode) || undefined,
     sync_standard_realtime: syncStandardRealtime ? syncStandardRealtime === "true" : undefined,
     session_standard: sessionStandard,
     session_realtime: sessionRealtime,
@@ -233,7 +231,6 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.realtime_system_prompt) safeLocalSet("aias:v1:realtime_system_prompt", prefs.realtime_system_prompt);
   if (prefs.custom_templates) safeLocalSet("aias:v1:custom_templates", JSON.stringify(prefs.custom_templates));
   if (prefs.form_templates) safeLocalSet("aias:v1:form_templates", JSON.stringify(prefs.form_templates));
-  if (prefs.chatbot_transcript_mode) safeLocalSet("aias:v1:chatbot_transcript_mode", prefs.chatbot_transcript_mode);
   if (prefs.sync_standard_realtime !== undefined) safeLocalSet("aias:v1:sync_standard_realtime", prefs.sync_standard_realtime ? "true" : "false");
   applySessionData(prefs);
 }

@@ -27,7 +27,7 @@ import { AzureConfigForm } from "@/components/settings/AzureConfigForm";
 import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
 import { FeatureModelOverrides } from "@/components/settings/FeatureModelOverrides";
 import { ChatbotSettings } from "@/components/settings/ChatbotSettings";
-import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ChatbotTranscriptMode } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride } from "@/lib/types";
 
 interface SettingsSheetProps {
   open: boolean;
@@ -66,8 +66,6 @@ interface SettingsSheetProps {
   onChatbotTranscriptEnabledChange: (enabled: boolean) => void;
   chatbotActionsEnabled: boolean;
   onChatbotActionsEnabledChange: (enabled: boolean) => void;
-  chatbotTranscriptMode: ChatbotTranscriptMode;
-  onChatbotTranscriptModeChange: (mode: ChatbotTranscriptMode) => void;
   syncStandardRealtime: boolean;
   onSyncStandardRealtimeChange: (enabled: boolean) => void;
 }
@@ -135,8 +133,6 @@ export function SettingsSheet({
   onChatbotTranscriptEnabledChange,
   chatbotActionsEnabled,
   onChatbotActionsEnabledChange,
-  chatbotTranscriptMode,
-  onChatbotTranscriptModeChange,
   syncStandardRealtime,
   onSyncStandardRealtimeChange,
 }: SettingsSheetProps) {
@@ -370,8 +366,6 @@ export function SettingsSheet({
                       onChatbotTranscriptEnabledChange={onChatbotTranscriptEnabledChange}
                       chatbotActionsEnabled={chatbotActionsEnabled}
                       onChatbotActionsEnabledChange={onChatbotActionsEnabledChange}
-                      chatbotTranscriptMode={chatbotTranscriptMode}
-                      onChatbotTranscriptModeChange={onChatbotTranscriptModeChange}
                     />
 
                     <div className="flex items-center justify-between gap-3">

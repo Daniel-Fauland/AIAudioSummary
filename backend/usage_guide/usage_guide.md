@@ -127,7 +127,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.5.1** — click to view the changelog of recent updates
+- **v1.5.2** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -375,17 +375,30 @@ Realtime mode provides live transcription of your microphone and generates a run
 
 A horizontal controls bar appears at the top of the Realtime view:
 
-| Control                                   | Description                                                                                          |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **Start** button (orange)                 | Begins the realtime session. Changes to **Pause** and **Stop** once active.                          |
-| **Pause** button                          | Pauses microphone capture and the summary timer. Click **Resume** to continue.                       |
-| **Stop** button                           | Ends the session, closes the connection, and (if enabled) generates a final full-transcript summary. |
-| **Mic Only / Mic + Meeting Audio** toggle | Choose whether to capture just your microphone or also audio playing through your speakers.          |
-| **Microphone dropdown**                   | Select which microphone device to use.                                                               |
-| **Status dot**                            | Colour indicates connection state: grey = idle, amber = connecting, green = connected, red = error.  |
-| **Elapsed timer**                         | Shows how long the current session has been running (e.g., `02:34`).                                 |
-| **Summary countdown**                     | A `mm:ss` timer counting down to the next automatic summary update.                                  |
-| **Refresh Summary button (↻)**            | Triggers an immediate summary update and resets the countdown timer.                                 |
+| Control                                          | Description                                                                                                                                                                                                                                           |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Start** / **Continue Session** button (orange) | Begins the realtime session. Shows **Continue Session** when a previous session ended but data remains. If there is existing transcript or summary content, a confirmation dialog appears (see below). Changes to **Pause** and **Stop** once active. |
+| **Pause** button                                 | Pauses microphone capture and the summary timer. Click **Resume** to continue.                                                                                                                                                                        |
+| **Stop** button                                  | Ends the session, closes the connection, and (if enabled) generates a final full-transcript summary.                                                                                                                                                  |
+| **Mic Only / Mic + Meeting Audio** toggle        | Choose whether to capture just your microphone or also audio playing through your speakers.                                                                                                                                                           |
+| **Microphone dropdown**                          | Select which microphone device to use.                                                                                                                                                                                                                |
+| **Status dot**                                   | Colour indicates connection state: grey = idle, amber = connecting, green = connected, red = error.                                                                                                                                                   |
+| **Elapsed timer**                                | Shows how long the current session has been running (e.g., `02:34`).                                                                                                                                                                                  |
+| **Summary countdown**                            | A `mm:ss` timer counting down to the next automatic summary update.                                                                                                                                                                                   |
+| **Refresh Summary button (↻)**                   | Triggers an immediate summary update and resets the countdown timer.                                                                                                                                                                                  |
+
+#### Start Session Confirmation
+
+When you click **Start** or **Continue Session** and there is existing transcript or summary content, a dialog appears with four options:
+
+| Option                         | What it does                                                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Continue with Existing**     | Keeps all current data (transcript, summary, questions, form output) and starts the session.                                         |
+| **Clear Transcript & Summary** | Clears only the transcript and summary. Questions & Topics and Form Output are preserved. Then starts the session.                   |
+| **Clear All**                  | Clears transcript, summary, Questions & Topics, form output values, and deselects any Form Output template. Then starts the session. |
+| **Cancel**                     | Closes the dialog without starting.                                                                                                  |
+
+If both the transcript and summary are already empty, clicking **Start** begins the session immediately without showing this dialog.
 
 #### Live Transcript Panel
 
@@ -589,10 +602,9 @@ This is useful if, for example, you want to use a cheaper model for key point ex
 
 **AI Chatbot** sub-section:
 
-| Setting                              | What it does                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Transcript Context** (toggle)      | When on, the chatbot includes transcript text as context for its responses.                                                                                                                                                                                                                                                                                                                                           |
-| **Transcript Context Mode** dropdown | Controls which transcript the chatbot uses. Only visible when Transcript Context is toggled on. **Current mode** (default) — uses the transcript from whichever mode (Standard/Realtime) you're currently viewing. **Latest transcript** — uses the most recently updated transcript regardless of which mode you're in. This is useful when you've generated a transcript in Standard mode but switched to Realtime. |
+| Setting                         | What it does                                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Transcript Context** (toggle) | When on, the chatbot includes the transcript from your current mode (Standard or Realtime) as context for its responses. Switching modes automatically switches the transcript context to match. |
 
 ---
 
@@ -706,6 +718,7 @@ Your session data (transcripts, summaries, form output values, questions and top
 
 - The **accumulated transcript**, **summary**, **questions and topics**, and **form output values** all persist across page reloads.
 - Switching between Standard and Realtime modes preserves both sessions independently. The Realtime WebSocket connection stays alive when you switch to Standard mode and back.
+- When you click **Start** or **Continue Session** with existing data, a confirmation dialog lets you choose to keep the data, clear only the transcript and summary, or clear everything before starting.
 - Data is cleared when you click **"Start New Session"** (the reset button), which begins a fresh realtime session.
 
 #### Account Storage Sync
@@ -758,8 +771,16 @@ The panel header shows two small key badges: **⌥** and **C**. These highlight 
 
 1. Type your message in the input field at the bottom of the panel and press **Enter** (or click the send button).
 2. The AI streams its response in real time.
-3. If transcript context is enabled (see [AI Chatbot settings](#412-settings-panel)), the assistant automatically uses your current transcript as background context.
+3. If transcript context is enabled (see [AI Chatbot settings](#412-settings-panel)), the assistant automatically uses your current transcript as background context. A badge above the input field shows the transcript status (e.g. **"Live Transcript"** or **"Transcript attached"**) along with the word count.
 4. Use **Shift + Enter** to insert a line break in your message without sending.
+
+#### Transcript badge
+
+When transcript context is enabled and a transcript is available, a small badge appears above the input field:
+
+- **Active state** — shows "Live Transcript" (with a green dot for Realtime mode) or "Transcript attached" (with a paperclip icon for Standard mode), plus the word count. Click the **× button** on the badge to suspend the transcript.
+- **Suspended state** — shows "Transcript paused" in a dimmed style. The transcript is no longer sent to the AI, but remains available. Click the **link icon** on the badge to reattach it.
+- **Auto-reattach** — when new transcript content arrives (e.g. you start a new transcription or the Realtime session continues), the transcript automatically reattaches.
 
 #### Voice input
 
@@ -863,7 +884,7 @@ This means you can navigate to the Admin Panel or other pages without losing you
 2. Make sure your **AssemblyAI** and **LLM API keys** are saved in Settings.
 3. Optionally, adjust the **Summary Interval** in Settings (default: 2 minutes).
 4. Choose your **Audio Source** and **microphone** in the controls bar.
-5. Click **Start** (orange button). Grant microphone permission if prompted.
+5. Click **Start** (orange button). Grant microphone permission if prompted. If there is existing session data, choose whether to continue with it, clear transcript and summary, or clear all.
 6. The **Live Transcript** panel begins populating in real time as speech is detected.
 7. After the first summary interval, the **Summary** panel shows a first running summary. It updates automatically at each interval.
 8. To force an immediate summary update at any time, click the **Refresh Summary button (↻)** in the controls bar.

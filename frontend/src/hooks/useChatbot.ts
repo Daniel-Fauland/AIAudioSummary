@@ -186,7 +186,10 @@ export function useChatbot({
       actions_enabled: chatbotActionsEnabled,
       transcript: chatbotTranscriptEnabled && transcript ? transcript : null,
       stream: true,
-      app_context: appContext,
+      app_context: appContext ? {
+        ...appContext,
+        user_timestamp: new Date().toLocaleString(),
+      } : undefined,
     };
 
     // Direct DOM flush: write buffered text to the streaming element and scroll,

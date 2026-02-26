@@ -1,13 +1,15 @@
 "use client";
 
-import { Paperclip, X } from "lucide-react";
+import { Link2, Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface TranscriptBadgeProps {
   wordCount: number;
   isLive?: boolean;
   isLiveActive?: boolean;
+  suspended?: boolean;
   onDetach: () => void;
+  onReattach?: () => void;
 }
 
 function formatWordCount(count: number, live?: boolean): string {
@@ -17,8 +19,31 @@ function formatWordCount(count: number, live?: boolean): string {
   return `${Math.floor(count / 100) * 100}+`;
 }
 
-export function TranscriptBadge({ wordCount, isLive, isLiveActive, onDetach }: TranscriptBadgeProps) {
+export function TranscriptBadge({ wordCount, isLive, isLiveActive, suspended, onDetach, onReattach }: TranscriptBadgeProps) {
   const formattedCount = formatWordCount(wordCount, isLive);
+
+  if (suspended) {
+    return (
+      <div className="mx-3 mb-1 flex items-center gap-2 rounded-md border-l-2 border-l-border bg-muted/30 px-3 py-1.5 opacity-60">
+        <Paperclip className="h-3.5 w-3.5 text-foreground-muted shrink-0" />
+        <span className="text-xs text-foreground-muted">
+          Transcript paused
+        </span>
+        <span className="text-xs text-foreground-muted">
+          {formattedCount} words
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="ml-auto h-5 w-5 shrink-0"
+          onClick={onReattach}
+          title="Reattach transcript"
+        >
+          <Link2 className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-3 mb-1 flex items-center gap-2 rounded-md border-l-2 border-l-primary bg-muted/50 px-3 py-1.5">

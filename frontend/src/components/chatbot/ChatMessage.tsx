@@ -60,9 +60,9 @@ export const ChatMessage = memo(function ChatMessage({ message, isLastAssistant,
             className="px-3 py-2 text-sm rounded-2xl rounded-bl-sm bg-muted text-foreground"
           >
             {isActivelyStreaming ? (
-              <div data-streaming-target className="markdown-prose break-words streaming-active" />
+              <div key="streaming" data-streaming-target className="markdown-prose break-words streaming-active" />
             ) : (
-              <div className="markdown-prose break-words">
+              <div key="content" className="markdown-prose break-words">
                 <MarkdownContent content={message.content} />
               </div>
             )}

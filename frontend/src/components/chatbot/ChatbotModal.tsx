@@ -21,10 +21,12 @@ interface ChatbotModalProps {
   onClearMessages: () => void;
   onOpenSettings: () => void;
   transcriptAttached: boolean;
+  transcriptSuspended?: boolean;
   transcriptWordCount: number;
   isLiveTranscript?: boolean;
   isLiveTranscriptActive?: boolean;
   onDetachTranscript: () => void;
+  onReattachTranscript?: () => void;
   onConfirmAction: (messageId: string) => void;
   onCancelAction: (messageId: string) => void;
   isVoiceActive?: boolean;
@@ -51,10 +53,12 @@ export function ChatbotModal({
   onClearMessages,
   onOpenSettings,
   transcriptAttached,
+  transcriptSuspended,
   transcriptWordCount,
   isLiveTranscript,
   isLiveTranscriptActive,
   onDetachTranscript,
+  onReattachTranscript,
   onConfirmAction,
   onCancelAction,
   isVoiceActive,
@@ -203,7 +207,9 @@ export function ChatbotModal({
               wordCount={transcriptWordCount}
               isLive={isLiveTranscript}
               isLiveActive={isLiveTranscriptActive}
+              suspended={transcriptSuspended}
               onDetach={onDetachTranscript}
+              onReattach={onReattachTranscript}
             />
           )}
           <ChatInputBar

@@ -27,6 +27,8 @@ class AppContext(BaseModel):
     theme: str | None = None
     app_version: str | None = None
     changelog: str | None = None
+    user_timestamp: str | None = None
+    last_visit_timestamp: str | None = None
 
 
 class ChatRequest(BaseModel):

@@ -41,7 +41,7 @@ import { useGlobalSync } from "@/contexts/GlobalSyncContext";
 import { createTranscript, createSummary, extractKeyPoints, fillForm } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { parseConfigString, importSettings, configContainsApiKeys } from "@/lib/config-export";
-import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType, ChatbotTranscriptMode } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType } from "@/lib/types";
 import { APP_VERSION } from "@/lib/constants";
 import { changelog } from "@/lib/changelog";
 
@@ -62,7 +62,6 @@ const CHATBOT_ENABLED_KEY = "aias:v1:chatbot_enabled";
 const CHATBOT_QA_KEY = "aias:v1:chatbot_qa";
 const CHATBOT_TRANSCRIPT_KEY = "aias:v1:chatbot_transcript";
 const CHATBOT_ACTIONS_KEY = "aias:v1:chatbot_actions";
-const CHATBOT_TRANSCRIPT_MODE_KEY = "aias:v1:chatbot_transcript_mode";
 const SYNC_STANDARD_REALTIME_KEY = "aias:v1:sync_standard_realtime";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
@@ -326,10 +325,6 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [chatbotActionsEnabled, setChatbotActionsEnabled] = useState(
     () => serverPreferences?.chatbot_actions !== undefined ? serverPreferences.chatbot_actions : safeGet(CHATBOT_ACTIONS_KEY, "true") !== "false",
   );
-  const [chatbotTranscriptMode, setChatbotTranscriptMode] = useState<ChatbotTranscriptMode>(
-    () => (serverPreferences?.chatbot_transcript_mode as ChatbotTranscriptMode) || safeGet(CHATBOT_TRANSCRIPT_MODE_KEY, "current_mode") as ChatbotTranscriptMode,
-  );
-
   // Sync Standard + Realtime setting
   const [syncStandardRealtime, setSyncStandardRealtime] = useState(
     () => serverPreferences?.sync_standard_realtime !== undefined ? serverPreferences.sync_standard_realtime : safeGet(SYNC_STANDARD_REALTIME_KEY, "false") === "true",
@@ -349,40 +344,18 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [realtimeTranscript, setRealtimeTranscript] = useState("");
   const [realtimeConnectionStatus, setRealtimeConnectionStatus] = useState<"disconnected" | "connecting" | "connected" | "reconnecting" | "error">("disconnected");
 
-  // Compute chatbot transcript (auto-attach logic)
-  const chatbotTranscript = (() => {
+  // Transcript available for the current mode (ignoring suspended state)
+  const availableTranscript = (() => {
     if (!chatbotTranscriptEnabled) return null;
-    if (chatbotTranscriptDetached) return null;
-
-    if (chatbotTranscriptMode === "latest") {
-      // "Latest" mode: use the most recently updated transcript regardless of current mode
-      // Prefer in-memory value if the latest mode matches current mode
-      const latest = sessionPersistence.getLatestTranscript();
-      if (!latest) {
-        // Fall back to current mode behavior
-        if (appMode === "standard" && transcript) return transcript;
-        if (appMode === "realtime" && realtimeTranscript) return realtimeTranscript;
-        return null;
-      }
-      if (latest.mode === "standard") return appMode === "standard" && transcript ? transcript : latest.transcript;
-      if (latest.mode === "realtime") return appMode === "realtime" && realtimeTranscript ? realtimeTranscript : latest.transcript;
-      return null;
-    }
-
-    // "Current mode" (default): transcript from active Standard/Realtime mode
     if (appMode === "standard" && transcript) return transcript;
     if (appMode === "realtime" && realtimeTranscript) return realtimeTranscript;
     return null;
   })();
 
-  const isLiveTranscript = (() => {
-    if (chatbotTranscriptMode === "latest") {
-      // Only live if latest is realtime AND user is in realtime mode with active transcript
-      const latest = sessionPersistence.getLatestTranscript();
-      return latest?.mode === "realtime" && appMode === "realtime" && !!realtimeTranscript;
-    }
-    return appMode === "realtime" && !!chatbotTranscript;
-  })();
+  // Actual transcript sent to chatbot (null when suspended)
+  const chatbotTranscript = chatbotTranscriptDetached ? null : availableTranscript;
+
+  const isLiveTranscript = appMode === "realtime" && !!availableTranscript;
 
   const isLiveTranscriptActive =
     isLiveTranscript &&
@@ -577,12 +550,6 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
   }, [savePreferences]);
 
-  const handleChatbotTranscriptModeChange = useCallback((mode: ChatbotTranscriptMode) => {
-    setChatbotTranscriptMode(mode);
-    safeSet(CHATBOT_TRANSCRIPT_MODE_KEY, mode);
-    savePreferences();
-  }, [savePreferences]);
-
   const handleSyncStandardRealtimeChange = useCallback((enabled: boolean) => {
     setSyncStandardRealtime(enabled);
     safeSet(SYNC_STANDARD_REALTIME_KEY, enabled ? "true" : "false");
@@ -682,6 +649,22 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     return key.trim().length > 0 ? key : null;
   }, [getKey]);
 
+  // Track visit timestamps for the chatbot "what's changed since last visit" feature
+  const lastVisitTimestamp = useMemo<string | null>(() => {
+    const CURRENT_VISIT_KEY = "aias:v1:current_visit";
+    try {
+      const previousVisit = localStorage.getItem(CURRENT_VISIT_KEY);
+      localStorage.setItem(CURRENT_VISIT_KEY, new Date().toISOString());
+      if (previousVisit) {
+        return new Date(previousVisit).toLocaleString();
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Build app context for the chatbot (current settings + version info)
   const chatbotAppContext = useMemo<AppContext>(() => {
     const changelogText = changelog.map(entry =>
@@ -695,8 +678,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       theme: theme ?? "system",
       app_version: APP_VERSION,
       changelog: changelogText,
+      user_timestamp: "",
+      last_visit_timestamp: lastVisitTimestamp,
     };
-  }, [selectedProvider, selectedModel, appMode, theme]);
+  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp]);
 
   const onChatbotMessagesChange = useCallback((msgs: import("@/lib/types").ChatMessageType[]) => {
     if (msgs.length === 0) {
@@ -1180,8 +1165,6 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onChatbotTranscriptEnabledChange={handleChatbotTranscriptEnabledChange}
         chatbotActionsEnabled={chatbotActionsEnabled}
         onChatbotActionsEnabledChange={handleChatbotActionsEnabledChange}
-        chatbotTranscriptMode={chatbotTranscriptMode}
-        onChatbotTranscriptModeChange={handleChatbotTranscriptModeChange}
         syncStandardRealtime={syncStandardRealtime}
         onSyncStandardRealtimeChange={handleSyncStandardRealtimeChange}
       />
@@ -1522,11 +1505,13 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             onSendMessage={sendChatMessage}
             onClearMessages={handleClearChatMessages}
             onOpenSettings={() => setSettingsOpen(true)}
-            transcriptAttached={!!chatbotTranscript}
-            transcriptWordCount={chatbotTranscript ? chatbotTranscript.split(/\s+/).filter(Boolean).length : 0}
+            transcriptAttached={!!availableTranscript}
+            transcriptSuspended={chatbotTranscriptDetached && !!availableTranscript}
+            transcriptWordCount={availableTranscript ? availableTranscript.split(/\s+/).filter(Boolean).length : 0}
             isLiveTranscript={isLiveTranscript}
             isLiveTranscriptActive={isLiveTranscriptActive}
             onDetachTranscript={() => setChatbotTranscriptDetached(true)}
+            onReattachTranscript={() => setChatbotTranscriptDetached(false)}
             onConfirmAction={confirmChatAction}
             onCancelAction={cancelChatAction}
             isVoiceActive={isChatVoiceActive}

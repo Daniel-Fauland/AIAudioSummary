@@ -49,6 +49,10 @@ class ChatbotService:
                 context_lines.append(f"- Current theme: {ctx.theme}")
             if ctx.app_version:
                 context_lines.append(f"- App version: {ctx.app_version}")
+            if ctx.user_timestamp:
+                context_lines.append(f"- User's current local date/time: {ctx.user_timestamp}")
+            if ctx.last_visit_timestamp:
+                context_lines.append(f"- User's last visit: {ctx.last_visit_timestamp}")
             if context_lines:
                 parts.append(
                     "\n\n## Current User Settings\n"
@@ -56,10 +60,20 @@ class ChatbotService:
                     "\n".join(context_lines)
                 )
             if ctx.changelog:
-                parts.append(
-                    "\n\n## Version History & Changelog\n"
+                changelog_instructions = (
                     "When the user asks about the current version, new features, or what's changed, "
-                    "use this changelog to answer:\n\n" +
+                    "use this changelog to answer."
+                )
+                if ctx.last_visit_timestamp:
+                    changelog_instructions += (
+                        " When the user asks what changed since their last visit, compare the 'last visit' "
+                        "timestamp above against the changelog entry dates to determine which changes "
+                        "are new. Summarize them in a friendly, concise way (e.g. 'Since your last visit "
+                        "2 days ago, 1 new feature was added: …')."
+                    )
+                parts.append(
+                    "\n\n## Version History & Changelog\n" +
+                    changelog_instructions + "\n\n" +
                     ctx.changelog
                 )
 

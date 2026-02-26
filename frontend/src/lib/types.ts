@@ -260,6 +260,8 @@ export interface AppContext {
   theme: string;
   app_version: string;
   changelog: string;
+  user_timestamp: string;
+  last_visit_timestamp: string | null;
 }
 
 export interface ChatRequest {
@@ -289,10 +291,6 @@ export interface UserProfile {
   created_at: string;
 }
 
-// === Chatbot Transcript Mode ===
-
-export type ChatbotTranscriptMode = "current_mode" | "latest";
-
 // === Preferences types ===
 
 export interface UserPreferences {
@@ -319,7 +317,6 @@ export interface UserPreferences {
   chatbot_transcript?: boolean;
   chatbot_actions?: boolean;
   speaker_labels_enabled?: boolean;
-  chatbot_transcript_mode?: ChatbotTranscriptMode;
   sync_standard_realtime?: boolean;
   session_standard?: {
     transcript?: string;

@@ -646,6 +646,14 @@ The `useRealtimeSession` hook manages the entire lifecycle:
 3. **Manual summary**: "Refresh Summary" button in controls triggers immediate summary and resets the auto-timer from that point
 4. **Stop**: sends stop message → closes WS → triggers final full-transcript summary → shows copy buttons
 
+**Start session confirmation**: When the user clicks **Start** or **Continue Session** and `accumulatedTranscript` or `realtimeSummary` is non-empty, a `Dialog` appears with four options:
+- **Continue with Existing** — calls `proceedWithStart()` without clearing anything
+- **Clear Transcript & Summary** — calls `clearTranscript()` + `clearSummary()`, explicitly persists empty strings via `onPersistTranscript("")` / `onPersistSummary("")`, then starts
+- **Clear All** — calls `clearTranscript()` + `clearSummary()` + `liveQuestions.clearAll()` + `resetEvaluationTracking()` + `formOutput.resetForm()` + `setSelectedFormTemplateId(null)` + `onClearRealtimeSession()`, then starts
+- **Cancel** — closes the dialog without starting
+
+If both transcript and summary are empty, `handleStart` calls `proceedWithStart()` directly (no dialog).
+
 **Clear actions**: Each realtime panel has a trash icon with a confirmation dialog:
 - **Live Transcript**: trash icon left of copy button, clears accumulated transcript via `clearTranscript()` on `useRealtimeSession`
 - **Summary**: trash icon left of fullscreen button, clears summary via `clearSummary()` on `useRealtimeSession`
@@ -733,7 +741,7 @@ RootLayout (layout.tsx)
         │   └── ChatbotModal          ← Chat panel, uses useChatbot() hook
         │       ├── ChatMessageList   ← Scrollable messages with auto-scroll, thinking indicator
         │       │   └── ChatMessage   ← User/assistant bubble, copy button, ActionConfirmCard
-        │       ├── TranscriptBadge   ← Shows when transcript attached; live variant (green pulsing dot + bucketed word count) in realtime mode
+        │       ├── TranscriptBadge   ← Shows when transcript available; active (attached) or suspended (paused) state; live variant (green pulsing dot + bucketed word count) in realtime mode
         │       └── ChatInputBar     ← Text input, send button, mic button (voice input) + mic device selector dropdown
         │
         └── Footer                     ← Imprint / Privacy Policy / Cookie Settings links (each opens a Dialog)
@@ -800,7 +808,6 @@ Most application state lives in `page.tsx` using `useState`. Three React context
 | Chatbot Q&A toggle  | Yes (localStorage) | Yes               | `aias:v1:chatbot_qa`        |
 | Chatbot transcript  | Yes (localStorage) | Yes               | `aias:v1:chatbot_transcript`|
 | Chatbot actions     | Yes (localStorage) | Yes               | `aias:v1:chatbot_actions`   |
-| Chatbot transcript mode | Yes (localStorage) | Yes           | `aias:v1:chatbot_transcript_mode` |
 | Sync std + realtime | Yes (localStorage) | Yes               | `aias:v1:sync_standard_realtime` |
 | Mic device ID       | Yes (localStorage) | No                | `aias:v1:mic_device_id` (shared by AudioRecorder, RealtimeControls, useChatbot) |
 | Session data (std)  | Yes (localStorage) | No                | `aias:v1:session:standard:*` (transcript, summary, form, output_mode) |
@@ -856,14 +863,7 @@ The `useSessionPersistence` hook (`frontend/src/hooks/useSessionPersistence.ts`)
 | `useLiveQuestions` | `initialQuestions` |
 | `useFormOutput` | `initialValues` |
 
-**Chatbot transcript mode** (`chatbot_transcript_mode`): Controls which transcript the chatbot uses as context. Stored as `aias:v1:chatbot_transcript_mode` in localStorage and synced via `usePreferences`.
-
-| Value | Behaviour |
-|---|---|
-| `"current_mode"` (default) | Chatbot uses the transcript from the active Standard/Realtime mode |
-| `"latest"` | Chatbot uses the most recently updated transcript regardless of current mode, comparing `updated_at` timestamps |
-
-The setting is exposed as a radio group in `ChatbotSettings.tsx` (nested under the "Transcript Context" toggle). The type `ChatbotTranscriptMode` is defined in `lib/types.ts`.
+**Chatbot transcript context**: The chatbot always uses the transcript from the currently active mode (Standard or Realtime). When the user switches modes, the transcript context switches automatically. The transcript can be **suspended** (detached) by the user via the TranscriptBadge × button — this sets `chatbotTranscriptDetached` to `true` in page state, causing `chatbotTranscript` to be `null` while `availableTranscript` remains non-null. The badge stays visible in a dimmed "paused" state with a reattach button. New transcript content (from either mode) automatically reattaches by resetting the detached flag.
 
 ### API Client
 
@@ -979,7 +979,6 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 | `aias:v1:realtime_system_prompt`| Custom realtime summary system prompt | Yes |
 | `aias:v1:custom_templates`      | JSON array of custom prompt templates (`PromptTemplate[]`) | Yes |
 | `aias:v1:form_templates`        | JSON array of form templates (`FormTemplate[]`) for structured form output | Yes |
-| `aias:v1:chatbot_transcript_mode` | Chatbot transcript source: `"current_mode"` or `"latest"` | Yes |
 | `aias:v1:sync_standard_realtime` | Sync Standard + Realtime toggle (`true`/`false`) | Yes |
 | `aias:v1:session:standard:*`   | Standard mode session data (transcript, summary, form_template_id, form_values, output_mode, updated_at) | Yes (as `session_standard` object) |
 | `aias:v1:session:realtime:*`   | Realtime mode session data (transcript, summary, form_template_id, form_values, questions, updated_at) | Yes (as `session_realtime` object) |
@@ -1048,8 +1047,6 @@ import { cn } from "@/lib/utils";
 
 ```tsx
 export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai";
-export type ChatbotTranscriptMode = "current_mode" | "latest";
-
 export interface ProviderInfo {
   id: LLMProvider;
   name: string;
@@ -1147,10 +1144,16 @@ SummaryView: re-renders with updated summary, auto-scrolls, shows cursor
 ### Realtime Transcription Flow
 
 ```
-User clicks "Start" in Realtime mode
+User clicks "Start" or "Continue Session" in Realtime mode
     │
     ▼
-RealtimeMode: validates API keys (AssemblyAI + LLM provider)
+RealtimeMode.handleStart: validates API keys (AssemblyAI + LLM provider)
+    │
+    ├── If accumulatedTranscript or realtimeSummary is non-empty:
+    │   └── Shows start confirmation Dialog (Continue / Clear Transcript & Summary / Clear All / Cancel)
+    │       └── Selected option clears appropriate state, then calls proceedWithStart()
+    │
+    ├── If both are empty: calls proceedWithStart() directly
     │
     ▼
 useRealtimeSession.startSession():
@@ -1301,7 +1304,7 @@ User opens chatbot via floating action button (ChatbotFAB, bottom-right)
     │  Chatbot enabled by default (toggle in Settings → AI Chatbot)
     │  Four independently toggleable capabilities:
     │    - App Usage Q&A (knowledge base)
-    │    - Transcript Context (auto-attaches transcript; source controlled by chatbot_transcript_mode setting — "current_mode" uses active mode, "latest" compares updated_at timestamps)
+    │    - Transcript Context (auto-attaches transcript from current mode; user can suspend/reattach via TranscriptBadge)
     │    - App Control (agentic actions)
     │    - Voice Input (via AssemblyAI realtime STT, persistent session, mic device selector)
     │

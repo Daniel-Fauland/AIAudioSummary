@@ -3,6 +3,14 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { RealtimeControls } from "./RealtimeControls";
 import { RealtimeTranscriptView } from "./RealtimeTranscriptView";
 import { RealtimeSummaryView } from "./RealtimeSummaryView";
@@ -117,6 +125,7 @@ export function RealtimeMode({
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState<string | null>(
     initialRealtimeSession?.formTemplateId ?? null,
   );
+  const [startConfirmOpen, setStartConfirmOpen] = useState(false);
 
   const isActive = session.connectionStatus === "connected" || session.connectionStatus === "reconnecting";
 
@@ -258,6 +267,10 @@ export function RealtimeMode({
     getKey,
   ]);
 
+  const proceedWithStart = useCallback(() => {
+    session.startSession(getKey("assemblyai"), micDeviceId, recordMode);
+  }, [session, getKey, micDeviceId, recordMode]);
+
   const handleStart = useCallback(() => {
     if (!hasKey("assemblyai")) {
       toast.error("AssemblyAI API key is required for realtime transcription");
@@ -270,8 +283,39 @@ export function RealtimeMode({
       return;
     }
 
-    session.startSession(getKey("assemblyai"), micDeviceId, recordMode);
-  }, [hasKey, selectedProvider, getKey, micDeviceId, onOpenSettings, session]);
+    if (session.accumulatedTranscript || session.realtimeSummary) {
+      setStartConfirmOpen(true);
+      return;
+    }
+
+    proceedWithStart();
+  }, [hasKey, selectedProvider, onOpenSettings, session.accumulatedTranscript, session.realtimeSummary, proceedWithStart]);
+
+  const handleStartContinue = useCallback(() => {
+    setStartConfirmOpen(false);
+    proceedWithStart();
+  }, [proceedWithStart]);
+
+  const handleStartClearTranscriptSummary = useCallback(() => {
+    setStartConfirmOpen(false);
+    session.clearTranscript();
+    session.clearSummary();
+    onPersistTranscript?.("");
+    onPersistSummary?.("");
+    proceedWithStart();
+  }, [session, onPersistTranscript, onPersistSummary, proceedWithStart]);
+
+  const handleStartClearAll = useCallback(() => {
+    setStartConfirmOpen(false);
+    session.clearTranscript();
+    session.clearSummary();
+    liveQuestions.clearAll();
+    liveQuestions.resetEvaluationTracking();
+    formOutput.resetForm();
+    setSelectedFormTemplateId(null);
+    onClearRealtimeSession?.();
+    proceedWithStart();
+  }, [session, liveQuestions, formOutput, onClearRealtimeSession, proceedWithStart]);
 
   const handleCopyTranscript = useCallback(async () => {
     try {
@@ -461,6 +505,33 @@ export function RealtimeMode({
           </Button>
         </div>
       )}
+
+      {/* Start session confirmation dialog */}
+      <Dialog open={startConfirmOpen} onOpenChange={(open) => { if (!open) setStartConfirmOpen(false); }}>
+        <DialogContent className="max-w-md bg-card">
+          <DialogHeader>
+            <DialogTitle>Existing Session Data</DialogTitle>
+            <DialogDescription>
+              Your current session has existing transcript or summary content.
+              How would you like to proceed?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <Button variant="secondary" onClick={handleStartContinue}>
+              Continue with Existing
+            </Button>
+            <Button variant="secondary" onClick={handleStartClearTranscriptSummary}>
+              Clear Transcript &amp; Summary
+            </Button>
+            <Button variant="destructive" onClick={handleStartClearAll}>
+              Clear All
+            </Button>
+            <Button variant="ghost" onClick={() => setStartConfirmOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
