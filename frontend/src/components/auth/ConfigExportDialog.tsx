@@ -159,7 +159,7 @@ export function ConfigExportDialog({ open, onClose }: ConfigExportDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Export / Import Settings</DialogTitle>
           <DialogDescription className="text-sm text-foreground-secondary">
@@ -278,11 +278,18 @@ export function ConfigExportDialog({ open, onClose }: ConfigExportDialogProps) {
             <div className="border-t border-border pt-4 space-y-2">
               <Button
                 variant="secondary"
-                onClick={handleShowQr}
+                onClick={() => {
+                  if (qrDataUrl) {
+                    setQrDataUrl("");
+                    setQrError("");
+                  } else {
+                    handleShowQr();
+                  }
+                }}
                 className="w-full"
               >
                 <QrCode className="mr-2 h-4 w-4" />
-                QR Code (API Keys)
+                {qrDataUrl ? "Hide QR Code (API Keys)" : "Show QR Code (API Keys)"}
               </Button>
               <p className="text-xs text-foreground-muted text-center">
                 Generates a QR code containing only your API keys for easy mobile setup

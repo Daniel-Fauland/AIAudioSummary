@@ -239,14 +239,20 @@ class LLMService:
 
     async def _stream_response(self, agent: Agent, user_prompt: str) -> AsyncGenerator[str, None]:
         """Stream response chunks from the LLM agent."""
+        has_yielded = False
         try:
             async with agent.run_stream(user_prompt) as stream:
                 async for chunk in stream.stream_text(delta=True):
+                    has_yielded = True
                     yield chunk
         except Exception as e:
             from utils.logging import logger
             logger.error(f"LLM streaming error: {e}")
-            # Yield error marker instead of raising — raising kills the HTTP
-            # connection (broken chunked encoding), causing nginx 502.
-            error_msg = str(e)
-            yield f"\n\n<!--STREAM_ERROR:{error_msg}-->"
+            if has_yielded:
+                # Mid-stream error: yield marker instead of raising — raising
+                # kills the HTTP connection (broken chunked encoding → nginx 502).
+                yield f"\n\n<!--STREAM_ERROR:{e}-->"
+            else:
+                # Initial error (no data sent yet): re-raise so the router
+                # can return a proper HTTP error response.
+                raise
