@@ -26,6 +26,7 @@ import type {
 } from "./types";
 
 const API_BASE = "/api/proxy";
+const STREAM_ERROR_RE = /\n?\n?<!--STREAM_ERROR:(.+?)-->$/;
 
 export class ApiError extends Error {
   constructor(
@@ -157,6 +158,12 @@ export async function createSummary(
       const chunk = decoder.decode(value, { stream: true });
       fullText += chunk;
       onChunk(chunk);
+    }
+
+    // Check for backend stream error marker
+    const errorMatch = fullText.match(STREAM_ERROR_RE);
+    if (errorMatch) {
+      throw new ApiError(502, errorMatch[1]);
     }
 
     return fullText;
@@ -321,6 +328,12 @@ export async function chatbotChat(
       const chunk = decoder.decode(value, { stream: true });
       fullText += chunk;
       onChunk(chunk);
+    }
+
+    // Check for backend stream error marker
+    const errorMatch = fullText.match(STREAM_ERROR_RE);
+    if (errorMatch) {
+      throw new ApiError(502, errorMatch[1]);
     }
 
     return fullText;

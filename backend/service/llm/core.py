@@ -246,4 +246,7 @@ class LLMService:
         except Exception as e:
             from utils.logging import logger
             logger.error(f"LLM streaming error: {e}")
-            raise
+            # Yield error marker instead of raising — raising kills the HTTP
+            # connection (broken chunked encoding), causing nginx 502.
+            error_msg = str(e)
+            yield f"\n\n<!--STREAM_ERROR:{error_msg}-->"

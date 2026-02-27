@@ -190,7 +190,10 @@ class ChatbotService:
                     yield chunk
         except Exception as e:
             logger.error(f"Chatbot streaming error: {e}")
-            raise
+            # Yield error marker instead of raising — raising kills the HTTP
+            # connection (broken chunked encoding), causing nginx 502.
+            error_msg = str(e)
+            yield f"\n\n<!--STREAM_ERROR:{error_msg}-->"
 
     def get_knowledge_status(self) -> dict:
         """Return the loaded status and length of the knowledge base."""
