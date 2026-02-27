@@ -41,8 +41,10 @@ PROVIDERS = [
         id="langdock",
         name="Langdock",
         models=[
-            # OpenAI-compatible
-            "gpt-5.2", "gpt-5.2-pro",
+            # OpenAI-compatible — disabled due to Langdock proxy bug:
+            # Langdock ignores max_completion_tokens and auto-computes an invalid
+            # value (~14M), causing 400 errors. See user_stories/langdock_openai_bug_report.md
+            # "gpt-5.2", "gpt-5.2-pro",
             # Anthropic-compatible
             "claude-sonnet-4-5-20250929", "claude-sonnet-4-6-default", "claude-opus-4-6-default",
             # Google-compatible

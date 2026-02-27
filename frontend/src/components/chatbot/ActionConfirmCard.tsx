@@ -6,7 +6,7 @@ import type { ActionProposal } from "@/lib/types";
 
 interface ActionConfirmCardProps {
   action: ActionProposal;
-  status: "pending" | "confirmed" | "cancelled" | "error";
+  status: "pending" | "confirmed" | "auto_confirmed" | "cancelled" | "error";
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -72,6 +72,13 @@ export function ActionConfirmCard({ action, status, onConfirm, onCancel }: Actio
         <div className="flex items-center gap-1.5 text-xs text-green-500">
           <Check className="h-3.5 w-3.5" />
           Action completed
+        </div>
+      )}
+
+      {status === "auto_confirmed" && (
+        <div className="flex items-center gap-1.5 text-xs text-green-500">
+          <Zap className="h-3.5 w-3.5" />
+          Auto-applied
         </div>
       )}
 

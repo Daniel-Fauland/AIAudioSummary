@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,6 +25,13 @@ export function ModelSelector({
   onModelChange,
   isAzure,
 }: ModelSelectorProps) {
+  // Auto-correct if the selected model is no longer in the available list
+  useEffect(() => {
+    if (!isAzure && models.length > 0 && !models.includes(selectedModel)) {
+      onModelChange(models[0]);
+    }
+  }, [models, selectedModel, isAzure, onModelChange]);
+
   if (isAzure || models.length === 0) {
     return (
       <div className="space-y-1.5">

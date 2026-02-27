@@ -32,6 +32,7 @@ class FillFormRequest(BaseModel):
     transcript: str = Field(..., min_length=1, description="Transcript text to extract values from")
     fields: list[FormFieldDefinition] = Field(..., min_length=1, description="Form field definitions")
     previous_values: dict[str, object] | None = Field(None, description="Previously filled values for incremental updates")
+    meeting_date: str | None = Field(None, description="Optional meeting date in YYYY-MM-DD format for context")
 
 
 class FillFormResponse(BaseModel):

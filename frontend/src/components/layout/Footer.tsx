@@ -57,7 +57,7 @@ const changelogContent = (
             <li key={i} className="flex items-start gap-2">
               <Badge
                 variant="secondary"
-                className={`text-xs px-2 py-0.5 shrink-0 mt-0.5 border-0 ${CHANGE_TYPE_CLASSES[change.type]}`}
+                className={`text-xs px-2 py-0.5 shrink-0 mt-0.5 border-0 w-[76px] text-center justify-center ${CHANGE_TYPE_CLASSES[change.type]}`}
               >
                 {CHANGE_TYPE_LABELS[change.type]}
               </Badge>

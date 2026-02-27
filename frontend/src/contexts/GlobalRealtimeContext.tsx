@@ -26,7 +26,7 @@ export interface GlobalRealtimeContextValue {
   isSessionEnded: boolean;
 
   // Functions
-  connect: (assemblyAiKey: string, deviceId?: string, recordMode?: "mic" | "meeting") => Promise<void>;
+  connect: (assemblyAiKey: string, deviceId?: string, recordMode?: "mic" | "meeting", sharedDisplayStream?: MediaStream) => Promise<void>;
   disconnect: (triggerCallback?: boolean) => Promise<void>;
   pause: () => void;
   resume: () => void;
@@ -40,6 +40,7 @@ export interface GlobalRealtimeContextValue {
   _accumulatedTranscriptRef: React.RefObject<string>;
   _currentPartialRef: React.RefObject<string>;
   _wsRef: React.RefObject<WebSocket | null>;
+  _displayStreamRef: React.RefObject<MediaStream | null>;
 
   // Callback for session end (used by summary hook)
   onSessionEnd: React.RefObject<(() => void) | null>;
@@ -145,7 +146,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const connect = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic") => {
+  const connect = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic", sharedDisplayStream?: MediaStream) => {
     setConnectionStatus("connecting");
     setIsSessionEnded(false);
 
@@ -166,18 +167,24 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
 
       if (recordMode === "meeting") {
         let displayStream: MediaStream;
-        try {
-          displayStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: true,
-          });
-        } catch {
-          setConnectionStatus("disconnected");
-          cleanupAudio();
-          return;
+        if (sharedDisplayStream && sharedDisplayStream.getAudioTracks().length > 0) {
+          // Clone tracks from the shared stream — no second Chrome prompt
+          displayStream = new MediaStream(
+            sharedDisplayStream.getAudioTracks().map(t => t.clone())
+          );
+        } else {
+          try {
+            displayStream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+              audio: true,
+            });
+          } catch {
+            setConnectionStatus("disconnected");
+            cleanupAudio();
+            return;
+          }
+          displayStream.getVideoTracks().forEach((t) => t.stop());
         }
-
-        displayStream.getVideoTracks().forEach((t) => t.stop());
         displayStreamRef.current = displayStream;
 
         if (displayStream.getAudioTracks().length === 0) {
@@ -380,6 +387,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     _accumulatedTranscriptRef: accumulatedTranscriptRef,
     _currentPartialRef: currentPartialRef,
     _wsRef: wsRef,
+    _displayStreamRef: displayStreamRef,
     onSessionEnd: onSessionEndRef,
   };
 

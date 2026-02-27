@@ -243,7 +243,7 @@ export interface ChatMessageType {
   role: ChatRole;
   content: string;
   action?: ActionProposal;
-  actionStatus?: "pending" | "confirmed" | "cancelled" | "error";
+  actionStatus?: "pending" | "confirmed" | "auto_confirmed" | "cancelled" | "error";
   isError?: boolean;
 }
 
@@ -262,6 +262,8 @@ export interface AppContext {
   changelog: string;
   user_timestamp: string;
   last_visit_timestamp: string | null;
+  custom_templates?: { id: string; name: string; content: string }[];
+  form_templates?: { id: string; name: string; fields: { label: string; type: string; description?: string; options?: string[] }[] }[];
 }
 
 export interface ChatRequest {
@@ -372,6 +374,7 @@ export interface FillFormRequest {
   transcript: string;
   fields: FormFieldDefinition[];
   previous_values?: Record<string, unknown>;
+  meeting_date?: string;
 }
 
 export interface FillFormResponse {

@@ -10,6 +10,47 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.6.0",
+    date: "2026-02-27",
+    title: "Smart date detection, chatbot quick-apply actions & draft persistence",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Meeting date is now auto-detected from the uploaded audio filename (e.g. 2024_01_15_standup.mp3) — supports yyyy-MM-dd, dd-MM-yyyy, and yyyyMMdd patterns",
+      },
+      {
+        type: "added",
+        description:
+          'Chatbot quick-apply: start your message with "!" to skip the action confirmation step and apply it immediately (e.g. "!Switch to light mode")',
+      },
+      {
+        type: "added",
+        description: "The chatbot can now perform more actions on behalf of the user",
+      },
+      {
+        type: "changed",
+        description:
+          "Sync mode now shows confirmation dialogs when the other mode has existing data (ended realtime session or completed recording) instead of silently skipping — also fixed display audio not being captured in Standard when auto-started from Realtime",
+      },
+      {
+        type: "changed",
+        description:
+          "Chatbot input text now persists when closing and reopening the chat window — draft is only cleared when sent or when clearing the conversation",
+      },
+      {
+        type: "fixed",
+        description:
+          "Export/Import Settings dialog is now scrollable on mobile devices, fixing the QR code being cut off on smaller screens",
+      },
+      {
+        type: "removed",
+        description:
+          "Temporarily disabled OpenAI models (GPT-5.2, GPT-5.2 Pro) for the Langdock provider due to a proxy bug on Langdock's side — use Claude instead",
+      },
+    ],
+  },
+  {
     version: "1.5.2",
     date: "2026-02-26",
     title: "Improved chatbot capabilities, simplified transcript context and suspend/reattach",

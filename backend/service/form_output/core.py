@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field as PydanticField, create_model
 from pydantic_ai import Agent
-from pydantic_ai.settings import ModelSettings
+
 
 from models.form_output import (
     FillFormRequest,
@@ -118,7 +118,7 @@ class FormOutputService:
         agent: Agent[None, object] = Agent(
             model=model,
             output_type=DynamicModel,
-            model_settings=ModelSettings(temperature=0.1),
+            model_settings=LLMService.build_model_settings(request.provider, request.model, temperature=0.1),
             system_prompt=system_prompt,
         )
 
@@ -132,6 +132,9 @@ class FormOutputService:
 
 FORM FIELDS:
 {fields_text}"""
+
+        if request.meeting_date:
+            user_prompt += f"\n\nCONTEXT:\n- The meeting took place on {request.meeting_date}. Use this date for any date-related fields if the transcript does not explicitly mention a different date."
 
         if request.previous_values:
             prev_text = "\n".join(
@@ -161,7 +164,7 @@ FORM FIELDS:
         agent: Agent[None, _GenerateTemplateOutput] = Agent(
             model=model,
             output_type=_GenerateTemplateOutput,
-            model_settings=ModelSettings(temperature=0.3),
+            model_settings=LLMService.build_model_settings(request.provider, request.model, temperature=0.3),
             system_prompt=_GENERATE_TEMPLATE_SYSTEM_PROMPT,
         )
 

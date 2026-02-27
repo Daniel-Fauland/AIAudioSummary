@@ -3,6 +3,8 @@
 import { useState, useCallback } from "react";
 import { Plus, Pencil, Trash2, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -35,6 +37,8 @@ interface FormTemplateSelectorProps {
   onFillForm: () => void;
   fillDisabled: boolean;
   isFilling: boolean;
+  meetingDate: string | null;
+  onMeetingDateChange: (date: string | null) => void;
   llmProvider?: LLMProvider;
   llmApiKey?: string;
   llmModel?: string;
@@ -52,6 +56,8 @@ export function FormTemplateSelector({
   onFillForm,
   fillDisabled,
   isFilling,
+  meetingDate,
+  onMeetingDateChange,
   llmProvider,
   llmApiKey,
   llmModel,
@@ -185,6 +191,14 @@ export function FormTemplateSelector({
               </p>
             </div>
           )}
+
+          {/* Meeting date */}
+          <div className="space-y-1.5 sm:w-[200px]">
+            <Label className="text-sm font-medium text-foreground-secondary">
+              Meeting Date (optional)
+            </Label>
+            <DatePicker value={meetingDate} onChange={onMeetingDateChange} />
+          </div>
 
           {/* Fill Form button */}
           <Button

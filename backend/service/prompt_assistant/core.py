@@ -1,5 +1,5 @@
 from pydantic_ai import Agent
-from pydantic_ai.settings import ModelSettings
+
 
 from models.prompt_assistant import (
     AnalyzeRequest,
@@ -109,7 +109,7 @@ class PromptAssistantService:
             model,
             system_prompt=_ANALYZE_SYSTEM_PROMPT,
             output_type=AnalyzeResponse,
-            model_settings=ModelSettings(temperature=0.3),
+            model_settings=LLMService.build_model_settings(request.provider, model_name, temperature=0.3),
         )
 
         result = await agent.run(user_prompt)
@@ -171,7 +171,7 @@ class PromptAssistantService:
         agent = Agent(
             model,
             system_prompt=_GENERATE_SYSTEM_PROMPT,
-            model_settings=ModelSettings(temperature=0.4),
+            model_settings=LLMService.build_model_settings(request.provider, model_name, temperature=0.4),
         )
 
         result = await agent.run(user_prompt)

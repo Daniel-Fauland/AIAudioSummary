@@ -19,6 +19,28 @@ class ActionProposal(BaseModel):
     params: dict
 
 
+class PromptTemplateInfo(BaseModel):
+    """Prompt template summary for the chatbot context."""
+    id: str
+    name: str
+    content: str
+
+
+class FormTemplateFieldInfo(BaseModel):
+    """Form template field info for the chatbot context."""
+    label: str
+    type: str
+    description: str | None = None
+    options: list[str] | None = None
+
+
+class FormTemplateInfo(BaseModel):
+    """Form template summary for the chatbot context."""
+    id: str
+    name: str
+    fields: list[FormTemplateFieldInfo]
+
+
 class AppContext(BaseModel):
     """Current user settings and app state, injected into the system prompt."""
     selected_provider: str | None = None
@@ -29,6 +51,8 @@ class AppContext(BaseModel):
     changelog: str | None = None
     user_timestamp: str | None = None
     last_visit_timestamp: str | None = None
+    custom_templates: list[PromptTemplateInfo] | None = None
+    form_templates: list[FormTemplateInfo] | None = None
 
 
 class ChatRequest(BaseModel):

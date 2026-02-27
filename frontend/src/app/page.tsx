@@ -40,6 +40,7 @@ import { useGlobalRecording } from "@/contexts/GlobalRecordingContext";
 import { useGlobalSync } from "@/contexts/GlobalSyncContext";
 import { createTranscript, createSummary, extractKeyPoints, fillForm } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { extractDateFromFilename } from "@/lib/utils";
 import { parseConfigString, importSettings, configContainsApiKeys } from "@/lib/config-export";
 import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType } from "@/lib/types";
 import { APP_VERSION } from "@/lib/constants";
@@ -117,6 +118,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const {
     templates: customTemplates,
     saveTemplate: rawSaveCustomTemplate,
+    updateTemplate: rawUpdateCustomTemplate,
     deleteTemplate: rawDeleteCustomTemplate,
   } = useCustomTemplates();
 
@@ -125,6 +127,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
     return result;
   }, [rawSaveCustomTemplate, savePreferences]);
+
+  const updateCustomTemplate = useCallback((id: string, name: string, content: string) => {
+    rawUpdateCustomTemplate(id, name, content);
+    savePreferences();
+  }, [rawUpdateCustomTemplate, savePreferences]);
 
   const deleteCustomTemplate = useCallback((id: string) => {
     rawDeleteCustomTemplate(id);
@@ -338,6 +345,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
 
   // Chatbot UI state
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
   const [chatbotTranscriptDetached, setChatbotTranscriptDetached] = useState(false);
 
   // Realtime transcript and connection status for chatbot context
@@ -388,6 +396,20 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   useEffect(() => {
     sessionPersistence.saveStandardOutputMode(outputMode);
   }, [outputMode, sessionPersistence.saveStandardOutputMode]);
+
+  // Listen for sync-initiated clear events from GlobalSyncContext
+  useEffect(() => {
+    const handler = () => {
+      sessionPersistence.clearStandardSession();
+      setSummary("");
+      setFormValues({});
+      setSelectedFormTemplateId(null);
+      setOutputMode("summary");
+      savePreferences();
+    };
+    window.addEventListener("aias:sync-clear-standard", handler);
+    return () => window.removeEventListener("aias:sync-clear-standard", handler);
+  }, [sessionPersistence.clearStandardSession, savePreferences]);
 
   const hasAutoExtractedKeyPointsRef = useRef(false);
   // Accumulated speaker renames: original label → new name
@@ -594,12 +616,22 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       }
       handleModelChange(model as string);
     },
+    toggle_sync_mode: async ({ enabled }) => {
+      handleSyncStandardRealtimeChange(enabled as boolean);
+    },
     toggle_speaker_key_points: async ({ enabled }) => {
       handleAutoKeyPointsChange(enabled as boolean);
+    },
+    toggle_speaker_labels: async ({ enabled }) => {
+      handleSpeakerLabelsChange(enabled as boolean);
     },
     change_speaker_count: async ({ min, max }) => {
       handleMinSpeakersChange(min as number);
       handleMaxSpeakersChange(max as number);
+    },
+    update_realtime_system_prompt: async ({ prompt }) => {
+      if (!prompt || typeof prompt !== "string") throw new Error("System prompt text is required");
+      handleRealtimeSystemPromptChange(prompt as string);
     },
     change_realtime_interval: async ({ minutes }) => {
       handleRealtimeSummaryIntervalChange(minutes as number as SummaryInterval);
@@ -618,6 +650,28 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       if (!content || typeof content !== "string") throw new Error("Template content is required");
       saveCustomTemplate(name, content);
       toast.success(`Prompt template "${name}" saved`);
+    },
+    list_prompt_templates: async () => {
+      if (customTemplates.length === 0) throw new Error("No custom prompt templates found");
+    },
+    get_prompt_template: async ({ id }) => {
+      if (!id || typeof id !== "string") throw new Error("Template ID is required");
+      if (!customTemplates.find(t => t.id === id)) throw new Error(`Prompt template with ID "${id}" not found`);
+    },
+    update_prompt_template: async ({ id, name, content }) => {
+      if (!id || typeof id !== "string") throw new Error("Template ID is required");
+      if (!customTemplates.find(t => t.id === id)) throw new Error(`Prompt template with ID "${id}" not found`);
+      if (!name || typeof name !== "string") throw new Error("Template name is required");
+      if (!content || typeof content !== "string") throw new Error("Template content is required");
+      updateCustomTemplate(id as string, name as string, content as string);
+      toast.success(`Prompt template "${name}" updated`);
+    },
+    delete_prompt_template: async ({ id }) => {
+      if (!id || typeof id !== "string") throw new Error("Template ID is required");
+      const template = customTemplates.find(t => t.id === id);
+      if (!template) throw new Error(`Prompt template with ID "${id}" not found`);
+      deleteCustomTemplate(id as string);
+      toast.success(`Prompt template "${template.name}" deleted`);
     },
     save_form_template: async ({ name, fields }) => {
       if (!name || typeof name !== "string") throw new Error("Template name is required");
@@ -642,7 +696,46 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       saveFormTemplate(template);
       toast.success(`Form template "${name}" saved`);
     },
-  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleAutoKeyPointsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, setKey, config, selectedProvider, saveCustomTemplate, saveFormTemplate]);
+    list_form_templates: async () => {
+      if (formTemplates.length === 0) throw new Error("No custom form templates found");
+    },
+    get_form_template: async ({ id }) => {
+      if (!id || typeof id !== "string") throw new Error("Template ID is required");
+      if (!formTemplates.find(t => t.id === id)) throw new Error(`Form template with ID "${id}" not found`);
+    },
+    update_form_template: async ({ id, name, fields }) => {
+      if (!id || typeof id !== "string") throw new Error("Template ID is required");
+      if (!formTemplates.find(t => t.id === id)) throw new Error(`Form template with ID "${id}" not found`);
+      if (!name || typeof name !== "string") throw new Error("Template name is required");
+      if (!Array.isArray(fields) || fields.length === 0) throw new Error("At least one field is required");
+      const validTypes: FormFieldType[] = ["string", "number", "date", "boolean", "list_str", "enum", "multi_select"];
+      for (const field of fields) {
+        const f = field as Record<string, unknown>;
+        if (!f.label || typeof f.label !== "string") throw new Error("Each field must have a label");
+        if (!validTypes.includes(f.type as FormFieldType)) throw new Error(`Invalid field type: ${f.type}`);
+      }
+      const template: FormTemplate = {
+        id: id as string,
+        name: name as string,
+        fields: (fields as Record<string, unknown>[]).map((f) => ({
+          id: (f.id as string) || crypto.randomUUID(),
+          label: f.label as string,
+          type: f.type as FormFieldType,
+          description: (f.description as string) || undefined,
+          options: Array.isArray(f.options) ? (f.options as string[]) : undefined,
+        })),
+      };
+      updateFormTemplate(template);
+      toast.success(`Form template "${name}" updated`);
+    },
+    delete_form_template: async ({ id }) => {
+      if (!id || typeof id !== "string") throw new Error("Template ID is required");
+      const template = formTemplates.find(t => t.id === id);
+      if (!template) throw new Error(`Form template with ID "${id}" not found`);
+      deleteFormTemplate(id as string);
+      toast.success(`Form template "${template.name}" deleted`);
+    },
+  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, setKey, config, selectedProvider, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates]);
 
   const getAssemblyAiKey = useCallback((): string | null => {
     const key = getKey("assemblyai");
@@ -680,8 +773,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       changelog: changelogText,
       user_timestamp: "",
       last_visit_timestamp: lastVisitTimestamp,
+      custom_templates: customTemplates.length > 0 ? customTemplates.map(t => ({ id: t.id, name: t.name, content: t.content })) : undefined,
+      form_templates: formTemplates.length > 0 ? formTemplates.map(t => ({ id: t.id, name: t.name, fields: t.fields.map(f => ({ label: f.label, type: f.type, description: f.description, options: f.options })) })) : undefined,
     };
-  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp]);
+  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp, customTemplates, formTemplates]);
 
   const onChatbotMessagesChange = useCallback((msgs: import("@/lib/types").ChatMessageType[]) => {
     if (msgs.length === 0) {
@@ -715,6 +810,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
 
   const handleClearChatMessages = useCallback(() => {
     clearChatMessages();
+    setChatDraft("");
     sessionPersistence.clearChatbotSession();
     savePreferences();
   }, [clearChatMessages, sessionPersistence.clearChatbotSession, savePreferences]);
@@ -830,6 +926,13 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const handleFileSelected = useCallback(
     async (file: File) => {
       setSelectedFile(file);
+
+      // Auto-detect meeting date from filename (e.g. 2024_01_15_standup.mp3)
+      const detectedDate = extractDateFromFilename(file.name);
+      if (detectedDate) {
+        setMeetingDate(detectedDate);
+      }
+
       const assemblyAiKey = getKey("assemblyai");
       if (!assemblyAiKey) {
         toast.error("Please add your AssemblyAI API key in Settings.");
@@ -1074,6 +1177,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         langdock_config: resolvedFormOutputConfig.provider === "langdock" ? langdockConfig : undefined,
         transcript,
         fields: template.fields,
+        meeting_date: meetingDate ?? undefined,
       });
       setFormValues(response.values);
       sessionPersistence.saveStandardFormValues(response.values);
@@ -1083,7 +1187,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       setIsFillingForm(false);
       savePreferences();
     }
-  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, savePreferences]);
+  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, meetingDate, savePreferences]);
 
   const handleFormManualEdit = useCallback((fieldId: string, value: unknown) => {
     setFormValues((prev) => ({ ...prev, [fieldId]: value }));
@@ -1112,6 +1216,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         transcript,
         fields: template.fields,
         previous_values: formValues,
+        meeting_date: meetingDate ?? undefined,
       });
       setFormValues(response.values);
       sessionPersistence.saveStandardFormValues(response.values);
@@ -1121,7 +1226,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       setIsFillingForm(false);
       savePreferences();
     }
-  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, formValues, savePreferences]);
+  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, formValues, meetingDate, savePreferences]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -1419,6 +1524,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
                         onFillForm={handleFillForm}
                         fillDisabled={!transcript || !hasFormOutputKey || !resolvedFormOutputConfig.model}
                         isFilling={isFillingForm}
+                        meetingDate={meetingDate}
+                        onMeetingDateChange={setMeetingDate}
                         llmProvider={resolvedFormOutputConfig.provider}
                         llmApiKey={getKey(resolvedFormOutputConfig.provider)}
                         llmModel={resolvedFormOutputConfig.model}
@@ -1525,6 +1632,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             selectedDeviceId={chatSelectedDeviceId}
             onDeviceChange={onChatDeviceChange}
             isSettingsOpen={settingsOpen}
+            chatDraft={chatDraft}
+            onChatDraftChange={setChatDraft}
           />
         </>
       )}

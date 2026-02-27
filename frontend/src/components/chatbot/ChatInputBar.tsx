@@ -40,6 +40,10 @@ interface ChatInputBarProps {
   audioDevices?: MediaDeviceInfo[];
   selectedDeviceId?: string;
   onDeviceChange?: (deviceId: string) => void;
+  /** Draft text to restore when remounting */
+  draft?: string;
+  /** Called when draft text changes so parent can persist it */
+  onDraftChange?: (value: string) => void;
 }
 
 export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(function ChatInputBar({
@@ -56,8 +60,10 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   audioDevices,
   selectedDeviceId,
   onDeviceChange,
+  draft,
+  onDraftChange,
 }, ref) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(draft || "");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useImperativeHandle(ref, () => ({
@@ -69,11 +75,13 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     if (voiceText) {
       setInput(prev => {
         const base = prev.trimEnd();
-        return base ? base + " " + voiceText : voiceText;
+        const next = base ? base + " " + voiceText : voiceText;
+        onDraftChange?.(next);
+        return next;
       });
       onClearVoiceText?.();
     }
-  }, [voiceText, onClearVoiceText]);
+  }, [voiceText, onClearVoiceText, onDraftChange]);
 
   const handleSend = useCallback(() => {
     const text = input.trim();
@@ -84,10 +92,11 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     }
     onSend(text);
     setInput("");
+    onDraftChange?.("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [input, disabled, isVoiceActive, onVoiceToggle, onSend]);
+  }, [input, disabled, isVoiceActive, onVoiceToggle, onSend, onDraftChange]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -124,6 +133,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           // When voice is active and there's a partial, only allow editing the committed portion
           if (isVoiceActive && partialTranscript) return;
           setInput(e.target.value);
+          onDraftChange?.(e.target.value);
         }}
         onKeyDown={handleKeyDown}
         placeholder={isVoiceActive ? "Listening..." : (placeholder ?? "Type a message...")}

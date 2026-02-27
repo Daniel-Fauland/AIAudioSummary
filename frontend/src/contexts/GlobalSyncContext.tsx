@@ -55,6 +55,11 @@ export function GlobalSyncProvider({ children }: { children: ReactNode }) {
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [stoppingSource, setStoppingSource] = useState<"standard" | "realtime" | null>(null);
 
+  // Dialog A: Standard starts, but realtime has prior ended session
+  const [dialogAOpen, setDialogAOpen] = useState(false);
+  // Dialog B: Realtime connects, but standard has completed recording
+  const [dialogBOpen, setDialogBOpen] = useState(false);
+
   // Track the assemblyAi key for synced starts
   const assemblyAiKeyRef = useRef<string>("");
 
@@ -88,11 +93,20 @@ export function GlobalSyncProvider({ children }: { children: ReactNode }) {
     // Standard recording just started → auto-start realtime
     if (prev === "idle" && curr === "recording") {
       const key = assemblyAiKeyRef.current;
-      if (key && realtime.connectionStatus === "disconnected" && !realtime.isSessionEnded) {
-        syncingRef.current = true;
-        realtime
-          .connect(key, recording.selectedDeviceId, recording.recordMode)
-          .finally(() => { syncingRef.current = false; });
+      if (key && realtime.connectionStatus === "disconnected") {
+        if (realtime.isSessionEnded) {
+          // Realtime has prior session data → show Dialog A for user choice
+          setDialogAOpen(true);
+        } else {
+          syncingRef.current = true;
+          // Pass the display stream from standard recording to avoid second Chrome prompt
+          const sharedDisplay = recording.recordMode === "meeting"
+            ? recording._displayStreamRef.current ?? undefined
+            : undefined;
+          realtime
+            .connect(key, recording.selectedDeviceId, recording.recordMode, sharedDisplay)
+            .finally(() => { syncingRef.current = false; });
+        }
       }
     }
 
@@ -132,9 +146,16 @@ export function GlobalSyncProvider({ children }: { children: ReactNode }) {
     if (prev !== "connected" && curr === "connected") {
       if (recording.recorderState === "idle") {
         syncingRef.current = true;
+        // Pass the display stream from realtime to avoid second Chrome prompt
+        const sharedDisplay = recording.recordMode === "meeting"
+          ? realtime._displayStreamRef.current ?? undefined
+          : undefined;
         recording
-          .startRecording()
+          .startRecording(sharedDisplay)
           .finally(() => { syncingRef.current = false; });
+      } else if (recording.recorderState === "done") {
+        // Standard has completed recording → show Dialog B for user choice
+        setDialogBOpen(true);
       }
     }
   }, [syncEnabled, realtime.connectionStatus, recording]);
@@ -183,6 +204,77 @@ export function GlobalSyncProvider({ children }: { children: ReactNode }) {
 
   const otherLabel = stoppingSource === "standard" ? "realtime session" : "standard recording";
 
+  // ── Helper to connect realtime from sync ──
+  const connectRealtimeSync = useCallback(() => {
+    const key = assemblyAiKeyRef.current;
+    if (!key) return;
+    syncingRef.current = true;
+    const sharedDisplay = recording.recordMode === "meeting"
+      ? recording._displayStreamRef.current ?? undefined
+      : undefined;
+    realtime
+      .connect(key, recording.selectedDeviceId, recording.recordMode, sharedDisplay)
+      .finally(() => { syncingRef.current = false; });
+  }, [recording, realtime]);
+
+  // ── Dialog A handlers (Existing Session Data — realtime has prior session) ──
+  const handleDialogAContinue = useCallback(() => {
+    setDialogAOpen(false);
+    // connect() already resets isSessionEnded, existing transcript is kept
+    connectRealtimeSync();
+  }, [connectRealtimeSync]);
+
+  const handleDialogAClearTranscriptSummary = useCallback(() => {
+    setDialogAOpen(false);
+    realtime.clearTranscript();
+    window.dispatchEvent(new CustomEvent("aias:sync-clear-realtime", {
+      detail: { scope: "transcript-summary" },
+    }));
+    connectRealtimeSync();
+  }, [realtime, connectRealtimeSync]);
+
+  const handleDialogAClearAll = useCallback(() => {
+    setDialogAOpen(false);
+    realtime.clearTranscript();
+    window.dispatchEvent(new CustomEvent("aias:sync-clear-realtime", {
+      detail: { scope: "all" },
+    }));
+    connectRealtimeSync();
+  }, [realtime, connectRealtimeSync]);
+
+  const handleDialogARecordOnly = useCallback(() => {
+    setDialogAOpen(false);
+    // Standard continues recording alone, no realtime sync
+  }, []);
+
+  // ── Dialog B handlers (Existing Recording — standard has completed recording) ──
+  const handleDialogBClearRecording = useCallback(() => {
+    setDialogBOpen(false);
+    recording.resetRecording();
+    window.dispatchEvent(new CustomEvent("aias:sync-clear-standard"));
+    syncingRef.current = true;
+    const sharedDisplay = recording.recordMode === "meeting"
+      ? realtime._displayStreamRef.current ?? undefined
+      : undefined;
+    // Small delay to let resetRecording() state settle before starting new recording
+    setTimeout(() => {
+      recording
+        .startRecording(sharedDisplay)
+        .finally(() => { syncingRef.current = false; });
+    }, 50);
+  }, [recording, realtime]);
+
+  const handleDialogBLiveOnly = useCallback(() => {
+    setDialogBOpen(false);
+    // Realtime continues alone, standard keeps existing recording
+  }, []);
+
+  const handleDialogBCancel = useCallback(() => {
+    setDialogBOpen(false);
+    // Cancel: disconnect the just-connected realtime session
+    realtime.disconnect(false);
+  }, [realtime]);
+
   const value: GlobalSyncContextValue = {
     syncEnabled,
     setSyncEnabled,
@@ -212,6 +304,57 @@ export function GlobalSyncProvider({ children }: { children: ReactNode }) {
             </Button>
             <Button variant="destructive" onClick={handleStopBoth}>
               Stop Both
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog A: Existing Session Data (Standard starts, Realtime has prior session) */}
+      <Dialog open={dialogAOpen} onOpenChange={(open) => { if (!open) handleDialogARecordOnly(); }}>
+        <DialogContent className="max-w-md bg-card">
+          <DialogHeader>
+            <DialogTitle>Existing Session Data</DialogTitle>
+            <DialogDescription>
+              Your realtime session has existing transcript or summary content.
+              How would you like to proceed?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <Button variant="secondary" onClick={handleDialogAContinue}>
+              Continue with Existing
+            </Button>
+            <Button variant="secondary" onClick={handleDialogAClearTranscriptSummary}>
+              Clear Transcript &amp; Summary
+            </Button>
+            <Button variant="destructive" onClick={handleDialogAClearAll}>
+              Clear All
+            </Button>
+            <Button variant="ghost" onClick={handleDialogARecordOnly}>
+              Record Only
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog B: Existing Recording (Realtime connects, Standard has completed recording) */}
+      <Dialog open={dialogBOpen} onOpenChange={(open) => { if (!open) handleDialogBLiveOnly(); }}>
+        <DialogContent className="max-w-md bg-card">
+          <DialogHeader>
+            <DialogTitle>Existing Recording</DialogTitle>
+            <DialogDescription>
+              Due to Sync being enabled, the standard recording will start as well.
+              You already have an existing recording.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="secondary" onClick={handleDialogBClearRecording}>
+              Clear Recording
+            </Button>
+            <Button variant="ghost" onClick={handleDialogBLiveOnly}>
+              Only Start Live Session
+            </Button>
+            <Button variant="destructive" onClick={handleDialogBCancel}>
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>

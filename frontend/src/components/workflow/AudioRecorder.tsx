@@ -315,7 +315,7 @@ export function AudioRecorder({
             </div>
             {micSelector}
             <Button
-              onClick={startRecording}
+              onClick={() => startRecording()}
               disabled={isDisabled}
             >
               {recordMode === "meeting" ? "Share Screen & Record" : "Start Recording"}

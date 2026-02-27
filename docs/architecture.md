@@ -59,7 +59,7 @@ AIAudioSummary is a web app for uploading or recording audio files (meeting reco
 It uses:
 
 - **AssemblyAI** for speech-to-text (batch SDK + streaming WebSocket API)
-- **Multi-provider LLM support** (OpenAI, Anthropic, Google Gemini, Azure OpenAI) via `pydantic-ai` for summarization
+- **Multi-provider LLM support** (OpenAI, Anthropic, Google Gemini, Azure OpenAI, Langdock) via `pydantic-ai` for summarization
 - **AI Chatbot** — floating assistant overlay with Q&A knowledge base, transcript context (standard + realtime live transcript), agentic app control, and voice input
 - **Next.js 16** frontend with shadcn/ui
 - **FastAPI** backend with WebSocket support
@@ -79,7 +79,7 @@ The key architectural decision is **BYOK (Bring Your Own Key)**: API keys are st
 | UI       | shadcn/ui, Tailwind CSS v4                     | -               |
 | STT      | AssemblyAI SDK + Streaming WebSocket API       | -               |
 | Realtime | websockets (Python), AudioWorklet (browser)    | -               |
-| LLMs     | pydantic-ai (OpenAI, Anthropic, Gemini, Azure) | -               |
+| LLMs     | pydantic-ai (OpenAI, Anthropic, Gemini, Azure, Langdock) | -          |
 
 ---
 
@@ -156,7 +156,7 @@ project-root/
 │   │   │   ├── admin/              # AddUserDialog, DeleteUserDialog
 │   │   ├── auth/               # SessionWrapper, UserMenu, StorageModeDialog, ConfigExportDialog
 │   │   │   ├── layout/             # Header, Footer, StepIndicator, SettingsSheet
-│   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm
+│   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm, LangdockConfigForm
 │   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor (+ Prompt Assistant trigger), SummaryView
 │   │   │   ├── realtime/          # RealtimeMode, RealtimeControls, RealtimeTranscriptView, RealtimeSummaryView, ConnectionStatus
 │   │   │   ├── live-transcript/   # LiveQuestions, LiveQuestionItem, AddQuestionInput, useLiveQuestions hook
@@ -386,6 +386,7 @@ HTTP Request
   | `anthropic`    | `AnthropicModel`  | `AnthropicProvider` |
   | `gemini`       | `GoogleModel`     | `GoogleProvider`    |
   | `azure_openai` | `OpenAIChatModel` | `AzureProvider`     |
+  | `langdock`     | `OpenAIChatModel` | `OpenAIProvider` (custom base URL per region) |
 
 ### Models (Pydantic Schemas)
 
@@ -399,13 +400,13 @@ Key models:
 
 | File                         | Key Classes                                                                                      |
 | ---------------------------- | ------------------------------------------------------------------------------------------------ |
-| `models/llm.py`              | `LLMProvider` (enum), `CreateSummaryRequest`, `CreateSummaryResponse`, `AzureConfig`             |
+| `models/llm.py`              | `LLMProvider` (enum: openai, anthropic, gemini, azure_openai, langdock), `CreateSummaryRequest`, `CreateSummaryResponse`, `AzureConfig`, `LangdockConfig` |
 | `models/config.py`           | `ConfigResponse`, `ProviderInfo`, `PromptTemplate`, `LanguageOption`, speaker models             |
 | `models/assemblyai.py`       | `CreateTranscriptResponse`                                                                       |
 | `models/realtime.py`         | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                                        |
 | `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest`, `AnalyzeResponse` (incl. `suggested_target_system`), `GenerateRequest/Response` |
 | `models/live_questions.py`   | `QuestionInput`, `EvaluateQuestionsRequest`, `QuestionEvaluation`, `EvaluateQuestionsResponse`                                                    |
-| `models/form_output.py`     | `FormFieldType` (enum), `FormFieldDefinition`, `FillFormRequest/Response`, `GenerateTemplateRequest/Response`, `GeneratedField` |
+| `models/form_output.py`     | `FormFieldType` (enum: string, number, date, boolean, list_str, enum, multi_select), `FormFieldDefinition`, `FillFormRequest` (includes `previous_values`, `meeting_date`), `FillFormResponse`, `GenerateTemplateRequest/Response`, `GeneratedField` |
 | `models/chatbot.py`         | `ChatRole` (enum), `ChatMessage`, `ActionProposal`, `ChatRequest`, `ChatResponse`                |
 
 ### Configuration & Environment
@@ -710,6 +711,7 @@ RootLayout (layout.tsx)
         │   ├── ProviderSelector       ← "Default AI Model" section
         │   ├── ModelSelector          ← dropdown or free-text input
         │   ├── AzureConfigForm        ← only if provider is azure_openai
+        │   ├── LangdockConfigForm     ← only if provider is langdock (region: eu/us)
         │   └── FeatureModelOverrides  ← collapsible per-feature model overrides
         │       ├── FeatureModelRow    ← one row per LLMFeature
         │       └── FeatureModelConfigModal ← dialog: ProviderSelector + ModelSelector + config form
@@ -810,13 +812,13 @@ Most application state lives in `page.tsx` using `useState`. Three React context
 | Chatbot actions     | Yes (localStorage) | Yes               | `aias:v1:chatbot_actions`   |
 | Sync std + realtime | Yes (localStorage) | Yes               | `aias:v1:sync_standard_realtime` |
 | Mic device ID       | Yes (localStorage) | No                | `aias:v1:mic_device_id` (shared by AudioRecorder, RealtimeControls, useChatbot) |
-| Session data (std)  | Yes (localStorage) | No                | `aias:v1:session:standard:*` (transcript, summary, form, output_mode) |
-| Session data (rt)   | Yes (localStorage) | No                | `aias:v1:session:realtime:*` (transcript, summary, form, questions) |
+| Session data (std)  | Yes (localStorage) | Yes               | `aias:v1:session:standard:*` (transcript, summary, form, output_mode) |
+| Session data (rt)   | Yes (localStorage) | Yes               | `aias:v1:session:realtime:*` (transcript, summary, form, questions) |
+| Chatbot messages    | Yes (localStorage) | Yes               | `aias:v1:session:chatbot:*` (messages, updated_at) |
 | Workflow state      | No (derived)       | No                | - (step derived from persisted session data on mount) |
 | Prompt/language     | No                 | No                | -                           |
 | Realtime session    | No (hook state)    | No                | -                           |
 | Realtime transcript | No (page state)    | No                | - (lifted from RealtimeMode via onTranscriptChange for chatbot context) |
-| Chatbot messages    | No (hook state)    | No                | -                           |
 
 Pattern for persisted state (in `HomeInner`, which receives `serverPreferences` as a prop):
 
@@ -843,6 +845,7 @@ The `useSessionPersistence` hook (`frontend/src/hooks/useSessionPersistence.ts`)
 |---|---|
 | Standard | `transcript`, `summary`, `form_template_id`, `form_values`, `output_mode`, `updated_at` |
 | Realtime | `transcript`, `summary`, `form_template_id`, `form_values`, `questions`, `updated_at` |
+| Chatbot | `messages` (role + content only), `updated_at` |
 
 **Sync behaviour**: Session data is persisted to localStorage by `useSessionPersistence` and additionally synced to the server via `usePreferences` in account mode. The server stores session data under `session_standard` and `session_realtime` fields in the `UserPreferences` object (JSONB column — `extra="allow"` on the backend means no schema change was needed). This means transcripts and summaries follow you across devices when using Account Storage.
 
@@ -862,6 +865,7 @@ The `useSessionPersistence` hook (`frontend/src/hooks/useSessionPersistence.ts`)
 | `useRealtimeSession` | `initialTranscript`, `initialSummary` |
 | `useLiveQuestions` | `initialQuestions` |
 | `useFormOutput` | `initialValues` |
+| `useChatbot` | `initialMessages` (from `session_chatbot` persistence) |
 
 **Chatbot transcript context**: The chatbot always uses the transcript from the currently active mode (Standard or Realtime). When the user switches modes, the transcript context switches automatically. The transcript can be **suspended** (detached) by the user via the TranscriptBadge × button — this sets `chatbotTranscriptDetached` to `true` in page state, causing `chatbotTranscript` to be `null` while `availableTranscript` remains non-null. The badge stays visible in a dimmed "paused" state with a reattach button. New transcript content (from either mode) automatically reattaches by resetting the detached flag.
 
@@ -982,6 +986,7 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 | `aias:v1:sync_standard_realtime` | Sync Standard + Realtime toggle (`true`/`false`) | Yes |
 | `aias:v1:session:standard:*`   | Standard mode session data (transcript, summary, form_template_id, form_values, output_mode, updated_at) | Yes (as `session_standard` object) |
 | `aias:v1:session:realtime:*`   | Realtime mode session data (transcript, summary, form_template_id, form_values, questions, updated_at) | Yes (as `session_realtime` object) |
+| `aias:v1:session:chatbot:*`    | Chatbot session data (messages, updated_at) | Yes (as `session_chatbot` object) |
 
 ### Styling & Theme
 
@@ -1025,9 +1030,11 @@ To add a new shadcn component:
 cd frontend && npx shadcn@latest add <component-name>
 ```
 
-Currently used: `badge`, `button`, `card`, `checkbox`, `collapsible`, `dialog`, `dropdown-menu`, `input`, `label`, `scroll-area`, `select`, `separator`, `sheet`, `skeleton`, `slider`, `sonner`, `switch`, `tabs`, `textarea`, `tooltip`.
+Currently used: `badge`, `button`, `calendar`, `card`, `checkbox`, `collapsible`, `dialog`, `dropdown-menu`, `input`, `label`, `popover`, `scroll-area`, `select`, `separator`, `sheet`, `skeleton`, `slider`, `sonner`, `switch`, `tabs`, `textarea`, `tooltip`.
 
 `components/ui/audio-player.tsx` is a custom composite component (not generated by shadcn CLI) that combines `Button` and `Slider` into a dark-themed audio playback widget with play/pause, seek bar, time display, mute toggle, and volume control. It is used by `AudioRecorder` to preview recordings after they are stopped.
+
+`components/ui/date-picker.tsx` is a custom composite component (not generated by shadcn CLI) that combines `Calendar` and `Popover` into a date picker widget. Accepts a `value: string | null` (YYYY-MM-DD format) and `onChange` callback. Shows the selected date in `dd.MM.yyyy` format, a calendar popover for selection, an inline × button to clear the value, and footer buttons for "Clear" and "Today". Used by `PromptEditor` and `FormTemplateSelector` to let users set a meeting date.
 
 `components/ui/theme-toggle.tsx` is a custom component that renders a ghost icon button cycling through Light / Dark / System themes using `useTheme` from `next-themes`. Placed in the header between UserMenu and Settings.
 
@@ -1046,7 +1053,7 @@ import { cn } from "@/lib/utils";
 `lib/types.ts` mirrors the backend Pydantic models as TypeScript interfaces:
 
 ```tsx
-export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai";
+export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai" | "langdock";
 export interface ProviderInfo {
   id: LLMProvider;
   name: string;
@@ -1555,7 +1562,6 @@ docker compose build frontend
 | `AUTH_GOOGLE_ID` | `frontend/.env.local` | Google OAuth client ID |
 | `AUTH_GOOGLE_SECRET` | `frontend/.env.local` | Google OAuth client secret |
 | `AUTH_SECRET` | `frontend/.env.local` | Random secret (`openssl rand -base64 32`) |
-| `ALLOWED_EMAILS` | `frontend/.env.local` | Comma-separated allowlist (empty = all) |
 | `NEXT_PUBLIC_BACKEND_WS_URL` | Build arg in `docker-compose.yml` | WebSocket URL reachable from browser; defaults to `ws://localhost:8080` |
 
 Docker file locations:

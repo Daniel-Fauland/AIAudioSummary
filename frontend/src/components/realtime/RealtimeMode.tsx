@@ -163,6 +163,26 @@ export function RealtimeMode({
     onPersistFormTemplateId?.(selectedFormTemplateId);
   }, [selectedFormTemplateId, onPersistFormTemplateId]);
 
+  // Listen for sync-initiated clear events from GlobalSyncContext
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ scope: "transcript-summary" | "all" }>) => {
+      const { scope } = e.detail;
+      // Always clear summary and transcript persistence
+      session.clearSummary();
+      onPersistTranscript?.("");
+      onPersistSummary?.("");
+      if (scope === "all") {
+        liveQuestions.clearAll();
+        liveQuestions.resetEvaluationTracking();
+        formOutput.resetForm();
+        setSelectedFormTemplateId(null);
+        onClearRealtimeSession?.();
+      }
+    };
+    window.addEventListener("aias:sync-clear-realtime", handler as EventListener);
+    return () => window.removeEventListener("aias:sync-clear-realtime", handler as EventListener);
+  }, [session, liveQuestions, formOutput, onPersistTranscript, onPersistSummary, onClearRealtimeSession]);
+
   // Sync preferences when realtime session ends (includes final summary)
   const prevIsSessionEndedRef = useRef(false);
   useEffect(() => {

@@ -75,6 +75,14 @@ function generateId(): string {
   return `msg-${Date.now()}-${++messageIdCounter}`;
 }
 
+// Read-only actions that auto-confirm without user interaction
+const READ_ONLY_ACTIONS = new Set([
+  "list_prompt_templates",
+  "get_prompt_template",
+  "list_form_templates",
+  "get_form_template",
+]);
+
 function parseActionBlock(content: string): { cleanContent: string; action: ActionProposal | null } {
   const actionRegex = /```action\s*\n([\s\S]*?)\n```/;
   const match = content.match(actionRegex);
@@ -149,10 +157,16 @@ export function useChatbot({
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isStreaming || !hasApiKey) return;
 
+    // Detect "!" prefix for auto-confirm (skip action confirmation)
+    const trimmed = text.trim();
+    const autoConfirm = trimmed.startsWith("!") && chatbotActionsEnabled;
+    const cleanText = autoConfirm ? trimmed.slice(1).trimStart() : trimmed;
+    if (!cleanText) return;
+
     const userMsg: ChatMessageType = {
       id: generateId(),
       role: "user",
-      content: text.trim(),
+      content: cleanText,
     };
 
     const assistantMsg: ChatMessageType = {
@@ -244,26 +258,33 @@ export function useChatbot({
         return updated;
       });
 
-      // After streaming completes, parse action blocks
-      setMessages(prev => {
-        const updated = [...prev];
-        const lastIdx = updated.length - 1;
-        const lastMsg = updated[lastIdx];
-        if (lastMsg.role === "assistant" && !lastMsg.isError) {
-          const { cleanContent, action } = parseActionBlock(lastMsg.content);
-          if (action) {
-            // Validate action_id exists in handlers
-            const isValid = actionHandlers && action.action_id in actionHandlers;
-            updated[lastIdx] = {
-              ...lastMsg,
-              content: cleanContent,
-              action: isValid ? action : undefined,
-              actionStatus: isValid ? "pending" : undefined,
-            };
+      // After streaming completes, parse action blocks and handle auto-confirm
+      const { cleanContent, action } = parseActionBlock(finalContent);
+      if (action) {
+        const isValid = actionHandlers && action.action_id in actionHandlers;
+
+        if (isValid && (autoConfirm || READ_ONLY_ACTIONS.has(action.action_id))) {
+          // Auto-execute: skip pending state entirely
+          let finalStatus: "auto_confirmed" | "error" = "auto_confirmed" as const;
+          try {
+            await actionHandlers![action.action_id](action.params);
+          } catch {
+            finalStatus = "error" as const;
           }
+          setMessages(prev => prev.map(m =>
+            m.id === assistantMsg.id
+              ? { ...m, content: cleanContent, action, actionStatus: finalStatus }
+              : m
+          ));
+        } else {
+          // Normal flow: set pending for user confirmation
+          setMessages(prev => prev.map(m =>
+            m.id === assistantMsg.id && m.role === "assistant" && !m.isError
+              ? { ...m, content: cleanContent, action: isValid ? action : undefined, actionStatus: isValid ? "pending" : undefined }
+              : m
+          ));
         }
-        return updated;
-      });
+      }
     } catch (e) {
       // Clean up any pending buffer/refs
       cancelAnimationFrame(flushRafRef.current);

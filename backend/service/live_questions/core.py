@@ -1,5 +1,5 @@
 from pydantic_ai import Agent
-from pydantic_ai.settings import ModelSettings
+
 
 from models.live_questions import (
     EvaluateQuestionsRequest,
@@ -43,7 +43,7 @@ class LiveQuestionsService:
         agent: Agent[None, EvaluateQuestionsResponse] = Agent(
             model=model,
             output_type=EvaluateQuestionsResponse,
-            model_settings=ModelSettings(temperature=0.1),
+            model_settings=LLMService.build_model_settings(request.provider, request.model, temperature=0.1),
             system_prompt=_EVALUATE_SYSTEM_PROMPT,
         )
 

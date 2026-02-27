@@ -67,7 +67,11 @@
       "Bash(cd \"/Users/danielfauland/Documents/Programming/Python/Visual Studio Code/AIAudioSummary/frontend\" && npx eslint src/hooks/usePreferences.ts src/components/auth/StorageModeDialog.tsx src/components/realtime/RealtimeMode.tsx src/lib/types.ts --quiet 2>&1)",
       "Bash(ssh:*)",
       "WebFetch(domain:pypi.org)",
-      "Bash(docker image prune -f 2>&1 && docker builder prune -f 2>&1)"
+      "Bash(docker image prune -f 2>&1 && docker builder prune -f 2>&1)",
+      "Bash(tail:*)",
+      "Bash(echo === $\\(basename $\\(dirname $file\\)\\) ===:*)",
+      "Bash(docker image prune -f && docker builder prune -f 2>&1)",
+      "Bash(docker image:*)"
     ]
   }
 }

@@ -43,10 +43,13 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
   }, [initialTranscript, globalRealtime]);
 
   // Handle partial commit from summary hook
+  // Use individual setters (stable React state setters) to avoid recreating
+  // the entire callback chain on every context re-render
+  const { setCommittedPartial, setCurrentPartial } = globalRealtime;
   const onCommitPartial = useCallback((partial: string) => {
-    globalRealtime.setCommittedPartial(partial);
-    globalRealtime.setCurrentPartial("");
-  }, [globalRealtime]);
+    setCommittedPartial(partial);
+    setCurrentPartial("");
+  }, [setCommittedPartial, setCurrentPartial]);
 
   const summary = useRealtimeSummary({
     transcript: globalRealtime.accumulatedTranscript,

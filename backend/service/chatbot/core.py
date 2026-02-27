@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Union, AsyncGenerator
 
 from pydantic_ai import Agent
-from pydantic_ai.settings import ModelSettings
+
 
 from models.chatbot import ChatRequest, ChatMessage
 from models.llm import LLMProvider
@@ -53,6 +53,20 @@ class ChatbotService:
                 context_lines.append(f"- User's current local date/time: {ctx.user_timestamp}")
             if ctx.last_visit_timestamp:
                 context_lines.append(f"- User's last visit: {ctx.last_visit_timestamp}")
+            if ctx.custom_templates:
+                tpl_lines = []
+                for t in ctx.custom_templates:
+                    tpl_lines.append(f"  - ID: `{t.id}` | Name: {t.name}\n    Content: {t.content}")
+                context_lines.append(f"- Custom prompt templates:\n" + "\n".join(tpl_lines))
+            if ctx.form_templates:
+                tpl_lines = []
+                for t in ctx.form_templates:
+                    field_desc = ", ".join(
+                        f"{f.label} ({f.type})" + (f" [{', '.join(f.options)}]" if f.options else "")
+                        for f in t.fields
+                    )
+                    tpl_lines.append(f"  - ID: `{t.id}` | Name: {t.name} | Fields: [{field_desc}]")
+                context_lines.append(f"- Custom form templates:\n" + "\n".join(tpl_lines))
             if context_lines:
                 parts.append(
                     "\n\n## Current User Settings\n"
@@ -173,7 +187,7 @@ class ChatbotService:
         agent = Agent(
             model,
             system_prompt=system_prompt,
-            model_settings=ModelSettings(temperature=0.7)
+            model_settings=LLMService.build_model_settings(request.provider, model_name, temperature=0.7)
         )
 
         if request.stream:

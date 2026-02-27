@@ -40,6 +40,8 @@ interface ChatbotModalProps {
   selectedDeviceId?: string;
   onDeviceChange?: (deviceId: string) => void;
   isSettingsOpen?: boolean;
+  chatDraft?: string;
+  onChatDraftChange?: (value: string) => void;
 }
 
 export function ChatbotModal({
@@ -72,6 +74,8 @@ export function ChatbotModal({
   selectedDeviceId,
   onDeviceChange,
   isSettingsOpen,
+  chatDraft,
+  onChatDraftChange,
 }: ChatbotModalProps) {
   const inputBarRef = useRef<ChatInputBarHandle>(null);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -85,7 +89,7 @@ export function ChatbotModal({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Alt") setAltPressed(true);
-      if (e.code === "KeyC") setCPressed(true);
+      if (e.code === "KeyC" && e.altKey) setCPressed(true);
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === "Alt") setAltPressed(false);
@@ -226,6 +230,8 @@ export function ChatbotModal({
             audioDevices={audioDevices}
             selectedDeviceId={selectedDeviceId}
             onDeviceChange={onDeviceChange}
+            draft={chatDraft}
+            onDraftChange={onChatDraftChange}
           />
         </>
       )}

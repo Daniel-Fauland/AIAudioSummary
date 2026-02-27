@@ -60,7 +60,7 @@ export interface GlobalRecordingContextValue {
   analyserNode: AnalyserNode | null;
 
   // Functions
-  startRecording: () => Promise<void>;
+  startRecording: (sharedDisplayStream?: MediaStream) => Promise<void>;
   stopRecording: () => void;
   pauseRecording: () => void;
   resumeRecording: () => void;
@@ -72,6 +72,7 @@ export interface GlobalRecordingContextValue {
   // Exposed refs for sync feature
   _mediaStreamRef: React.RefObject<MediaStream | null>;
   _audioContextRef: React.RefObject<AudioContext | null>;
+  _displayStreamRef: React.RefObject<MediaStream | null>;
 }
 
 const GlobalRecordingContext = createContext<GlobalRecordingContextValue | null>(null);
@@ -228,7 +229,7 @@ export function GlobalRecordingProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(async (sharedDisplayStream?: MediaStream) => {
     const audioConstraints: MediaTrackConstraints = selectedDeviceId
       ? { deviceId: { exact: selectedDeviceId } }
       : (true as unknown as MediaTrackConstraints);
@@ -239,16 +240,22 @@ export function GlobalRecordingProvider({ children }: { children: ReactNode }) {
       if (recordMode === "meeting") {
         // Prompt user to pick a tab/window (must share audio)
         let displayStream: MediaStream;
-        try {
-          displayStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: true,
-          });
-        } catch {
-          return;
+        if (sharedDisplayStream && sharedDisplayStream.getAudioTracks().length > 0) {
+          // Clone tracks from the shared stream — no second Chrome prompt
+          displayStream = new MediaStream(
+            sharedDisplayStream.getAudioTracks().map(t => t.clone())
+          );
+        } else {
+          try {
+            displayStream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+              audio: true,
+            });
+          } catch {
+            return;
+          }
+          displayStream.getVideoTracks().forEach((t) => t.stop());
         }
-
-        displayStream.getVideoTracks().forEach((t) => t.stop());
         displayStreamRef.current = displayStream;
 
         if (displayStream.getAudioTracks().length === 0) {
@@ -279,6 +286,7 @@ export function GlobalRecordingProvider({ children }: { children: ReactNode }) {
         refreshDevices();
 
         const audioContext = new AudioContext();
+        await audioContext.resume();
         audioContextRef.current = audioContext;
         const destination = audioContext.createMediaStreamDestination();
         const analyser = audioContext.createAnalyser();
@@ -303,6 +311,7 @@ export function GlobalRecordingProvider({ children }: { children: ReactNode }) {
         refreshDevices();
 
         const audioContext = new AudioContext();
+        await audioContext.resume();
         audioContextRef.current = audioContext;
         const source = audioContext.createMediaStreamSource(stream);
         const analyser = audioContext.createAnalyser();
@@ -411,6 +420,7 @@ export function GlobalRecordingProvider({ children }: { children: ReactNode }) {
     refreshDevices,
     _mediaStreamRef: streamRef,
     _audioContextRef: audioContextRef,
+    _displayStreamRef: displayStreamRef,
   };
 
   return (

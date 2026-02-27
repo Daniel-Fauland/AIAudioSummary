@@ -14,6 +14,7 @@ from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
 from models.llm import LLMProvider, AzureConfig, LangdockConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse
+from service.misc.core import MiscService
 
 
 class LangdockOpenAIChatModel(OpenAIChatModel):
@@ -22,9 +23,6 @@ class LangdockOpenAIChatModel(OpenAIChatModel):
     def _get_stream_options(self, model_settings: OpenAIChatModelSettings):
         # Langdock does not support the stream_options parameter.
         return NOT_GIVEN
-
-
-from service.misc.core import MiscService
 
 
 class _SpeakerEntry(PydanticBaseModel):
@@ -40,9 +38,12 @@ class _SpeakerKeyPointsResult(PydanticBaseModel):
 
 
 class _SpeakerEntryWithName(PydanticBaseModel):
-    speaker: str = PydanticField(..., description="Speaker label (e.g. 'Speaker A')")
-    summary: str = PydanticField(..., description="1-3 sentence key point summary for this speaker")
-    identified_name: str = PydanticField("", description="The real name of this speaker if clearly and explicitly mentioned in the transcript. Leave empty if not identifiable.")
+    speaker: str = PydanticField(...,
+                                 description="Speaker label (e.g. 'Speaker A')")
+    summary: str = PydanticField(
+        ..., description="1-3 sentence key point summary for this speaker")
+    identified_name: str = PydanticField(
+        "", description="The real name of this speaker if clearly and explicitly mentioned in the transcript. Leave empty if not identifiable.")
 
 
 class _SpeakerKeyPointsWithNamesResult(PydanticBaseModel):
@@ -53,7 +54,26 @@ class _SpeakerKeyPointsWithNamesResult(PydanticBaseModel):
 helper = MiscService()
 
 
+_LANGDOCK_GPT_MAX_TOKENS = 128_000
+
+
 class LLMService:
+    @staticmethod
+    def build_model_settings(provider: LLMProvider, model_name: str, **kwargs) -> ModelSettings:
+        """Build ModelSettings, capping max_tokens for Langdock GPT models.
+
+        Langdock GPT models are currently disabled in the UI due to a proxy bug
+        (see user_stories/langdock_openai_bug_report.md), but this guard remains
+        so re-enabling them later just works.
+        """
+        if (
+            provider == LLMProvider.LANGDOCK
+            and not model_name.startswith(("claude", "gemini"))
+            and "max_tokens" not in kwargs
+        ):
+            kwargs["max_tokens"] = _LANGDOCK_GPT_MAX_TOKENS
+        return ModelSettings(**kwargs)
+
     def _create_model(self, provider: LLMProvider, model_name: str, api_key: str,
                       azure_config: AzureConfig | None = None,
                       langdock_config: LangdockConfig | None = None):
@@ -181,7 +201,7 @@ class LLMService:
         agent = Agent(
             model,
             system_prompt=system_prompt,
-            model_settings=ModelSettings(temperature=0.5)
+            model_settings=self.build_model_settings(request.provider, model_name, temperature=0.5)
         )
 
         if request.stream:
@@ -233,7 +253,7 @@ class LLMService:
             model,
             system_prompt=system_prompt,
             output_type=output_type,
-            model_settings=ModelSettings(temperature=0.3)
+            model_settings=self.build_model_settings(request.provider, model_name, temperature=0.3)
         )
 
         result = await agent.run(user_prompt)

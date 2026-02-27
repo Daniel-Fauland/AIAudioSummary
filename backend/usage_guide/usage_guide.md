@@ -497,12 +497,13 @@ Instead of adding fields manually, you can let the AI design a template for you:
 
 1. After transcription, switch to the **Form Output** tab in Step 2.
 2. Select your form template from the dropdown.
-3. Click **Fill Form** — the AI analyses the transcript and extracts values for each field.
-4. The app moves to Step 3, showing the transcript on the left and the filled form on the right.
-5. Review the extracted values. You can **edit any field** manually.
-6. Click **Re-fill** to regenerate values from the transcript, or **Copy** to copy the form as plain text.
+3. Optionally set the **Meeting Date** using the date picker below the template selector. When set, the AI uses this date as context when filling date-related fields in the form. This works the same way as the Meeting Date in Prompt Settings for summary generation — the same date picker is shared between both modes.
+4. Click **Fill Form** — the AI analyses the transcript and extracts values for each field.
+5. The app moves to Step 3, showing the transcript on the left and the filled form on the right.
+6. Review the extracted values. You can **edit any field** manually.
+7. Click **Re-fill** to regenerate values from the transcript, or **Copy** to copy the form as plain text.
 
-> The AI only fills a field if the information is clearly stated in the transcript. Fields without matching content are left empty.
+> The AI only fills a field if the information is clearly stated in the transcript. Fields without matching content are left empty. When a Meeting Date is provided, the AI may use it to fill date fields if no specific date is mentioned in the transcript.
 
 #### Filling a Form (Realtime Mode)
 
@@ -790,7 +791,37 @@ A **chevron (▾)** next to the mic button lets you select which microphone to u
 
 #### Actions
 
-The AI may propose actions (e.g. applying a speaker rename or updating a prompt). These appear as action cards in the chat. Click **Confirm** to apply the action or **Cancel** to dismiss it.
+The AI may propose actions that change app settings or create content on your behalf. These appear as action cards in the chat. Click **Confirm** to apply the action or **Cancel** to dismiss it.
+
+**Quick-apply with `!` prefix:** Start your message with `!` to skip the confirmation step and apply the action immediately. For example, typing `!Switch to light mode` will change the theme without asking for confirmation. The action card shows "Auto-applied" instead of the usual Confirm/Abort buttons.
+
+The following actions are available:
+
+| Action | What it does |
+| --- | --- |
+| **Change theme** | Switch between light, dark, or system theme. |
+| **Switch app mode** | Switch between Standard and Realtime mode. |
+| **Change LLM provider** | Change the AI provider (OpenAI, Anthropic, Gemini, Azure, Langdock). |
+| **Change model** | Change the selected AI model for the current provider. |
+| **Toggle Sync mode** | Enable or disable Sync Standard + Realtime (shared microphone, coordinated start/stop). |
+| **Toggle Speaker Key Points** | Enable or disable automatic key point extraction per speaker. |
+| **Toggle Speaker Labels** | Enable or disable real speaker name suggestions from transcript content. |
+| **Change speaker count** | Update the expected min/max number of speakers for transcription. |
+| **Update Realtime system prompt** | Replace the system prompt used for Realtime summary generation. |
+| **Change Realtime summary interval** | Set how often Realtime summaries are generated (1, 2, 3, 5, or 10 minutes). |
+| **Toggle Final Summary on Stop** | Enable or disable automatic full summary generation when a Realtime session is stopped. |
+| **Update API key** | Store or update an API key for any provider. |
+| **Open Settings** | Open the Settings panel. |
+| **Save prompt template** | Create and save a custom prompt template for summary generation. |
+| **List prompt templates** | Show all saved custom prompt templates (no confirmation needed). |
+| **Show prompt template details** | Display the full content of a specific prompt template (no confirmation needed). |
+| **Update prompt template** | Modify an existing prompt template's name or content. |
+| **Delete prompt template** | Remove a custom prompt template. |
+| **Save form template** | Create and save a form template for structured data extraction. |
+| **List form templates** | Show all saved custom form templates (no confirmation needed). |
+| **Show form template details** | Display the full fields and structure of a specific form template (no confirmation needed). |
+| **Update form template** | Modify an existing form template's name or fields. |
+| **Delete form template** | Remove a custom form template. |
 
 You can also ask the chatbot to **create custom prompt templates** (e.g. "Create a prompt template for summarizing technical design meetings") or **create form templates** (e.g. "Create a form template for tracking project status with priority, assignee, due date, and status"). The AI will craft the template and propose saving it as an action. Once confirmed, the template appears in the corresponding dropdown (PromptEditor for prompt templates, FormTemplateSelector for form templates).
 
