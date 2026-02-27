@@ -1,10 +1,11 @@
 import datetime
 from typing import Union, AsyncGenerator
 
+from openai._types import NOT_GIVEN
 from pydantic import BaseModel as PydanticBaseModel, Field as PydanticField
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
-from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.azure import AzureProvider
 from pydantic_ai.models.anthropic import AnthropicModel
@@ -13,6 +14,16 @@ from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
 from models.llm import LLMProvider, AzureConfig, LangdockConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse
+
+
+class LangdockOpenAIChatModel(OpenAIChatModel):
+    """OpenAI-compatible model for Langdock that suppresses unsupported stream_options."""
+
+    def _get_stream_options(self, model_settings: OpenAIChatModelSettings):
+        # Langdock does not support the stream_options parameter.
+        return NOT_GIVEN
+
+
 from service.misc.core import MiscService
 
 
@@ -89,7 +100,7 @@ class LLMService:
                     )
                 )
             else:
-                return OpenAIChatModel(
+                return LangdockOpenAIChatModel(
                     model_name,
                     provider=OpenAIProvider(
                         api_key=api_key,
@@ -245,6 +256,15 @@ class LLMService:
                 async for chunk in stream.stream_text(delta=True):
                     has_yielded = True
                     yield chunk
+        except RuntimeError as e:
+            if "cancel scope" in str(e) and has_yielded:
+                return
+            from utils.logging import logger
+            logger.error(f"LLM streaming error: {e}")
+            if has_yielded:
+                yield f"\n\n<!--STREAM_ERROR:{e}-->"
+            else:
+                raise
         except Exception as e:
             from utils.logging import logger
             logger.error(f"LLM streaming error: {e}")

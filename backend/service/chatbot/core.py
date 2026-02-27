@@ -190,6 +190,16 @@ class ChatbotService:
                 async for chunk in stream.stream_text(delta=True):
                     has_yielded = True
                     yield chunk
+        except RuntimeError as e:
+            if "cancel scope" in str(e) and has_yielded:
+                # Known pydantic-ai/anyio cleanup issue — safe to ignore since
+                # all data was already streamed successfully.
+                return
+            logger.error(f"Chatbot streaming error: {e}")
+            if has_yielded:
+                yield f"\n\n<!--STREAM_ERROR:{e}-->"
+            else:
+                raise
         except Exception as e:
             logger.error(f"Chatbot streaming error: {e}")
             if has_yielded:
