@@ -20,7 +20,20 @@ async def create_summary(
     try:
         if request.stream:
             generator = await service.generate_summary(request)
-            return StreamingResponse(generator, media_type="text/plain")
+            # Eagerly fetch the first chunk to catch connection/auth errors
+            # before committing to a 200 StreamingResponse.
+            gen = generator.__aiter__()
+            try:
+                first_chunk = await gen.__anext__()
+            except StopAsyncIteration:
+                return StreamingResponse(iter([]), media_type="text/plain")
+
+            async def _with_first():
+                yield first_chunk
+                async for chunk in gen:
+                    yield chunk
+
+            return StreamingResponse(_with_first(), media_type="text/plain")
 
         summary = await service.generate_summary(request)
         return CreateSummaryResponse(summary=summary)

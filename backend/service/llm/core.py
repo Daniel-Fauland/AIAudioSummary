@@ -239,6 +239,11 @@ class LLMService:
 
     async def _stream_response(self, agent: Agent, user_prompt: str) -> AsyncGenerator[str, None]:
         """Stream response chunks from the LLM agent."""
-        async with agent.run_stream(user_prompt) as stream:
-            async for chunk in stream.stream_text(delta=True):
-                yield chunk
+        try:
+            async with agent.run_stream(user_prompt) as stream:
+                async for chunk in stream.stream_text(delta=True):
+                    yield chunk
+        except Exception as e:
+            from utils.logging import logger
+            logger.error(f"LLM streaming error: {e}")
+            raise

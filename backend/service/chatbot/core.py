@@ -184,9 +184,13 @@ class ChatbotService:
 
     async def _stream_response(self, agent: Agent, user_prompt: str) -> AsyncGenerator[str, None]:
         """Stream response chunks from the LLM agent."""
-        async with agent.run_stream(user_prompt) as stream:
-            async for chunk in stream.stream_text(delta=True):
-                yield chunk
+        try:
+            async with agent.run_stream(user_prompt) as stream:
+                async for chunk in stream.stream_text(delta=True):
+                    yield chunk
+        except Exception as e:
+            logger.error(f"Chatbot streaming error: {e}")
+            raise
 
     def get_knowledge_status(self) -> dict:
         """Return the loaded status and length of the knowledge base."""
