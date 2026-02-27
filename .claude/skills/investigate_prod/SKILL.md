@@ -133,6 +133,22 @@ For local-only fixes:
 3. Offer to push to git: `git add -A && git commit && git push`
 4. Prod app will automatically pull and redeploy on push to main branch
 
+## Important: File Ownership Rules
+
+**Never run git commands as root** in `/opt/AIAudioSummary`. The repository is owned by the `deploy` user, and running git as root creates objects with `root:root` ownership, which breaks the CI/CD pipeline (the `deploy` user can no longer write to `.git/objects/`).
+
+If you need to run git commands while SSHed in as root, always use:
+
+```bash
+ssh root@<IP> "su - deploy -c 'cd /opt/AIAudioSummary && git pull origin main'"
+```
+
+If you encounter git permission errors (`insufficient permission for adding an object to repository database .git/objects`), fix ownership with:
+
+```bash
+ssh root@<IP> "chown -R deploy:deploy /opt/AIAudioSummary/.git"
+```
+
 ## Step 6: Verify
 
 After applying any fix, verify it worked:

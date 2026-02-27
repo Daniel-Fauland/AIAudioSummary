@@ -127,7 +127,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.5.2** — click to view the changelog of recent updates
+- **v1.6.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -797,31 +797,31 @@ The AI may propose actions that change app settings or create content on your be
 
 The following actions are available:
 
-| Action | What it does |
-| --- | --- |
-| **Change theme** | Switch between light, dark, or system theme. |
-| **Switch app mode** | Switch between Standard and Realtime mode. |
-| **Change LLM provider** | Change the AI provider (OpenAI, Anthropic, Gemini, Azure, Langdock). |
-| **Change model** | Change the selected AI model for the current provider. |
-| **Toggle Sync mode** | Enable or disable Sync Standard + Realtime (shared microphone, coordinated start/stop). |
-| **Toggle Speaker Key Points** | Enable or disable automatic key point extraction per speaker. |
-| **Toggle Speaker Labels** | Enable or disable real speaker name suggestions from transcript content. |
-| **Change speaker count** | Update the expected min/max number of speakers for transcription. |
-| **Update Realtime system prompt** | Replace the system prompt used for Realtime summary generation. |
-| **Change Realtime summary interval** | Set how often Realtime summaries are generated (1, 2, 3, 5, or 10 minutes). |
-| **Toggle Final Summary on Stop** | Enable or disable automatic full summary generation when a Realtime session is stopped. |
-| **Update API key** | Store or update an API key for any provider. |
-| **Open Settings** | Open the Settings panel. |
-| **Save prompt template** | Create and save a custom prompt template for summary generation. |
-| **List prompt templates** | Show all saved custom prompt templates (no confirmation needed). |
-| **Show prompt template details** | Display the full content of a specific prompt template (no confirmation needed). |
-| **Update prompt template** | Modify an existing prompt template's name or content. |
-| **Delete prompt template** | Remove a custom prompt template. |
-| **Save form template** | Create and save a form template for structured data extraction. |
-| **List form templates** | Show all saved custom form templates (no confirmation needed). |
-| **Show form template details** | Display the full fields and structure of a specific form template (no confirmation needed). |
-| **Update form template** | Modify an existing form template's name or fields. |
-| **Delete form template** | Remove a custom form template. |
+| Action                               | What it does                                                                                |
+| ------------------------------------ | ------------------------------------------------------------------------------------------- |
+| **Change theme**                     | Switch between light, dark, or system theme.                                                |
+| **Switch app mode**                  | Switch between Standard and Realtime mode.                                                  |
+| **Change LLM provider**              | Change the AI provider (OpenAI, Anthropic, Gemini, Azure, Langdock).                        |
+| **Change model**                     | Change the selected AI model for the current provider.                                      |
+| **Toggle Sync mode**                 | Enable or disable Sync Standard + Realtime (shared microphone, coordinated start/stop).     |
+| **Toggle Speaker Key Points**        | Enable or disable automatic key point extraction per speaker.                               |
+| **Toggle Speaker Labels**            | Enable or disable real speaker name suggestions from transcript content.                    |
+| **Change speaker count**             | Update the expected min/max number of speakers for transcription.                           |
+| **Update Realtime system prompt**    | Replace the system prompt used for Realtime summary generation.                             |
+| **Change Realtime summary interval** | Set how often Realtime summaries are generated (1, 2, 3, 5, or 10 minutes).                 |
+| **Toggle Final Summary on Stop**     | Enable or disable automatic full summary generation when a Realtime session is stopped.     |
+| **Update API key**                   | Store or update an API key for any provider.                                                |
+| **Open Settings**                    | Open the Settings panel.                                                                    |
+| **Save prompt template**             | Create and save a custom prompt template for summary generation.                            |
+| **List prompt templates**            | Show all saved custom prompt templates (no confirmation needed).                            |
+| **Show prompt template details**     | Display the full content of a specific prompt template (no confirmation needed).            |
+| **Update prompt template**           | Modify an existing prompt template's name or content.                                       |
+| **Delete prompt template**           | Remove a custom prompt template.                                                            |
+| **Save form template**               | Create and save a form template for structured data extraction.                             |
+| **List form templates**              | Show all saved custom form templates (no confirmation needed).                              |
+| **Show form template details**       | Display the full fields and structure of a specific form template (no confirmation needed). |
+| **Update form template**             | Modify an existing form template's name or fields.                                          |
+| **Delete form template**             | Remove a custom form template.                                                              |
 
 You can also ask the chatbot to **create custom prompt templates** (e.g. "Create a prompt template for summarizing technical design meetings") or **create form templates** (e.g. "Create a form template for tracking project status with priority, assignee, due date, and status"). The AI will craft the template and propose saving it as an action. Once confirmed, the template appears in the corresponding dropdown (PromptEditor for prompt templates, FormTemplateSelector for form templates).
 
