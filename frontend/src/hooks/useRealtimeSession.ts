@@ -8,6 +8,7 @@ import type {
   AzureConfig,
   LangdockConfig,
   SummaryInterval,
+  TokenUsage,
 } from "@/lib/types";
 
 export interface LlmConfig {
@@ -26,10 +27,11 @@ export interface LlmConfig {
 export interface UseRealtimeSessionOptions {
   initialTranscript?: string;
   initialSummary?: string;
+  onUsage?: (usage: TokenUsage) => void;
 }
 
 export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
-  const { initialTranscript, initialSummary } = options ?? {};
+  const { initialTranscript, initialSummary, onUsage } = options ?? {};
   const globalRealtime = useGlobalRealtime();
 
   // Initialize transcript from persisted session (only once)
@@ -60,6 +62,7 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
     accumulatedTranscriptRef: globalRealtime._accumulatedTranscriptRef,
     currentPartialRef: globalRealtime._currentPartialRef,
     onCommitPartial,
+    onUsage,
   });
 
   // Register the session-end callback to trigger final summary
@@ -134,6 +137,7 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
     isSummaryUpdating: summary.isSummaryUpdating,
     summaryInterval: summary.summaryInterval,
     summaryCountdown: summary.summaryCountdown,
+    summaryAccumulatedUsage: summary.accumulatedUsage,
 
     // Functions
     startSession,

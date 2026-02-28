@@ -28,8 +28,10 @@ import type {
   LLMProvider,
   RealtimeConnectionStatus,
   SummaryInterval,
+  TokenUsage,
 } from "@/lib/types";
 import type { RealtimeSessionData } from "@/hooks/useSessionPersistence";
+import { getContextWindow } from "@/lib/token-utils";
 
 interface RealtimeModeProps {
   config: ConfigResponse | null;
@@ -68,9 +70,11 @@ interface RealtimeModeProps {
   onPersistFormTemplateId?: (id: string | null) => void;
   onClearRealtimeSession?: () => void;
   onSavePreferences?: () => void;
+  onSummaryUsage?: (usage: TokenUsage) => void;
 }
 
 export function RealtimeMode({
+  config,
   selectedProvider,
   selectedModel,
   azureConfig,
@@ -106,10 +110,12 @@ export function RealtimeMode({
   onPersistFormTemplateId,
   onClearRealtimeSession,
   onSavePreferences,
+  onSummaryUsage,
 }: RealtimeModeProps) {
   const session = useRealtimeSession({
     initialTranscript: initialRealtimeSession?.transcript,
     initialSummary: initialRealtimeSession?.summary,
+    onUsage: onSummaryUsage,
   });
   const liveQuestions = useLiveQuestions({
     initialQuestions: initialRealtimeSession?.questions,
@@ -337,15 +343,6 @@ export function RealtimeMode({
     proceedWithStart();
   }, [session, liveQuestions, formOutput, onClearRealtimeSession, proceedWithStart]);
 
-  const handleCopyTranscript = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(session.accumulatedTranscript);
-      toast.success("Transcript copied to clipboard", { position: "bottom-center" });
-    } catch {
-      toast.error("Failed to copy to clipboard");
-    }
-  }, [session.accumulatedTranscript]);
-
   const handleResetSession = useCallback(() => {
     session.resetSession();
     liveQuestions.resetEvaluationTracking();
@@ -455,7 +452,7 @@ export function RealtimeMode({
             currentPartial={session.currentPartial}
             committedPartial={session.committedPartial}
             isSessionActive={isActive}
-            onCopy={handleCopyTranscript}
+
             onClear={handleClearTranscript}
           />
           <RealtimeSummaryView
@@ -464,6 +461,8 @@ export function RealtimeMode({
             isSummaryUpdating={session.isSummaryUpdating}
             isSessionEnded={session.isSessionEnded}
             onClear={handleClearSummary}
+            tokenUsage={session.summaryAccumulatedUsage}
+            contextWindow={getContextWindow(config, selectedProvider, selectedModel)}
           />
         </div>
         {bottomSection}
@@ -500,7 +499,7 @@ export function RealtimeMode({
             currentPartial={session.currentPartial}
             committedPartial={session.committedPartial}
             isSessionActive={isActive}
-            onCopy={handleCopyTranscript}
+
             onClear={handleClearTranscript}
           />
         ) : (
@@ -511,6 +510,8 @@ export function RealtimeMode({
               isSummaryUpdating={session.isSummaryUpdating}
               isSessionEnded={session.isSessionEnded}
               onClear={handleClearSummary}
+              tokenUsage={session.summaryAccumulatedUsage}
+              contextWindow={getContextWindow(config, selectedProvider, selectedModel)}
             />
             {bottomSection}
           </div>

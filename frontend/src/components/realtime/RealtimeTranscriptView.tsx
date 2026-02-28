@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { Anchor, Copy, Maximize2, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { Anchor, Maximize2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,13 +17,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
+import type { ContentPayload } from "@/lib/types";
 
 interface RealtimeTranscriptViewProps {
   accumulatedTranscript: string;
   currentPartial: string;
   committedPartial: string;
   isSessionActive: boolean;
-  onCopy: () => void;
   onClear?: () => void;
 }
 
@@ -32,7 +33,6 @@ export function RealtimeTranscriptView({
   currentPartial,
   committedPartial,
   isSessionActive,
-  onCopy,
   onClear,
 }: RealtimeTranscriptViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -72,8 +72,18 @@ export function RealtimeTranscriptView({
 
   const hasContent = accumulatedTranscript || committedPartial || currentPartial;
 
+  const contentPayload = useMemo<ContentPayload | null>(() => {
+    if (!accumulatedTranscript) return null;
+    return {
+      type: "transcript",
+      plainText: accumulatedTranscript,
+      markdown: accumulatedTranscript,
+      fileNamePrefix: "transcript",
+    };
+  }, [accumulatedTranscript]);
+
   return (
-    <Card className="border-border">
+    <Card className="border-border flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Live Transcript</CardTitle>
         <div className="flex items-center gap-1">
@@ -94,16 +104,6 @@ export function RealtimeTranscriptView({
           {accumulatedTranscript && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={onCopy}>
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Copy transcript</TooltipContent>
-            </Tooltip>
-          )}
-          {accumulatedTranscript && (
-            <Tooltip>
-              <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -118,21 +118,21 @@ export function RealtimeTranscriptView({
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <ScrollArea ref={scrollRef} className="min-h-[300px] max-h-[600px] rounded-md bg-card">
-          <div className="p-4 font-mono text-sm">
+      <CardContent className="flex-1 flex flex-col gap-4">
+        <ScrollArea ref={scrollRef} className="min-h-[300px] max-h-[600px] flex-1 rounded-md bg-card">
+          <div className="p-4 font-mono text-sm leading-relaxed">
             {hasContent ? (
               <>
-                <span className="whitespace-pre-wrap text-foreground">
+                <span className="text-foreground">
                   {accumulatedTranscript}
                 </span>
                 {committedPartial && (
-                  <span className="whitespace-pre-wrap text-foreground">
+                  <span className="text-foreground">
                     {committedPartial}
                   </span>
                 )}
                 {currentPartial && (
-                  <span className="whitespace-pre-wrap italic text-foreground-muted">
+                  <span className="text-foreground-muted">
                     {currentPartial}
                   </span>
                 )}
@@ -145,22 +145,26 @@ export function RealtimeTranscriptView({
           </div>
         </ScrollArea>
 
-        {/* Scroll lock toggle */}
+        {/* Copy, Save & Auto-scroll */}
         {hasContent && (
-          <div className="flex justify-end">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-7 px-2 text-xs ${autoScroll ? "text-primary" : "text-foreground-muted"}`}
-              onClick={() => {
-                setAutoScroll(true);
-                const vp = getViewport();
-                if (vp) vp.scrollTop = vp.scrollHeight;
-              }}
-            >
-              <Anchor className="mr-1 h-3 w-3" />
-              Auto-scroll
-            </Button>
+          <div className="mt-auto flex items-center gap-2">
+            <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+            <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+            <div className="ml-auto">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-7 px-2 text-xs ${autoScroll ? "text-primary" : "text-foreground-muted"}`}
+                onClick={() => {
+                  setAutoScroll(true);
+                  const vp = getViewport();
+                  if (vp) vp.scrollTop = vp.scrollHeight;
+                }}
+              >
+                <Anchor className="mr-1 h-3 w-3" />
+                Auto-scroll
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
@@ -171,11 +175,11 @@ export function RealtimeTranscriptView({
             <DialogTitle>Live Transcript</DialogTitle>
           </DialogHeader>
           <ScrollArea className="flex-1">
-            <div className="whitespace-pre-wrap font-mono text-sm text-foreground p-4">
+            <div className="font-mono text-sm text-foreground leading-relaxed p-4">
               {accumulatedTranscript}
-              {committedPartial}
+              {committedPartial && ` ${committedPartial}`}
               {currentPartial && (
-                <span className="italic text-foreground-muted">{currentPartial}</span>
+                <span className="text-foreground-muted"> {currentPartial}</span>
               )}
             </div>
           </ScrollArea>

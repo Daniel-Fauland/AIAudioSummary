@@ -6,18 +6,21 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { UserMenu } from "@/components/auth/UserMenu";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Logo } from "@/components/ui/Logo";
+import type { TokenUsageEntry } from "@/lib/types";
 
 interface HeaderProps {
   onSettingsClick: () => void;
   onStorageModeChange?: (mode: "local" | "account") => void;
+  usageHistory?: TokenUsageEntry[];
+  onClearUsageHistory?: () => void;
 }
 
-export function Header({ onSettingsClick, onStorageModeChange }: HeaderProps) {
+export function Header({ onSettingsClick, onStorageModeChange, usageHistory, onClearUsageHistory }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-border bg-card px-4 md:px-6">
       <Logo />
       <div className="flex items-center gap-2">
-        <UserMenu onStorageModeChange={onStorageModeChange} />
+        <UserMenu onStorageModeChange={onStorageModeChange} usageHistory={usageHistory} onClearUsageHistory={onClearUsageHistory} />
         <ThemeToggle />
         <Tooltip>
           <TooltipTrigger asChild>

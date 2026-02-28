@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Plus, Pencil, Trash2, Loader2, Lock, Unlock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FormTemplateEditor } from "./FormTemplateEditor";
+import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
+import { buildFormPayload } from "@/lib/content-formats";
 import type { AzureConfig, LangdockConfig, FormFieldDefinition, FormFieldType, FormTemplate, LLMProvider } from "@/lib/types";
 
 function CompactFieldRow({
@@ -223,6 +225,11 @@ export function RealtimeFormOutput({
     [editingTemplate, onSaveTemplate, onUpdateTemplate, onSelectTemplate],
   );
 
+  const contentPayload = useMemo(() => {
+    if (!selectedTemplate) return null;
+    return buildFormPayload(selectedTemplate.fields, values, selectedTemplate.name);
+  }, [selectedTemplate, values]);
+
   const filledCount = selectedTemplate
     ? selectedTemplate.fields.filter((f) => values[f.id] != null).length
     : 0;
@@ -325,6 +332,14 @@ export function RealtimeFormOutput({
                 Mark as Complete
               </div>
               <Switch checked={isComplete} onCheckedChange={onToggleComplete} />
+            </div>
+          )}
+
+          {/* Copy & Save buttons */}
+          {selectedTemplate && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+              <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
             </div>
           )}
 

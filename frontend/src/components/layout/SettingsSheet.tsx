@@ -27,7 +27,8 @@ import { AzureConfigForm } from "@/components/settings/AzureConfigForm";
 import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
 import { FeatureModelOverrides } from "@/components/settings/FeatureModelOverrides";
 import { ChatbotSettings } from "@/components/settings/ChatbotSettings";
-import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat } from "@/lib/types";
+import { COPY_FORMAT_LABELS, SAVE_FORMAT_LABELS } from "@/lib/content-formats";
 
 interface SettingsSheetProps {
   open: boolean;
@@ -68,6 +69,10 @@ interface SettingsSheetProps {
   onChatbotActionsEnabledChange: (enabled: boolean) => void;
   syncStandardRealtime: boolean;
   onSyncStandardRealtimeChange: (enabled: boolean) => void;
+  defaultCopyFormat: CopyFormat;
+  onDefaultCopyFormatChange: (format: CopyFormat) => void;
+  defaultSaveFormat: SaveFormat;
+  onDefaultSaveFormatChange: (format: SaveFormat) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -135,6 +140,10 @@ export function SettingsSheet({
   onChatbotActionsEnabledChange,
   syncStandardRealtime,
   onSyncStandardRealtimeChange,
+  defaultCopyFormat,
+  onDefaultCopyFormatChange,
+  defaultSaveFormat,
+  onDefaultSaveFormatChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -382,6 +391,44 @@ export function SettingsSheet({
                         checked={syncStandardRealtime}
                         onCheckedChange={onSyncStandardRealtimeChange}
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm">Default Copy Format</Label>
+                      <Select
+                        value={defaultCopyFormat}
+                        onValueChange={(v) => onDefaultCopyFormatChange(v as CopyFormat)}
+                      >
+                        <SelectTrigger className="h-8 w-[160px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.entries(COPY_FORMAT_LABELS) as [CopyFormat, string][]).map(([key, label]) => (
+                            <SelectItem key={key} value={key}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm">Default Save Format</Label>
+                      <Select
+                        value={defaultSaveFormat}
+                        onValueChange={(v) => onDefaultSaveFormatChange(v as SaveFormat)}
+                      >
+                        <SelectTrigger className="h-8 w-[160px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.entries(SAVE_FORMAT_LABELS) as [SaveFormat, string][]).map(([key, label]) => (
+                            <SelectItem key={key} value={key}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 

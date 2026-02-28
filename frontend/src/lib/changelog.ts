@@ -10,6 +10,33 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.7.0",
+    date: "2026-02-28",
+    title: "Step persistence in standard mode",
+    changes: [
+      {
+        type: "added",
+        description:
+          'Unified "Copy as" and "Save as" split buttons across all output sections — copy in 4 formats (Formatted, Plain Text, Markdown, JSON) and download in 6 formats (.txt, .md, .docx, .pdf, .html, .json) with configurable defaults in Settings',
+      },
+      {
+        type: "added",
+        description:
+          "Added token usage tracking for AI requests in the chatbot, summary & added an AI usage section in the profile page to view total tokens used over the past week/month/year",
+      },
+      {
+        type: "changed",
+        description:
+          "Standard mode now remembers your last viewed step (Upload, Transcript, or Summary) across page reloads and devices",
+      },
+      {
+        type: "changed",
+        description:
+          'Skipped the early microphone permission prompt on iOS to avoid repeated prompts on every page load — iOS Safari has no "Always Allow" option, so permission is now only requested when starting a recording or realtime session',
+      },
+    ],
+  },
+  {
     version: "1.6.0",
     date: "2026-02-27",
     title: "Smart date detection, chatbot quick-apply actions & draft persistence",

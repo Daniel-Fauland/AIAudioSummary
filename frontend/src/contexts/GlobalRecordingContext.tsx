@@ -141,9 +141,14 @@ export function GlobalRecordingProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  // On mount: unlock device labels if needed
+  // On mount: unlock device labels if needed.
+  // On iOS, skip the early getUserMedia() to avoid repeated permission prompts
+  // (iOS Safari has no "Always Allow" option). Labels will refresh once the user
+  // actually starts recording, since startRecording calls refreshDevices().
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     navigator.mediaDevices
       .enumerateDevices()
       .then((devices) => {
@@ -151,6 +156,9 @@ export function GlobalRecordingProvider({ children }: { children: ReactNode }) {
           .filter((d) => d.kind === "audioinput")
           .some((d) => d.label !== "");
         if (hasLabels) {
+          refreshDevices();
+        } else if (isIOS) {
+          // On iOS, just enumerate with fallback labels — don't prompt for permission
           refreshDevices();
         } else {
           navigator.mediaDevices

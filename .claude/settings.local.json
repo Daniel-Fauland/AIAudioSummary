@@ -71,7 +71,9 @@
       "Bash(tail:*)",
       "Bash(echo === $\\(basename $\\(dirname $file\\)\\) ===:*)",
       "Bash(docker image prune -f && docker builder prune -f 2>&1)",
-      "Bash(docker image:*)"
+      "Bash(docker image:*)",
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(docker ps:*)"
     ]
   }
 }

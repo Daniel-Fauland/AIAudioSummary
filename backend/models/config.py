@@ -6,6 +6,7 @@ class ProviderInfo(BaseModel):
     name: str = Field(..., description="Display name", examples=["OpenAI"])
     models: list[str] = Field(..., description="Suggested model names")
     requires_azure_config: bool = Field(False, description="Whether Azure-specific config is required")
+    model_context_windows: dict[str, int] = Field(default_factory=dict, description="Context window sizes per model (in tokens)")
 
 
 class PromptTemplate(BaseModel):

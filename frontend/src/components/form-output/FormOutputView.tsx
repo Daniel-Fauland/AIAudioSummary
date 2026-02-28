@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback } from "react";
-import { Copy, Braces, RefreshCw, ArrowLeft, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { useMemo } from "react";
+import { RefreshCw, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { FormFieldDefinition, FormFieldType } from "@/lib/types";
+import type { FormFieldDefinition, FormFieldType, ContentPayload } from "@/lib/types";
+import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
+import { buildFormPayload } from "@/lib/content-formats";
 
 interface FormOutputViewProps {
   templateName: string;
@@ -222,47 +223,10 @@ export function FormOutputView({
   onBack,
   refillDisabled,
 }: FormOutputViewProps) {
-  const handleCopy = useCallback(async () => {
-    const lines = fields.map((field) => {
-      const val = values[field.id];
-      let displayVal: string;
-      if (val == null) {
-        displayVal = "(empty)";
-      } else if (Array.isArray(val)) {
-        displayVal = val.join(", ");
-      } else if (typeof val === "boolean") {
-        displayVal = val ? "Yes" : "No";
-      } else {
-        displayVal = String(val);
-      }
-      return `${field.label}: ${displayVal}`;
-    });
-
-    try {
-      await navigator.clipboard.writeText(lines.join("\n"));
-      toast.success("Form values copied to clipboard", {
-        position: "bottom-center",
-      });
-    } catch {
-      toast.error("Failed to copy to clipboard");
-    }
-  }, [fields, values]);
-
-  const handleCopyJson = useCallback(async () => {
-    const obj: Record<string, unknown> = {};
-    for (const field of fields) {
-      obj[field.label] = values[field.id] ?? null;
-    }
-
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
-      toast.success("Form values copied as JSON", {
-        position: "bottom-center",
-      });
-    } catch {
-      toast.error("Failed to copy to clipboard");
-    }
-  }, [fields, values]);
+  const contentPayload = useMemo<ContentPayload | null>(() => {
+    if (fields.length === 0) return null;
+    return buildFormPayload(fields, values, templateName);
+  }, [fields, values, templateName]);
 
   const filledCount = fields.filter((f) => values[f.id] != null).length;
 
@@ -305,14 +269,10 @@ export function FormOutputView({
             <RefreshCw className="mr-1 h-3.5 w-3.5" />
             Re-fill
           </Button>
-          <Button variant="outline" size="sm" onClick={handleCopy}>
-            <Copy className="mr-1 h-3.5 w-3.5" />
-            Copy Text
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleCopyJson}>
-            <Braces className="mr-1 h-3.5 w-3.5" />
-            Copy JSON
-          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+          <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
         </div>
       </CardContent>
     </Card>

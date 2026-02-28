@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, FileText, Loader2, Maximize2, Trash2 } from "lucide-react";
+import { Loader2, Maximize2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -20,7 +19,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
+import { TokenUsageBadge } from "@/components/ui/TokenUsageBadge";
+import type { ContentPayload, TokenUsage } from "@/lib/types";
 
 interface RealtimeSummaryViewProps {
   summary: string;
@@ -28,6 +30,8 @@ interface RealtimeSummaryViewProps {
   isSummaryUpdating: boolean;
   isSessionEnded: boolean;
   onClear?: () => void;
+  tokenUsage?: TokenUsage | null;
+  contextWindow?: number;
 }
 
 function getRelativeTime(isoTimestamp: string): string {
@@ -45,6 +49,8 @@ export function RealtimeSummaryView({
   isSummaryUpdating,
   isSessionEnded,
   onClear,
+  tokenUsage,
+  contextWindow,
 }: RealtimeSummaryViewProps) {
   const [relativeTime, setRelativeTime] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
@@ -61,39 +67,26 @@ export function RealtimeSummaryView({
     return () => clearInterval(interval);
   }, [summaryUpdatedAt]);
 
-  const handleCopyFormatted = async () => {
-    try {
-      const proseEl = scrollRef.current?.querySelector(".markdown-prose");
-      if (proseEl) {
-        const html = proseEl.innerHTML;
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            "text/html": new Blob([html], { type: "text/html" }),
-            "text/plain": new Blob([summary], { type: "text/plain" }),
-          }),
-        ]);
-      } else {
-        await navigator.clipboard.writeText(summary);
-      }
-      toast.success("Summary copied to clipboard", { position: "bottom-center" });
-    } catch {
-      toast.error("Failed to copy to clipboard");
-    }
-  };
-
-  const handleCopyMarkdown = async () => {
-    try {
-      await navigator.clipboard.writeText(summary);
-      toast.success("Markdown copied to clipboard", { position: "bottom-center" });
-    } catch {
-      toast.error("Failed to copy to clipboard");
-    }
-  };
+  const contentPayload = useMemo<ContentPayload | null>(() => {
+    if (!summary) return null;
+    const proseEl = scrollRef.current?.querySelector(".markdown-prose");
+    return {
+      type: "summary",
+      plainText: summary,
+      markdown: summary,
+      html: proseEl?.innerHTML,
+      fileNamePrefix: "summary",
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary, isSummaryUpdating]);
 
   return (
-    <Card className="border-border">
+    <Card className="border-border flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">Summary</CardTitle>
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-lg">Summary</CardTitle>
+          <TokenUsageBadge usage={tokenUsage} contextWindow={contextWindow} />
+        </div>
         <div className="flex items-center gap-2">
           {isSummaryUpdating && (
             <Badge variant="outline" className="border-primary-muted bg-primary-muted text-primary">
@@ -137,8 +130,8 @@ export function RealtimeSummaryView({
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <ScrollArea ref={scrollRef} className="max-h-[600px] rounded-md bg-card">
+      <CardContent className="flex-1 flex flex-col gap-4">
+        <ScrollArea ref={scrollRef} className="max-h-[600px] flex-1 rounded-md bg-card">
           <div className="p-4">
             {summary ? (
               <div className="markdown-prose summary-fade-enter" key={summaryUpdatedAt}>
@@ -152,17 +145,11 @@ export function RealtimeSummaryView({
           </div>
         </ScrollArea>
 
-        {/* Copy buttons */}
+        {/* Copy & Save buttons */}
         {!!summary && (
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" className="justify-start" onClick={handleCopyFormatted}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copy Summary
-            </Button>
-            <Button variant="secondary" className="justify-start" onClick={handleCopyMarkdown}>
-              <FileText className="mr-2 h-4 w-4" />
-              Copy as Markdown
-            </Button>
+          <div className="mt-auto flex items-center gap-2">
+            <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+            <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
           </div>
         )}
       </CardContent>

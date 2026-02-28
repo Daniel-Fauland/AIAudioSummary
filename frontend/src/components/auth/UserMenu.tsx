@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield, HardDrive, Cloud, Loader2, ArrowLeftRight } from "lucide-react";
+import { LogOut, Shield, HardDrive, Cloud, Loader2, ArrowLeftRight, BarChart3 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,20 +14,24 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { StorageModeDialog } from "@/components/auth/StorageModeDialog";
 import { ConfigExportDialog } from "@/components/auth/ConfigExportDialog";
+import { AIUsageDialog } from "@/components/auth/AIUsageDialog";
 import { getMe } from "@/lib/api";
-import type { UserProfile } from "@/lib/types";
+import type { TokenUsageEntry, UserProfile } from "@/lib/types";
 
 interface UserMenuProps {
   onStorageModeChange?: (mode: "local" | "account") => void;
+  usageHistory?: TokenUsageEntry[];
+  onClearUsageHistory?: () => void;
 }
 
-export function UserMenu({ onStorageModeChange }: UserMenuProps) {
+export function UserMenu({ onStorageModeChange, usageHistory, onClearUsageHistory }: UserMenuProps) {
   const { data: session } = useSession();
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [storageModeDialogOpen, setStorageModeDialogOpen] = useState(false);
   const [configExportDialogOpen, setConfigExportDialogOpen] = useState(false);
+  const [aiUsageDialogOpen, setAiUsageDialogOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const handleOpenChange = useCallback(
@@ -56,6 +60,11 @@ export function UserMenu({ onStorageModeChange }: UserMenuProps) {
   const handleConfigExportClick = useCallback(() => {
     setDropdownOpen(false);
     setConfigExportDialogOpen(true);
+  }, []);
+
+  const handleAiUsageClick = useCallback(() => {
+    setDropdownOpen(false);
+    setAiUsageDialogOpen(true);
   }, []);
 
   const handleModeChanged = useCallback(
@@ -140,6 +149,12 @@ export function UserMenu({ onStorageModeChange }: UserMenuProps) {
             <span className="text-sm">Export / Import Settings</span>
           </DropdownMenuItem>
 
+          {/* AI Usage */}
+          <DropdownMenuItem onClick={handleAiUsageClick} className="gap-2 cursor-pointer">
+            <BarChart3 className="h-4 w-4 text-foreground-muted" />
+            <span className="text-sm">AI Usage</span>
+          </DropdownMenuItem>
+
           {/* Admin Panel (admin only) */}
           {isAdmin ? (
             <>
@@ -177,6 +192,13 @@ export function UserMenu({ onStorageModeChange }: UserMenuProps) {
       <ConfigExportDialog
         open={configExportDialogOpen}
         onClose={() => setConfigExportDialogOpen(false)}
+      />
+
+      <AIUsageDialog
+        open={aiUsageDialogOpen}
+        onClose={() => setAiUsageDialogOpen(false)}
+        usageHistory={usageHistory ?? []}
+        onClearHistory={onClearUsageHistory ?? (() => {})}
       />
     </>
   );

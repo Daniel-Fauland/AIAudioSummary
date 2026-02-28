@@ -14,6 +14,7 @@ const KEYS = {
     formTemplateId: `${PREFIX}:standard:form_template_id`,
     formValues: `${PREFIX}:standard:form_values`,
     outputMode: `${PREFIX}:standard:output_mode`,
+    currentStep: `${PREFIX}:standard:current_step`,
     updatedAt: `${PREFIX}:standard:updated_at`,
   },
   realtime: {
@@ -61,6 +62,7 @@ export interface StandardSessionData {
   formTemplateId: string | null;
   formValues: Record<string, unknown>;
   outputMode: "summary" | "form";
+  currentStep: 1 | 2 | 3 | null;
   updatedAt: number | null;
 }
 
@@ -93,6 +95,8 @@ export function useSessionPersistence() {
     const summary = safeGet(KEYS.standard.summary) ?? "";
     const formTemplateId = safeGet(KEYS.standard.formTemplateId) ?? null;
     const outputMode = (safeGet(KEYS.standard.outputMode) ?? "summary") as "summary" | "form";
+    const currentStepRaw = safeGet(KEYS.standard.currentStep);
+    const currentStep = currentStepRaw ? (Number(currentStepRaw) as 1 | 2 | 3) : null;
     const updatedAtRaw = safeGet(KEYS.standard.updatedAt);
     const updatedAt = updatedAtRaw ? Number(updatedAtRaw) : null;
 
@@ -102,7 +106,7 @@ export function useSessionPersistence() {
       if (raw) formValues = JSON.parse(raw);
     } catch {}
 
-    return { transcript, summary, formTemplateId, formValues, outputMode, updatedAt };
+    return { transcript, summary, formTemplateId, formValues, outputMode, currentStep, updatedAt };
   }, []);
 
   const saveStandardTranscript = useCallback((value: string) => {
@@ -128,6 +132,10 @@ export function useSessionPersistence() {
 
   const saveStandardOutputMode = useCallback((mode: "summary" | "form") => {
     safeSet(KEYS.standard.outputMode, mode);
+  }, []);
+
+  const saveStandardCurrentStep = useCallback((step: 1 | 2 | 3) => {
+    safeSet(KEYS.standard.currentStep, String(step));
   }, []);
 
   const clearStandardSession = useCallback(() => {
@@ -245,6 +253,7 @@ export function useSessionPersistence() {
     saveStandardFormTemplateId,
     saveStandardFormValues,
     saveStandardOutputMode,
+    saveStandardCurrentStep,
     clearStandardSession,
     // Realtime
     loadRealtimeSession,

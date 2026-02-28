@@ -8,7 +8,8 @@ import { ChatMessageList } from "./ChatMessageList";
 import { ChatInputBar } from "./ChatInputBar";
 import type { ChatInputBarHandle } from "./ChatInputBar";
 import { TranscriptBadge } from "./TranscriptBadge";
-import type { ChatMessageType } from "@/lib/types";
+import { TokenUsageBadge } from "@/components/ui/TokenUsageBadge";
+import type { ChatMessageType, TokenUsage } from "@/lib/types";
 
 interface ChatbotModalProps {
   open: boolean;
@@ -42,6 +43,9 @@ interface ChatbotModalProps {
   isSettingsOpen?: boolean;
   chatDraft?: string;
   onChatDraftChange?: (value: string) => void;
+  sessionUsage?: TokenUsage | null;
+  lastRequestUsage?: TokenUsage | null;
+  contextWindow?: number;
 }
 
 export function ChatbotModal({
@@ -76,6 +80,9 @@ export function ChatbotModal({
   isSettingsOpen,
   chatDraft,
   onChatDraftChange,
+  sessionUsage,
+  lastRequestUsage,
+  contextWindow,
 }: ChatbotModalProps) {
   const inputBarRef = useRef<ChatInputBarHandle>(null);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -152,6 +159,7 @@ export function ChatbotModal({
             </kbd>
             <kbd className={`${kbdBase} ${cPressed ? kbdActive : kbdDefault}`}>C</kbd>
           </div>
+          <TokenUsageBadge usage={sessionUsage} lastRequestUsage={lastRequestUsage} contextWindow={contextWindow} />
         </div>
         <div className="flex items-center gap-1">
           {messages.length > 0 && (

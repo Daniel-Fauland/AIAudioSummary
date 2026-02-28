@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, Field
-from models.llm import LLMProvider, AzureConfig, LangdockConfig
+from models.llm import LLMProvider, AzureConfig, LangdockConfig, TokenUsage
 
 
 class ChatRole(str, Enum):
@@ -66,7 +66,6 @@ class ChatRequest(BaseModel):
     transcript_enabled: bool = True
     actions_enabled: bool = True
     transcript: str | None = None
-    confirmed_action: ActionProposal | None = None
     stream: bool = True
     app_context: AppContext | None = None
 
@@ -74,3 +73,4 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     content: str
     action: ActionProposal | None = None
+    usage: TokenUsage | None = None

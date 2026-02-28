@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Info, Loader2, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AddQuestionInput } from "./AddQuestionInput";
 import { LiveQuestionItem } from "./LiveQuestionItem";
+import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
+import { buildQuestionsPayload } from "@/lib/content-formats";
 import type { LiveQuestion } from "@/lib/types";
 
 interface LiveQuestionsProps {
@@ -42,6 +44,10 @@ export function LiveQuestions({
   onClearAll,
 }: LiveQuestionsProps) {
   const [confirmClear, setConfirmClear] = useState(false);
+  const contentPayload = useMemo(() => {
+    if (questions.length === 0) return null;
+    return buildQuestionsPayload(questions);
+  }, [questions]);
   const answeredCount = questions.filter((q) => q.status === "answered").length;
   const totalCount = questions.length;
 
@@ -124,6 +130,13 @@ export function LiveQuestions({
                 onReset={onReset}
               />
             ))}
+          </div>
+        )}
+
+        {questions.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+            <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
           </div>
         )}
       </CardContent>

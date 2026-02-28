@@ -70,12 +70,16 @@ function collectSessionData(mode: "standard" | "realtime"): UserPreferences["ses
     };
   }
 
+  const currentStepRaw = safeLocalGet(`${prefix}:current_step`);
+  const currentStep = currentStepRaw ? Number(currentStepRaw) : undefined;
+
   return {
     transcript: transcript || undefined,
     summary: summary || undefined,
     form_template_id: formTemplateId || null,
     form_values: formValues,
     output_mode: safeLocalGet(`${prefix}:output_mode`) || undefined,
+    current_step: currentStep,
     updated_at: updatedAt,
   };
 }
@@ -101,7 +105,7 @@ function collectChatbotSessionData(): UserPreferences["session_chatbot"] | undef
 }
 
 function applySessionData(prefs: UserPreferences): void {
-  const standardKeys = ["transcript", "summary", "form_template_id", "form_values", "output_mode", "updated_at"];
+  const standardKeys = ["transcript", "summary", "form_template_id", "form_values", "output_mode", "current_step", "updated_at"];
   const realtimeKeys = ["transcript", "summary", "form_template_id", "form_values", "questions", "updated_at"];
 
   if (prefs.session_standard) {
@@ -114,6 +118,7 @@ function applySessionData(prefs: UserPreferences): void {
     if (s.form_template_id) safeLocalSet(`${prefix}:form_template_id`, s.form_template_id);
     if (s.form_values) safeLocalSet(`${prefix}:form_values`, JSON.stringify(s.form_values));
     if (s.output_mode) safeLocalSet(`${prefix}:output_mode`, s.output_mode);
+    if (s.current_step) safeLocalSet(`${prefix}:current_step`, String(s.current_step));
     if (s.updated_at) safeLocalSet(`${prefix}:updated_at`, String(s.updated_at));
   }
   if (prefs.session_realtime) {
@@ -175,6 +180,15 @@ function collectPreferences(): UserPreferences {
   const realtimeSystemPrompt = safeLocalGet("aias:v1:realtime_system_prompt");
 
   const syncStandardRealtime = safeLocalGet("aias:v1:sync_standard_realtime");
+  const defaultCopyFormat = safeLocalGet("aias:v1:default_copy_format");
+  const defaultSaveFormat = safeLocalGet("aias:v1:default_save_format");
+
+  // Token usage history
+  let tokenUsageHistory: import("@/lib/types").TokenUsageEntry[] | undefined;
+  try {
+    const raw = safeLocalGet("aias:v1:token_usage_history");
+    if (raw) tokenUsageHistory = JSON.parse(raw);
+  } catch {}
 
   // Session data
   const sessionStandard = collectSessionData("standard");
@@ -202,9 +216,12 @@ function collectPreferences(): UserPreferences {
     custom_templates: customTemplates,
     form_templates: formTemplates,
     sync_standard_realtime: syncStandardRealtime ? syncStandardRealtime === "true" : undefined,
+    default_copy_format: (defaultCopyFormat as import("@/lib/types").CopyFormat) || undefined,
+    default_save_format: (defaultSaveFormat as import("@/lib/types").SaveFormat) || undefined,
     session_standard: sessionStandard,
     session_realtime: sessionRealtime,
     session_chatbot: sessionChatbot,
+    token_usage_history: tokenUsageHistory,
   };
 }
 
@@ -232,6 +249,9 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.custom_templates) safeLocalSet("aias:v1:custom_templates", JSON.stringify(prefs.custom_templates));
   if (prefs.form_templates) safeLocalSet("aias:v1:form_templates", JSON.stringify(prefs.form_templates));
   if (prefs.sync_standard_realtime !== undefined) safeLocalSet("aias:v1:sync_standard_realtime", prefs.sync_standard_realtime ? "true" : "false");
+  if (prefs.default_copy_format) safeLocalSet("aias:v1:default_copy_format", prefs.default_copy_format);
+  if (prefs.default_save_format) safeLocalSet("aias:v1:default_save_format", prefs.default_save_format);
+  if (prefs.token_usage_history) safeLocalSet("aias:v1:token_usage_history", JSON.stringify(prefs.token_usage_history));
   applySessionData(prefs);
 }
 

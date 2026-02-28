@@ -43,8 +43,15 @@ class CreateSummaryRequest(BaseModel):
         return self
 
 
+class TokenUsage(BaseModel):
+    input_tokens: int = Field(0, description="Number of input/prompt tokens")
+    output_tokens: int = Field(0, description="Number of output/completion tokens")
+    total_tokens: int = Field(0, description="Total tokens (input + output)")
+
+
 class CreateSummaryResponse(BaseModel):
     summary: str = Field(..., description="The AI summary of the transcription")
+    usage: TokenUsage | None = Field(None, description="Token usage for this request")
 
 
 class ExtractKeyPointsRequest(BaseModel):

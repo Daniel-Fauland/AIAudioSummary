@@ -6,6 +6,7 @@ import type {
   SummaryInterval,
   IncrementalSummaryRequest,
   RealtimeConnectionStatus,
+  TokenUsage,
 } from "@/lib/types";
 import type { LlmConfig } from "./useRealtimeSession";
 
@@ -20,6 +21,8 @@ export interface UseRealtimeSummaryOptions {
   currentPartialRef: React.RefObject<string>;
   // Callback to commit partial text visually
   onCommitPartial: (partial: string) => void;
+  // Callback when token usage is received
+  onUsage?: (usage: TokenUsage) => void;
 }
 
 export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
@@ -30,6 +33,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
     accumulatedTranscriptRef,
     currentPartialRef,
     onCommitPartial,
+    onUsage,
   } = options;
 
   const [realtimeSummary, setRealtimeSummary] = useState(initialSummary ?? "");
@@ -37,7 +41,10 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
   const [isSummaryUpdating, setIsSummaryUpdating] = useState(false);
   const [summaryInterval, setSummaryIntervalState] = useState<SummaryInterval>(2);
   const [summaryCountdown, setSummaryCountdown] = useState(0);
+  const [accumulatedUsage, setAccumulatedUsage] = useState<TokenUsage | null>(null);
 
+  const onUsageRef = useRef(onUsage);
+  onUsageRef.current = onUsage;
   const summaryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const summaryCountRef = useRef(0);
   const lastSummaryTranscriptLenRef = useRef(0);
@@ -100,10 +107,20 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
       author: config.author,
     };
 
+    const accumulateUsage = (u: TokenUsage | undefined) => {
+      if (!u) return;
+      setAccumulatedUsage(prev => prev
+        ? { input_tokens: prev.input_tokens + u.input_tokens, output_tokens: prev.output_tokens + u.output_tokens, total_tokens: prev.total_tokens + u.total_tokens }
+        : { ...u },
+      );
+      onUsageRef.current?.(u);
+    };
+
     try {
       const response = await createIncrementalSummary(request);
       setRealtimeSummary(response.summary);
       setSummaryUpdatedAt(response.updated_at);
+      accumulateUsage(response.usage);
       lastSummaryTranscriptLenRef.current = effectiveTranscript.length;
       setSummaryCountdown(summaryIntervalRef.current * 60);
     } catch {
@@ -113,6 +130,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
         const response = await createIncrementalSummary(request);
         setRealtimeSummary(response.summary);
         setSummaryUpdatedAt(response.updated_at);
+        accumulateUsage(response.usage);
         lastSummaryTranscriptLenRef.current = effectiveTranscript.length;
         setSummaryCountdown(summaryIntervalRef.current * 60);
       } catch {
@@ -156,15 +174,16 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
     };
   }, [connectionStatus, isPaused]);
 
-  // Pause/resume summary timer
+  // Clear summary timer when session is no longer active (disconnected or paused)
   useEffect(() => {
-    if (isPaused) {
+    const isActive = connectionStatus === "connected" || connectionStatus === "reconnecting";
+    if (!isActive || isPaused) {
       if (summaryTimerRef.current) {
         clearInterval(summaryTimerRef.current);
         summaryTimerRef.current = null;
       }
     }
-  }, [isPaused]);
+  }, [connectionStatus, isPaused]);
 
   const setSummaryInterval = useCallback((interval: SummaryInterval) => {
     summaryIntervalRef.current = interval;
@@ -202,6 +221,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
     setSummaryUpdatedAt(null);
     setIsSummaryUpdating(false);
     setSummaryCountdown(0);
+    setAccumulatedUsage(null);
     realtimeSummaryRef.current = "";
     summaryCountRef.current = 0;
     lastSummaryTranscriptLenRef.current = 0;
@@ -222,6 +242,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
     isSummaryUpdating,
     summaryInterval,
     summaryCountdown,
+    accumulatedUsage,
     setSummaryInterval,
     setLlmConfig,
     triggerManualSummary,

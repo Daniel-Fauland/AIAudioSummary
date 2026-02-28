@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
 from models.chatbot import ChatRequest, ChatResponse
+from models.llm import TokenUsage
 from service.chatbot.core import ChatbotService
 from service.realtime.core import RealtimeTranscriptionService
 from utils.logging import logger
@@ -35,14 +36,35 @@ async def chat(request: ChatRequest):
 
             return StreamingResponse(_with_first(), media_type="text/plain")
         else:
-            return ChatResponse(content=result)
+            output, usage = result
+            token_usage = None
+            try:
+                token_usage = TokenUsage(
+                    input_tokens=usage.request_tokens or 0,
+                    output_tokens=usage.response_tokens or 0,
+                    total_tokens=(usage.request_tokens or 0) + (usage.response_tokens or 0),
+                )
+            except Exception:
+                pass
+            return ChatResponse(content=output, usage=token_usage)
     except Exception as e:
         error_msg = str(e).lower()
-        logger.error(f"Chatbot error: {e}")
+        print(f"[CHATBOT ERROR] {type(e).__name__}: {e}", flush=True)
         if "auth" in error_msg or "api key" in error_msg or "api_key" in error_msg or "unauthorized" in error_msg or "invalid x-api-key" in error_msg or "invalid api key" in error_msg:
             raise HTTPException(status_code=401, detail="Invalid API key")
         elif "model" in error_msg and ("not found" in error_msg or "does not exist" in error_msg or "not exist" in error_msg):
             raise HTTPException(status_code=400, detail="Model not found")
+        elif "429" in error_msg or "rate limit" in error_msg or "rate_limit" in error_msg or "tokens per minute" in error_msg:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded. Please wait a moment and try again.")
+        elif (
+            "context_length" in error_msg
+            or "context window" in error_msg
+            or "too long" in error_msg
+            or "max_tokens" in error_msg
+            or "maximum context length" in error_msg
+            or "token limit" in error_msg
+        ):
+            raise HTTPException(status_code=413, detail="Message too long for model context window. Try clearing chat history or disabling the transcript.")
         else:
             raise HTTPException(status_code=502, detail="Chat provider error")
 

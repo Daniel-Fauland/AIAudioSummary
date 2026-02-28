@@ -13,6 +13,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "docx": "^9.6.0",
+    "jspdf": "^4.2.0",
     "lucide-react": "^0.564.0",
     "marked": "^17.0.3",
     "next": "16.1.6",
@@ -25,6 +27,7 @@
     "react-day-picker": "^9.13.2",
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
+    "recharts": "^3.7.0",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.1"

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, FileText, RefreshCw, ArrowLeft, Maximize2, Square } from "lucide-react";
+import { RefreshCw, ArrowLeft, Maximize2, Square } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { toast } from "sonner";
+import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
+import { TokenUsageBadge } from "@/components/ui/TokenUsageBadge";
+import type { ContentPayload, TokenUsage } from "@/lib/types";
 
 interface SummaryViewProps {
   summary: string;
@@ -24,15 +26,18 @@ interface SummaryViewProps {
   onStop?: () => void;
   onRegenerate?: () => void;
   onBack?: () => void;
+  tokenUsage?: TokenUsage | null;
+  contextWindow?: number;
 }
 
 export function SummaryView({
   summary,
   loading,
-  onCopy,
   onStop,
   onRegenerate,
   onBack,
+  tokenUsage,
+  contextWindow,
 }: SummaryViewProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [badgeHovered, setBadgeHovered] = useState(false);
@@ -46,41 +51,27 @@ export function SummaryView({
     }
   }, [summary, loading]);
 
-  const handleCopyFormatted = async () => {
-    try {
-      const proseEl = scrollRef.current?.querySelector(".markdown-prose");
-      if (proseEl) {
-        const html = proseEl.innerHTML;
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            "text/html": new Blob([html], { type: "text/html" }),
-            "text/plain": new Blob([summary], { type: "text/plain" }),
-          }),
-        ]);
-      } else {
-        await navigator.clipboard.writeText(summary);
-      }
-      toast.success("Summary copied to clipboard", { position: "bottom-center" });
-      onCopy?.();
-    } catch {
-      toast.error("Failed to copy to clipboard");
-    }
-  };
-
-  const handleCopyMarkdown = async () => {
-    try {
-      await navigator.clipboard.writeText(summary);
-      toast.success("Markdown copied to clipboard", { position: "bottom-center" });
-      onCopy?.();
-    } catch {
-      toast.error("Failed to copy to clipboard");
-    }
-  };
+  const contentPayload = useMemo<ContentPayload | null>(() => {
+    if (!summary) return null;
+    const proseEl = scrollRef.current?.querySelector(".markdown-prose");
+    return {
+      type: "summary",
+      plainText: summary,
+      markdown: summary,
+      html: proseEl?.innerHTML,
+      fileNamePrefix: "summary",
+    };
+    // Re-compute when summary changes or loading finishes (DOM updated)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary, loading]);
 
   return (
     <Card className="border-border">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">Summary</CardTitle>
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-lg">Summary</CardTitle>
+          {!loading && <TokenUsageBadge usage={tokenUsage} contextWindow={contextWindow} />}
+        </div>
         <div className="flex items-center gap-2">
           {!loading && summary ? (
             <Button
@@ -141,14 +132,8 @@ export function SummaryView({
 
         {!loading ? (
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" className="justify-start" onClick={handleCopyFormatted} disabled={!summary}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copy Summary
-            </Button>
-            <Button variant="secondary" className="justify-start" onClick={handleCopyMarkdown} disabled={!summary}>
-              <FileText className="mr-2 h-4 w-4" />
-              Copy as Markdown
-            </Button>
+            <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+            <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
             <Button variant="secondary" className="justify-start" onClick={onRegenerate}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Regenerate
@@ -173,14 +158,8 @@ export function SummaryView({
           </ScrollArea>
           <DialogFooter className="sm:justify-start">
             <div className="grid w-full grid-cols-2 gap-2">
-              <Button variant="secondary" className="justify-start" onClick={handleCopyFormatted}>
-                <Copy className="mr-2 h-4 w-4" />
-                Copy Summary
-              </Button>
-              <Button variant="secondary" className="justify-start" onClick={handleCopyMarkdown}>
-                <FileText className="mr-2 h-4 w-4" />
-                Copy as Markdown
-              </Button>
+              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
               <Button variant="secondary" className="justify-start" onClick={onRegenerate}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Regenerate

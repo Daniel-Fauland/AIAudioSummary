@@ -73,6 +73,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
   const accumulatedTranscriptRef = useRef("");
   const currentPartialRef = useRef("");
   const isPausedRef = useRef(false);
+  const lastFinalRef = useRef("");
   const onSessionEndRef = useRef<(() => void) | null>(null);
 
   // Keep refs in sync with state
@@ -124,10 +125,22 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
 
       case "turn":
         if (msg.is_final) {
-          setAccumulatedTranscript((prev) => prev + msg.transcript + "\n");
+          setAccumulatedTranscript((prev) => {
+            const lastFinal = lastFinalRef.current;
+            if (lastFinal && msg.transcript.startsWith(lastFinal)) {
+              // Progressive update: replace last final with the longer version
+              const base = prev.slice(0, prev.length - lastFinal.length);
+              lastFinalRef.current = msg.transcript;
+              return base + msg.transcript;
+            }
+            // New turn
+            lastFinalRef.current = msg.transcript;
+            return prev ? prev + " " + msg.transcript : msg.transcript;
+          });
           setCurrentPartial("");
           setCommittedPartial("");
         } else {
+          lastFinalRef.current = "";  // New turn started — reset dedup
           setCurrentPartial(msg.transcript);
         }
         break;
@@ -332,6 +345,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     setCommittedPartial("");
     accumulatedTranscriptRef.current = "";
     currentPartialRef.current = "";
+    lastFinalRef.current = "";
   }, []);
 
   const resetSession = useCallback(() => {
@@ -352,6 +366,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     setIsSessionEnded(false);
     accumulatedTranscriptRef.current = "";
     currentPartialRef.current = "";
+    lastFinalRef.current = "";
   }, [clearTimer, cleanupAudio]);
 
   // Cleanup on unmount

@@ -127,7 +127,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.6.0** — click to view the changelog of recent updates
+- **v1.7.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -167,11 +167,24 @@ The **Record Audio** tab lets you record audio directly in the browser instead o
 
 **Controls:**
 
-| Control                    | Description                                                                                                                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Audio Source** toggle    | **Mic Only** — records only from your microphone. **Mic + Meeting Audio** — captures both your microphone and audio playing through your computer (useful for recording calls). |
-| **Microphone dropdown**    | Select which microphone device to use (e.g., "Default - MacBook Pro Microphone").                                                                                               |
-| **Start Recording** button | Begins recording. Changes to a stop/pause control while active.                                                                                                                 |
+| Control                    | Description                                                                                                                                                                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Audio Source** toggle    | **Mic Only** — records only from your microphone. **Mic + Meeting Audio** — captures both your microphone and audio playing through your computer (useful for recording online calls). See the guide below for when to use which option. |
+| **Microphone dropdown**    | Select which microphone device to use (e.g., "Default - MacBook Pro Microphone").                                                                                                                                                        |
+| **Start Recording** button | Begins recording. Changes to a stop/pause control while active.                                                                                                                                                                          |
+
+#### Which Audio Source Should I Choose?
+
+| Situation                                                                                                               | Recommended Setting                   | Why                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Online meeting with headphones** (e.g., AirPods, headset) on a **desktop or laptop** using **Chrome, Edge, or Brave** | **Mic + Meeting Audio** (required)    | When you wear headphones, the other participants' voices go straight into your ears — your microphone cannot hear them. "Mic + Meeting Audio" captures the call audio directly from your computer so both sides of the conversation are included in the transcript. **Without this setting, only your voice will be transcribed.** |
+| **Online meeting with speakers** on a **desktop or laptop** using **Chrome, Edge, or Brave**                            | **Mic + Meeting Audio** (recommended) | Even when using speakers, this setting captures the call audio in higher quality than relying on the microphone to pick up sound from the speakers.                                                                                                                                                                                |
+| **In-person conversation** (everyone in the same room)                                                                  | **Mic Only**                          | There is no computer audio to capture — the microphone picks up everyone in the room directly.                                                                                                                                                                                                                                     |
+| **Any situation on Safari, Firefox, or a mobile device** (iPhone, iPad, Android)                                        | **Mic Only**                          | "Mic + Meeting Audio" is **not available** on these browsers and devices (the option will be greyed out). You must use speakerphone — see the tip below.                                                                                                                                                                           |
+
+> **Important — headphone users:** If you are in an online call wearing headphones (AirPods, earbuds, headset) and "Mic + Meeting Audio" is not available on your browser or device, the microphone **cannot** pick up the other participants' voices because the sound goes directly into your headphones, not through speakers. In this case you must either (a) switch to speakerphone / disconnect your headphones so the audio plays through speakers, or (b) use a supported desktop browser (Chrome, Edge, or Brave) where the "Mic + Meeting Audio" option is available.
+
+> **Why is "Mic + Meeting Audio" not available everywhere?** This feature uses a technology called screen audio capture, which is currently only supported by Chromium-based desktop browsers (Google Chrome, Microsoft Edge, Brave, etc.). Safari, Firefox, and all browsers on iPhones and iPads do not support this technology — this is a limitation of those browsers and operating systems, not of this app.
 
 **How to record:**
 
@@ -181,7 +194,7 @@ The **Record Audio** tab lets you record audio directly in the browser instead o
 4. When finished, stop the recording — an audio player will appear so you can preview the recording.
 5. Click **"Use for Transcript"** (or equivalent confirm button) to send it for transcription.
 
-> **Tip:** "Mic + Meeting Audio" is best used when audio plays through your speakers — for example, when you are in a video call on the same device.
+> **Tip:** If "Mic + Meeting Audio" is greyed out on your device, switch to **speakerphone** (turn off headphones) and use **Mic Only** — the microphone will pick up the other participants' voices through the speakers. For the best results, place your device close to the speakers and minimise background noise.
 
 > **Requires:** An AssemblyAI API key. Browser microphone permission must be granted.
 
@@ -375,17 +388,17 @@ Realtime mode provides live transcription of your microphone and generates a run
 
 A horizontal controls bar appears at the top of the Realtime view:
 
-| Control                                          | Description                                                                                                                                                                                                                                           |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Start** / **Continue Session** button (orange) | Begins the realtime session. Shows **Continue Session** when a previous session ended but data remains. If there is existing transcript or summary content, a confirmation dialog appears (see below). Changes to **Pause** and **Stop** once active. |
-| **Pause** button                                 | Pauses microphone capture and the summary timer. Click **Resume** to continue.                                                                                                                                                                        |
-| **Stop** button                                  | Ends the session, closes the connection, and (if enabled) generates a final full-transcript summary.                                                                                                                                                  |
-| **Mic Only / Mic + Meeting Audio** toggle        | Choose whether to capture just your microphone or also audio playing through your speakers.                                                                                                                                                           |
-| **Microphone dropdown**                          | Select which microphone device to use.                                                                                                                                                                                                                |
-| **Status dot**                                   | Colour indicates connection state: grey = idle, amber = connecting, green = connected, red = error.                                                                                                                                                   |
-| **Elapsed timer**                                | Shows how long the current session has been running (e.g., `02:34`).                                                                                                                                                                                  |
-| **Summary countdown**                            | A `mm:ss` timer counting down to the next automatic summary update.                                                                                                                                                                                   |
-| **Refresh Summary button (↻)**                   | Triggers an immediate summary update and resets the countdown timer.                                                                                                                                                                                  |
+| Control                                          | Description                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Start** / **Continue Session** button (orange) | Begins the realtime session. Shows **Continue Session** when a previous session ended but data remains. If there is existing transcript or summary content, a confirmation dialog appears (see below). Changes to **Pause** and **Stop** once active.                                                                              |
+| **Pause** button                                 | Pauses microphone capture and the summary timer. Click **Resume** to continue.                                                                                                                                                                                                                                                     |
+| **Stop** button                                  | Ends the session, closes the connection, and (if enabled) generates a final full-transcript summary.                                                                                                                                                                                                                               |
+| **Mic Only / Mic + Meeting Audio** toggle        | Choose whether to capture just your microphone or also audio playing through your speakers. "Mic + Meeting Audio" is only available on Chromium-based desktop browsers (Chrome, Edge, Brave). On other browsers and mobile devices, only "Mic Only" is available — see [Section 4.2](#42-standard-mode--record-audio) for details. |
+| **Microphone dropdown**                          | Select which microphone device to use.                                                                                                                                                                                                                                                                                             |
+| **Status dot**                                   | Colour indicates connection state: grey = idle, amber = connecting, green = connected, red = error.                                                                                                                                                                                                                                |
+| **Elapsed timer**                                | Shows how long the current session has been running (e.g., `02:34`).                                                                                                                                                                                                                                                               |
+| **Summary countdown**                            | A `mm:ss` timer counting down to the next automatic summary update.                                                                                                                                                                                                                                                                |
+| **Refresh Summary button (↻)**                   | Triggers an immediate summary update and resets the countdown timer.                                                                                                                                                                                                                                                               |
 
 #### Start Session Confirmation
 
@@ -898,12 +911,14 @@ This means you can navigate to the Admin Panel or other pages without losing you
 **Goal:** Record a conversation happening now and summarise it.
 
 1. In Standard mode, click the **Record Audio** tab.
-2. Select **Audio Source**: choose **Mic + Meeting Audio** if the other participants' audio plays through your speakers (e.g., a video call); choose **Mic Only** for in-person conversations.
+2. Select **Audio Source**: choose **Mic + Meeting Audio** if the other participants' audio plays through your speakers (e.g., a video call on Chrome, Edge, or Brave on desktop); choose **Mic Only** for in-person conversations or if you are on Safari, Firefox, or a mobile device.
 3. Select your microphone from the dropdown.
 4. Click **Start Recording**. Record the conversation.
 5. When finished, stop the recording and preview it using the audio player.
 6. Click to confirm the recording and send it for transcription.
 7. Follow steps 5–10 from [Workflow 5.1](#51-transcribing-and-summarising-a-recording) above.
+
+> **Mobile / unsupported browser?** Use **Mic Only** with speakerphone enabled so the microphone picks up the other participants through the speakers.
 
 ---
 
@@ -1062,6 +1077,21 @@ A: Yes — you can save API keys for multiple providers and switch between them 
 
 **Q: Where is my data stored? Is my audio or transcript saved on the server?**
 A: No. Audio files are processed by AssemblyAI and deleted from the app's server immediately after transcription. Transcripts and summaries are stored in your browser's localStorage so they persist across page reloads and navigation, but they are never sent to or saved on the app's server. API keys are also stored only in your browser's localStorage. If you have Account Storage enabled, only your app preferences (model settings, templates, theme) are stored server-side — never audio, transcripts, summaries, or API keys. See the full **Privacy Policy** in the footer for details.
+
+---
+
+**Q: Why is "Mic + Meeting Audio" greyed out?**
+A: This option is only available on **Chromium-based desktop browsers** — that means Google Chrome, Microsoft Edge, or Brave on a desktop or laptop computer. It is not supported on Safari, Firefox, or any browser on iPhones, iPads, and most Android devices. This is a limitation of the browser/operating system, not of this app. If the option is greyed out, use **Mic Only** and make sure to switch to **speakerphone** (disconnect headphones) so the microphone can pick up the other participants' audio through the speakers.
+
+---
+
+**Q: I'm on my phone — how do I record a video call with both sides of the conversation?**
+A: On mobile devices, "Mic + Meeting Audio" is not available (see above). The most important thing: **do not use headphones** — if the call audio goes into your headphones, the microphone cannot hear the other participants at all. Instead, use **Mic Only** and enable **speakerphone** on the call. Place the phone close to you so the microphone picks up both your voice and the audio from the speakers. For best results, minimise background noise. Alternatively, you can join the call from a desktop computer using Chrome, Edge, or Brave and use the **Mic + Meeting Audio** option there to capture the call audio directly.
+
+---
+
+**Q: I recorded a meeting but only my voice was transcribed — the other participants are missing.**
+A: This almost always means the other participants' audio was playing through your **headphones** and could not be picked up by the microphone. If you are on a desktop using Chrome, Edge, or Brave, switch to **Mic + Meeting Audio** — this captures the call audio directly from your computer regardless of headphones. If you are on a mobile device or an unsupported browser where that option is not available, you must disconnect your headphones and use **speakerphone** so the microphone can hear everyone.
 
 ---
 

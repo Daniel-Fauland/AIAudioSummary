@@ -20,16 +20,32 @@ PROVIDERS = [
         id="openai",
         name="OpenAI",
         models=["gpt-5.2", "gpt-5-mini", "gpt-5-nano", "gpt-4.1-mini"],
+        model_context_windows={
+            "gpt-5.2": 1_000_000,
+            "gpt-5-mini": 1_000_000,
+            "gpt-5-nano": 1_000_000,
+            "gpt-4.1-mini": 1_000_000,
+        },
     ),
     ProviderInfo(
         id="anthropic",
         name="Anthropic",
         models=["claude-opus-4-6", "claude-sonnet-4-5", "claude-haiku-4-5"],
+        model_context_windows={
+            "claude-opus-4-6": 200_000,
+            "claude-sonnet-4-5": 200_000,
+            "claude-haiku-4-5": 200_000,
+        },
     ),
     ProviderInfo(
         id="gemini",
         name="Google Gemini",
         models=["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-flash"],
+        model_context_windows={
+            "gemini-3-pro-preview": 1_000_000,
+            "gemini-3-flash-preview": 1_000_000,
+            "gemini-2.5-flash": 1_000_000,
+        },
     ),
     ProviderInfo(
         id="azure_openai",
@@ -46,10 +62,14 @@ PROVIDERS = [
             # value (~14M), causing 400 errors. See user_stories/langdock_openai_bug_report.md
             # "gpt-5.2", "gpt-5.2-pro",
             # Anthropic-compatible
-            "claude-sonnet-4-5-20250929", "claude-sonnet-4-6-default", "claude-opus-4-6-default",
-            # Google-compatible
-            "gemini-2.5-pro", "gemini-2.5-flash",
+            "claude-sonnet-4-6-default", "claude-opus-4-6-default",
+            # Google-compatible — temporarily disabled
+            # "gemini-2.5-pro", "gemini-2.5-flash",
         ],
+        model_context_windows={
+            "claude-sonnet-4-6-default": 200_000,
+            "claude-opus-4-6-default": 200_000,
+        },
     ),
 ]
 

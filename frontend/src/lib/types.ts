@@ -2,6 +2,24 @@
 
 export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai" | "langdock";
 
+// === Token Usage types ===
+
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+}
+
+export interface TokenUsageEntry {
+  timestamp: number;
+  feature: string;
+  provider: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+}
+
 // === Config types (from GET /getConfig) ===
 
 export interface ProviderInfo {
@@ -9,6 +27,7 @@ export interface ProviderInfo {
   name: string;
   models: string[];
   requires_azure_config: boolean;
+  model_context_windows?: Record<string, number>;
 }
 
 export interface PromptTemplate {
@@ -63,6 +82,7 @@ export interface CreateSummaryRequest {
 
 export interface CreateSummaryResponse {
   summary: string;
+  usage?: TokenUsage;
 }
 
 // === Key Points types ===
@@ -201,6 +221,7 @@ export interface IncrementalSummaryRequest {
 export interface IncrementalSummaryResponse {
   summary: string;
   updated_at: string;
+  usage?: TokenUsage;
 }
 
 // === Live Questions types ===
@@ -277,7 +298,6 @@ export interface ChatRequest {
   transcript_enabled: boolean;
   actions_enabled: boolean;
   transcript: string | null;
-  confirmed_action?: ActionProposal | null;
   stream: boolean;
   app_context?: AppContext;
 }
@@ -291,6 +311,21 @@ export interface UserProfile {
   role: "user" | "admin";
   storage_mode: "local" | "account";
   created_at: string;
+}
+
+// === Content Actions types ===
+
+export type ContentType = "transcript" | "summary" | "form" | "questions";
+export type CopyFormat = "formatted" | "plain" | "markdown" | "json";
+export type SaveFormat = "txt" | "md" | "docx" | "pdf" | "html" | "json";
+
+export interface ContentPayload {
+  type: ContentType;
+  plainText: string;
+  markdown: string;
+  html?: string;
+  json?: unknown;
+  fileNamePrefix: string;
 }
 
 // === Preferences types ===
@@ -320,12 +355,15 @@ export interface UserPreferences {
   chatbot_actions?: boolean;
   speaker_labels_enabled?: boolean;
   sync_standard_realtime?: boolean;
+  default_copy_format?: CopyFormat;
+  default_save_format?: SaveFormat;
   session_standard?: {
     transcript?: string;
     summary?: string;
     form_template_id?: string | null;
     form_values?: Record<string, unknown>;
     output_mode?: string;
+    current_step?: number;
     updated_at?: number | null;
   };
   session_realtime?: {
@@ -340,6 +378,7 @@ export interface UserPreferences {
     messages?: { role: string; content: string }[];
     updated_at?: number | null;
   };
+  token_usage_history?: TokenUsageEntry[];
 }
 
 export interface PreferencesResponse {

@@ -36,13 +36,15 @@ import { useFormTemplates } from "@/hooks/useFormTemplates";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useSessionPersistence } from "@/hooks/useSessionPersistence";
 import { useChatbot } from "@/hooks/useChatbot";
+import { useTokenUsage } from "@/hooks/useTokenUsage";
 import { useGlobalRecording } from "@/contexts/GlobalRecordingContext";
 import { useGlobalSync } from "@/contexts/GlobalSyncContext";
 import { createTranscript, createSummary, extractKeyPoints, fillForm } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { extractDateFromFilename } from "@/lib/utils";
 import { parseConfigString, importSettings, configContainsApiKeys } from "@/lib/config-export";
-import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType, TokenUsage } from "@/lib/types";
+import { getContextWindow } from "@/lib/token-utils";
 import { APP_VERSION } from "@/lib/constants";
 import { changelog } from "@/lib/changelog";
 
@@ -64,6 +66,8 @@ const CHATBOT_QA_KEY = "aias:v1:chatbot_qa";
 const CHATBOT_TRANSCRIPT_KEY = "aias:v1:chatbot_transcript";
 const CHATBOT_ACTIONS_KEY = "aias:v1:chatbot_actions";
 const SYNC_STANDARD_REALTIME_KEY = "aias:v1:sync_standard_realtime";
+const DEFAULT_COPY_FORMAT_KEY = "aias:v1:default_copy_format";
+const DEFAULT_SAVE_FORMAT_KEY = "aias:v1:default_save_format";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -115,6 +119,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const { theme, setTheme } = useTheme();
   const globalRecording = useGlobalRecording();
   const globalSync = useGlobalSync();
+  const { usageHistory, recordUsage, clearHistory: clearUsageHistory } = useTokenUsage();
   const {
     templates: customTemplates,
     saveTemplate: rawSaveCustomTemplate,
@@ -249,7 +254,22 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [langdockConfig, setLangdockConfigState] = useState<LangdockConfig>(() => getLangdockConfig());
 
   // Workflow state — initialize from persisted session data
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(() => {
+  const [currentStep, setCurrentStepRaw] = useState<1 | 2 | 3>(() => {
+    // Prefer persisted step (user's last viewed step)
+    if (initialStandardSession.currentStep) {
+      const step = initialStandardSession.currentStep;
+      // Validate: don't restore a step beyond what the data supports
+      if (step === 3 && !initialStandardSession.summary && !(initialStandardSession.formValues && Object.keys(initialStandardSession.formValues).length > 0)) {
+        // No summary/form data — can't show step 3
+        if (initialStandardSession.transcript) return 2;
+        return 1;
+      }
+      if (step === 2 && !initialStandardSession.transcript) {
+        return 1;
+      }
+      return step;
+    }
+    // Fallback: derive from session data (legacy behaviour for first load)
     if (initialStandardSession.summary || (initialStandardSession.formValues && Object.keys(initialStandardSession.formValues).length > 0)) return 3;
     if (initialStandardSession.transcript) return 2;
     return 1;
@@ -259,6 +279,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     if (initialStandardSession.transcript) return 2;
     return 1;
   });
+  // Wrap setCurrentStep to persist step to localStorage (and server via next savePreferences call)
+  const setCurrentStep = useCallback((step: 1 | 2 | 3) => {
+    setCurrentStepRaw(step);
+    sessionPersistence.saveStandardCurrentStep(step);
+  }, [sessionPersistence.saveStandardCurrentStep]);
+
   const [stepNavDialogOpen, setStepNavDialogOpen] = useState(false);
   const [pendingStep, setPendingStep] = useState<1 | 2 | 3 | null>(null);
   const [step1Mode, setStep1Mode] = useState<"upload" | "record">("upload");
@@ -267,6 +293,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [transcript, setTranscript] = useState(initialStandardSession.transcript);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [summary, setSummary] = useState(initialStandardSession.summary);
+  const [summaryUsage, setSummaryUsage] = useState<TokenUsage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -579,6 +606,26 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
   }, [savePreferences, globalSync]);
 
+  // Default copy/save format state
+  const [defaultCopyFormat, setDefaultCopyFormat] = useState<import("@/lib/types").CopyFormat>(
+    () => (serverPreferences?.default_copy_format as import("@/lib/types").CopyFormat) || safeGet(DEFAULT_COPY_FORMAT_KEY, "formatted") as import("@/lib/types").CopyFormat,
+  );
+  const [defaultSaveFormat, setDefaultSaveFormat] = useState<import("@/lib/types").SaveFormat>(
+    () => (serverPreferences?.default_save_format as import("@/lib/types").SaveFormat) || safeGet(DEFAULT_SAVE_FORMAT_KEY, "docx") as import("@/lib/types").SaveFormat,
+  );
+
+  const handleDefaultCopyFormatChange = useCallback((format: import("@/lib/types").CopyFormat) => {
+    setDefaultCopyFormat(format);
+    safeSet(DEFAULT_COPY_FORMAT_KEY, format);
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleDefaultSaveFormatChange = useCallback((format: import("@/lib/types").SaveFormat) => {
+    setDefaultSaveFormat(format);
+    safeSet(DEFAULT_SAVE_FORMAT_KEY, format);
+    savePreferences();
+  }, [savePreferences]);
+
   // Keep sync context's AssemblyAI key up to date
   useEffect(() => {
     const key = getKey("assemblyai");
@@ -787,7 +834,19 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
   }, [sessionPersistence.saveChatbotMessages, sessionPersistence.clearChatbotSession, savePreferences]);
 
-  const { messages: chatMessages, isStreaming: isChatStreaming, sendMessage: sendChatMessage, clearMessages: clearChatMessages, hasApiKey: hasChatApiKey, confirmAction: confirmChatAction, cancelAction: cancelChatAction, isVoiceActive: isChatVoiceActive, voiceConnecting: isChatVoiceConnecting, partialTranscript: chatPartialTranscript, voiceText: chatVoiceText, clearVoiceText: clearChatVoiceText, toggleVoice: toggleChatVoice, audioDevices: chatAudioDevices, selectedDeviceId: chatSelectedDeviceId, onDeviceChange: onChatDeviceChange } = useChatbot({
+  const handleChatbotUsage = useCallback((usage: TokenUsage) => {
+    const { provider: chatProvider, model: chatModel } = resolveModelConfig("chatbot");
+    recordUsage({
+      feature: "chatbot",
+      provider: chatProvider,
+      model: chatModel,
+      input_tokens: usage.input_tokens,
+      output_tokens: usage.output_tokens,
+      total_tokens: usage.total_tokens,
+    });
+  }, [resolveModelConfig, recordUsage]);
+
+  const { messages: chatMessages, isStreaming: isChatStreaming, sendMessage: sendChatMessage, clearMessages: clearChatMessages, hasApiKey: hasChatApiKey, confirmAction: confirmChatAction, cancelAction: cancelChatAction, sessionUsage: chatSessionUsage, lastRequestUsage: chatLastRequestUsage, isVoiceActive: isChatVoiceActive, voiceConnecting: isChatVoiceConnecting, partialTranscript: chatPartialTranscript, voiceText: chatVoiceText, clearVoiceText: clearChatVoiceText, toggleVoice: toggleChatVoice, audioDevices: chatAudioDevices, selectedDeviceId: chatSelectedDeviceId, onDeviceChange: onChatDeviceChange } = useChatbot({
     chatbotQAEnabled,
     chatbotTranscriptEnabled,
     chatbotActionsEnabled,
@@ -806,6 +865,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     chatbotEnabled,
     initialMessages: initialChatbotSession.messages,
     onMessagesChange: onChatbotMessagesChange,
+    onUsage: handleChatbotUsage,
   });
 
   const handleClearChatMessages = useCallback(() => {
@@ -988,13 +1048,13 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     hasAutoExtractedKeyPointsRef.current = false;
     speakerRenamesRef.current = {};
     sessionPersistence.clearStandardSession();
-    savePreferences();
 
     setCurrentStep(2);
     setMaxReachedStep(2);
     setTranscript("");
     setSelectedFile(null);
-  }, [sessionPersistence.clearStandardSession, savePreferences]);
+    savePreferences();
+  }, [sessionPersistence.clearStandardSession, setCurrentStep, savePreferences]);
 
   // Step 2 → 3: generate summary
   const handleGenerate = useCallback(async () => {
@@ -1011,13 +1071,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     setMaxReachedStep((prev) => Math.max(prev, 3) as 1 | 2 | 3);
     setIsGenerating(true);
     setSummary("");
+    setSummaryUsage(null);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
     let accumulatedSummary = "";
 
     try {
-      await createSummary(
+      const result = await createSummary(
         {
           provider: summaryProvider,
           api_key: llmKey,
@@ -1038,6 +1099,22 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         },
         controller.signal,
       );
+      // Use cleaned text (usage marker stripped) and capture usage
+      if (result.text) {
+        accumulatedSummary = result.text;
+        setSummary(result.text);
+      }
+      if (result.usage) {
+        setSummaryUsage(result.usage);
+        recordUsage({
+          feature: "summary_generation",
+          provider: summaryProvider,
+          model: summaryModel,
+          input_tokens: result.usage.input_tokens,
+          output_tokens: result.usage.output_tokens,
+          total_tokens: result.usage.total_tokens,
+        });
+      }
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {
         // User stopped generation — not an error
@@ -1074,12 +1151,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
 
   const handleBackToTranscript = useCallback(() => {
     setCurrentStep(2);
-  }, []);
+    savePreferences();
+  }, [setCurrentStep, savePreferences]);
 
   const handleShowPreviousOutput = useCallback(() => {
     setCurrentStep(3);
     setMaxReachedStep((prev) => Math.max(prev, 3) as 1 | 2 | 3);
-  }, []);
+    savePreferences();
+  }, [setCurrentStep, savePreferences]);
 
   const handleStartOver = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -1087,8 +1166,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     setSelectedFile(null);
     setIsGenerating(false);
     setIsTranscribing(false);
+    savePreferences();
     // Keep transcript/summary/form in state and storage — data persists until a new file is uploaded
-  }, []);
+  }, [setCurrentStep, savePreferences]);
 
   const handleStepClick = useCallback(
     (step: 1 | 2 | 3) => {
@@ -1097,6 +1177,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       // Navigating forward (e.g. step 2 → 3 to view previous results) — go directly
       if (step > currentStep) {
         setCurrentStep(step);
+        savePreferences();
         return;
       }
       // Navigating backward to step 1 — go directly (data is persisted)
@@ -1106,6 +1187,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         setSelectedFile(null);
         setIsGenerating(false);
         setIsTranscribing(false);
+        savePreferences();
         return;
       }
       // Navigating backward to step 2 while generating — show confirmation
@@ -1116,8 +1198,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       }
       // Otherwise go directly (e.g. step 3 → 2 with no generation in progress)
       setCurrentStep(step);
+      savePreferences();
     },
-    [currentStep, maxReachedStep, isGenerating],
+    [currentStep, maxReachedStep, isGenerating, setCurrentStep, savePreferences],
   );
 
   const handleStepNavConfirm = useCallback(() => {
@@ -1126,10 +1209,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       abortControllerRef.current?.abort();
       setIsGenerating(false);
       setCurrentStep(2);
+      savePreferences();
     }
     setStepNavDialogOpen(false);
     setPendingStep(null);
-  }, [pendingStep]);
+  }, [pendingStep, setCurrentStep, savePreferences]);
 
   const handleStepNavCancel = useCallback(() => {
     setStepNavDialogOpen(false);
@@ -1228,10 +1312,21 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     }
   }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, formValues, meetingDate, savePreferences]);
 
+  const handleRealtimeSummaryUsage = useCallback((usage: TokenUsage) => {
+    recordUsage({
+      feature: "realtime_summary",
+      provider: resolvedRealtimeConfig.provider,
+      model: resolvedRealtimeConfig.model,
+      input_tokens: usage.input_tokens,
+      output_tokens: usage.output_tokens,
+      total_tokens: usage.total_tokens,
+    });
+  }, [recordUsage, resolvedRealtimeConfig.provider, resolvedRealtimeConfig.model]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="flex-1">
-      <Header onSettingsClick={() => setSettingsOpen(true)} onStorageModeChange={setStorageMode} />
+      <Header onSettingsClick={() => setSettingsOpen(true)} onStorageModeChange={setStorageMode} usageHistory={usageHistory} onClearUsageHistory={clearUsageHistory} />
 
       <SettingsSheet
         open={settingsOpen}
@@ -1272,6 +1367,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onChatbotActionsEnabledChange={handleChatbotActionsEnabledChange}
         syncStandardRealtime={syncStandardRealtime}
         onSyncStandardRealtimeChange={handleSyncStandardRealtimeChange}
+        defaultCopyFormat={defaultCopyFormat}
+        onDefaultCopyFormatChange={handleDefaultCopyFormatChange}
+        defaultSaveFormat={defaultSaveFormat}
+        onDefaultSaveFormatChange={handleDefaultSaveFormatChange}
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
@@ -1348,6 +1447,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             onPersistFormTemplateId={sessionPersistence.saveRealtimeFormTemplateId}
             onClearRealtimeSession={sessionPersistence.clearRealtimeSession}
             onSavePreferences={savePreferences}
+            onSummaryUsage={handleRealtimeSummaryUsage}
           />
         </div>
 
@@ -1412,7 +1512,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
               {transcript && (
                 <button
                   type="button"
-                  onClick={() => { setCurrentStep(2); }}
+                  onClick={() => { setCurrentStep(2); savePreferences(); }}
                   className="text-sm text-primary hover:text-primary/80 transition-colors"
                 >
                   Show previous transcript
@@ -1566,6 +1666,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
                     onStop={handleStopGenerating}
                     onRegenerate={handleRegenerate}
                     onBack={handleBackToTranscript}
+                    tokenUsage={summaryUsage}
+                    contextWindow={getContextWindow(config, resolveModelConfig("summary_generation").provider, resolveModelConfig("summary_generation").model)}
                   />
                 ) : (
                   <FormOutputView
@@ -1634,6 +1736,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             isSettingsOpen={settingsOpen}
             chatDraft={chatDraft}
             onChatDraftChange={setChatDraft}
+            sessionUsage={chatSessionUsage}
+            lastRequestUsage={chatLastRequestUsage}
+            contextWindow={getContextWindow(config, resolveModelConfig("chatbot").provider, resolveModelConfig("chatbot").model)}
           />
         </>
       )}

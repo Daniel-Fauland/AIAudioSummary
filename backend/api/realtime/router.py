@@ -250,15 +250,56 @@ async def _run_relay(
             stop_event.set()
 
     async def aai_to_browser():
-        """Receive transcript events from AAI and forward to browser."""
+        """Receive transcript events from AAI and forward to browser.
+
+        Progressive formatted finals from AssemblyAI are debounced so only
+        the last (longest) version of each turn is sent to the frontend.
+        """
         nonlocal aai_ws
+        pending_final: str | None = None
+        pending_task: asyncio.Task | None = None
+
+        async def send_final(text: str):
+            """Send a finalized turn to browser and session_manager."""
+            await session_manager.append_final_text(session_id, text + " ")
+            await session_manager.update_partial(session_id, "")
+            await ws.send_json({
+                "type": "turn",
+                "transcript": text,
+                "is_final": True,
+            })
+
+        async def delayed_flush():
+            """Sleep then send the buffered final."""
+            nonlocal pending_final
+            await asyncio.sleep(0.3)
+            text = pending_final
+            if text is not None:
+                pending_final = None
+                await send_final(text)
+
+        async def flush_now():
+            """Immediately flush any pending final and cancel the timer."""
+            nonlocal pending_final, pending_task
+            if pending_task and not pending_task.done():
+                pending_task.cancel()
+                try:
+                    await pending_task
+                except asyncio.CancelledError:
+                    pass
+                pending_task = None
+            if pending_final is not None:
+                text = pending_final
+                pending_final = None
+                await send_final(text)
+
         try:
             while not stop_event.is_set():
                 try:
                     raw = await aai_ws.recv()
                 except Exception as e:
                     if stop_event.is_set():
-                        return
+                        break
                     # Attempt reconnect
                     logger.warning(f"AAI connection lost: {e}")
                     reconnected = await _attempt_reconnect(
@@ -273,15 +314,51 @@ async def _run_relay(
                             "message": "Lost connection to AssemblyAI and reconnect failed"
                         })
                         stop_event.set()
-                        return
+                        break
 
                 event = json.loads(raw)
-                await _handle_aai_event(ws, event, session_id)
+                msg_type = event.get("type", "")
+
+                if msg_type == "Turn":
+                    transcript = event.get("transcript", "")
+                    is_eos = event.get("end_of_turn", False)
+                    is_formatted = event.get("turn_is_formatted", False)
+
+                    # Skip unformatted end-of-turn (duplicate of formatted one)
+                    if is_eos and not is_formatted:
+                        continue
+
+                    if is_formatted and transcript:
+                        # Progressive final — buffer and reset debounce timer
+                        if pending_task and not pending_task.done():
+                            pending_task.cancel()
+                        pending_final = transcript
+                        pending_task = asyncio.create_task(delayed_flush())
+                    elif not is_eos and transcript:
+                        # Partial — flush any pending final first, then send
+                        await flush_now()
+                        await session_manager.update_partial(session_id, transcript)
+                        await ws.send_json({
+                            "type": "turn",
+                            "transcript": transcript,
+                            "is_final": False,
+                        })
+                else:
+                    await _handle_aai_event(ws, event, session_id)
 
         except Exception as e:
             if not stop_event.is_set():
                 logger.error(f"aai_to_browser error: {e}")
                 stop_event.set()
+        finally:
+            # Flush any remaining pending final before exiting
+            if pending_task and not pending_task.done():
+                pending_task.cancel()
+            if pending_final is not None:
+                try:
+                    await send_final(pending_final)
+                except Exception:
+                    pass
 
     task_b2a = asyncio.create_task(browser_to_aai())
     task_a2b = asyncio.create_task(aai_to_browser())
@@ -305,34 +382,13 @@ async def _run_relay(
 
 
 async def _handle_aai_event(ws: WebSocket, event: dict, session_id: str):
-    """Parse AAI event and forward structured message to browser."""
+    """Parse non-Turn AAI events and forward to browser.
+
+    Turn events are handled directly in aai_to_browser() with debouncing.
+    """
     msg_type = event.get("type", "")
 
-    if msg_type == "Turn":
-        transcript = event.get("transcript", "")
-        is_eos = event.get("end_of_turn", False)
-        is_formatted = event.get("turn_is_formatted", False)
-
-        # With format_turns=true, AAI sends two events when a turn ends:
-        # 1. Unformatted final (end_of_turn=True, turn_is_formatted=False) — skip it
-        # 2. Formatted final (turn_is_formatted=True) — use this as the real final
-        # Partials (end_of_turn=False) are always passed through.
-        if is_eos and not is_formatted:
-            return
-
-        if is_formatted and transcript:
-            await session_manager.append_final_text(session_id, transcript + "\n")
-            await session_manager.update_partial(session_id, "")
-        elif not is_eos and transcript:
-            await session_manager.update_partial(session_id, transcript)
-
-        await ws.send_json({
-            "type": "turn",
-            "transcript": transcript,
-            "is_final": is_formatted,
-        })
-
-    elif msg_type == "Error":
+    if msg_type == "Error":
         error_msg = event.get("error", "Unknown AssemblyAI error")
         logger.error(f"AAI error for session {session_id}: {error_msg}")
         await ws.send_json({"type": "error", "message": error_msg})

@@ -20,6 +20,7 @@ import type {
   PromptAssistantAnalyzeResponse,
   PromptAssistantGenerateRequest,
   PromptAssistantGenerateResponse,
+  TokenUsage,
   UpdatedTranscriptResponse,
   UserPreferences,
   UserProfile,
@@ -27,6 +28,7 @@ import type {
 
 const API_BASE = "/api/proxy";
 const STREAM_ERROR_RE = /\n?\n?<!--STREAM_ERROR:(.+?)-->$/;
+const TOKEN_USAGE_RE = /\n?\n?<!--TOKEN_USAGE:(.+?)-->$/;
 
 export class ApiError extends Error {
   constructor(
@@ -119,7 +121,7 @@ export async function createSummary(
   request: CreateSummaryRequest,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<{ text: string; usage?: TokenUsage }> {
   const sanitized = {
     ...request,
     date: request.date || null,
@@ -160,17 +162,27 @@ export async function createSummary(
       onChunk(chunk);
     }
 
+    // Extract usage marker before checking for errors
+    let usage: TokenUsage | undefined;
+    const usageMatch = fullText.match(TOKEN_USAGE_RE);
+    if (usageMatch) {
+      try {
+        usage = JSON.parse(usageMatch[1]) as TokenUsage;
+      } catch { /* ignore parse errors */ }
+      fullText = fullText.replace(TOKEN_USAGE_RE, "");
+    }
+
     // Check for backend stream error marker
     const errorMatch = fullText.match(STREAM_ERROR_RE);
     if (errorMatch) {
       throw new ApiError(502, errorMatch[1]);
     }
 
-    return fullText;
+    return { text: fullText, usage };
   }
 
   const data = (await response.json()) as CreateSummaryResponse;
-  return data.summary;
+  return { text: data.summary, usage: data.usage };
 }
 
 export async function createIncrementalSummary(
@@ -294,7 +306,7 @@ export async function chatbotChat(
   request: ChatRequest,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<{ text: string; usage?: TokenUsage }> {
   const response = await fetch(`${API_BASE}/chatbot/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -330,15 +342,25 @@ export async function chatbotChat(
       onChunk(chunk);
     }
 
+    // Extract usage marker before checking for errors
+    let usage: TokenUsage | undefined;
+    const usageMatch = fullText.match(TOKEN_USAGE_RE);
+    if (usageMatch) {
+      try {
+        usage = JSON.parse(usageMatch[1]) as TokenUsage;
+      } catch { /* ignore parse errors */ }
+      fullText = fullText.replace(TOKEN_USAGE_RE, "");
+    }
+
     // Check for backend stream error marker
     const errorMatch = fullText.match(STREAM_ERROR_RE);
     if (errorMatch) {
       throw new ApiError(502, errorMatch[1]);
     }
 
-    return fullText;
+    return { text: fullText, usage };
   }
 
   const data = await response.json();
-  return data.content;
+  return { text: data.content, usage: data.usage };
 }

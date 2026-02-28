@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import StreamingResponse
 from service.llm.core import LLMService
-from models.llm import CreateSummaryRequest, CreateSummaryResponse, ExtractKeyPointsRequest, ExtractKeyPointsResponse
+from models.llm import CreateSummaryRequest, CreateSummaryResponse, ExtractKeyPointsRequest, ExtractKeyPointsResponse, TokenUsage
 from utils.logging import logger
 
 llm_router = APIRouter()
@@ -35,8 +35,17 @@ async def create_summary(
 
             return StreamingResponse(_with_first(), media_type="text/plain")
 
-        summary = await service.generate_summary(request)
-        return CreateSummaryResponse(summary=summary)
+        output, usage = await service.generate_summary(request)
+        token_usage = None
+        try:
+            token_usage = TokenUsage(
+                input_tokens=usage.request_tokens or 0,
+                output_tokens=usage.response_tokens or 0,
+                total_tokens=(usage.request_tokens or 0) + (usage.response_tokens or 0),
+            )
+        except Exception:
+            pass
+        return CreateSummaryResponse(summary=output, usage=token_usage)
 
     except Exception as e:
         error_msg = str(e).lower()

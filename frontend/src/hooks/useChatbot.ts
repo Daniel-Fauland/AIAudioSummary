@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { marked } from "marked";
 import { chatbotChat } from "@/lib/api";
-import type { ChatMessageType, ChatRequest, LLMProvider, AzureConfig, LangdockConfig, FeatureModelOverride, ActionProposal, AppContext } from "@/lib/types";
+import type { ChatMessageType, ChatRequest, LLMProvider, AzureConfig, LangdockConfig, FeatureModelOverride, ActionProposal, AppContext, TokenUsage } from "@/lib/types";
 
 const WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL || "ws://localhost:8080";
 const MIC_STORAGE_KEY = "aias:v1:mic_device_id";
@@ -49,6 +49,7 @@ interface UseChatbotProps {
   chatbotEnabled: boolean;
   initialMessages?: ChatMessageType[];
   onMessagesChange?: (messages: ChatMessageType[]) => void;
+  onUsage?: (usage: TokenUsage) => void;
 }
 
 interface UseChatbotReturn {
@@ -59,6 +60,8 @@ interface UseChatbotReturn {
   hasApiKey: boolean;
   confirmAction: (messageId: string) => Promise<void>;
   cancelAction: (messageId: string) => void;
+  sessionUsage: TokenUsage | null;
+  lastRequestUsage: TokenUsage | null;
   isVoiceActive: boolean;
   voiceConnecting: boolean;
   partialTranscript: string;
@@ -83,14 +86,19 @@ const READ_ONLY_ACTIONS = new Set([
   "get_form_template",
 ]);
 
+const ACTION_BLOCK_REGEX = /```action\s*\n([\s\S]*?)\n```/;
+
+function stripActionBlock(content: string): string {
+  return content.replace(ACTION_BLOCK_REGEX, "").trim();
+}
+
 function parseActionBlock(content: string): { cleanContent: string; action: ActionProposal | null } {
-  const actionRegex = /```action\s*\n([\s\S]*?)\n```/;
-  const match = content.match(actionRegex);
+  const match = content.match(ACTION_BLOCK_REGEX);
   if (!match) return { cleanContent: content, action: null };
 
   try {
     const action = JSON.parse(match[1]) as ActionProposal;
-    const cleanContent = content.replace(actionRegex, "").trim();
+    const cleanContent = content.replace(ACTION_BLOCK_REGEX, "").trim();
     return { cleanContent, action };
   } catch {
     return { cleanContent: content, action: null };
@@ -116,11 +124,16 @@ export function useChatbot({
   chatbotEnabled,
   initialMessages,
   onMessagesChange,
+  onUsage,
 }: UseChatbotProps): UseChatbotReturn {
   const [messages, setMessages] = useState<ChatMessageType[]>(initialMessages ?? []);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [sessionUsage, setSessionUsage] = useState<TokenUsage | null>(null);
+  const [lastRequestUsage, setLastRequestUsage] = useState<TokenUsage | null>(null);
   const onMessagesChangeRef = useRef(onMessagesChange);
   onMessagesChangeRef.current = onMessagesChange;
+  const onUsageRef = useRef(onUsage);
+  onUsageRef.current = onUsage;
   const abortRef = useRef<AbortController | null>(null);
 
   // Streaming: accumulate text in refs and write directly to DOM (bypasses React)
@@ -181,12 +194,27 @@ export function useChatbot({
     const controller = new AbortController();
     abortRef.current = controller;
 
-    // Build messages for API (last 20)
+    // Build messages for API (last 20) — strip action JSON from assistant messages
+    // and attach action outcome context to the NEXT user message (not the assistant
+    // message itself, to prevent the LLM from mimicking status markers).
     const allMessages = [...messages, userMsg];
-    const apiMessages = allMessages.slice(-20).map(m => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const trimmedMessages = allMessages.slice(-20);
+    const apiMessages = trimmedMessages.map((m, i, arr) => {
+      if (m.role === "assistant") {
+        return { role: m.role, content: stripActionBlock(m.content) };
+      }
+      // For user messages, check if the previous assistant message had an action outcome
+      const prev = i > 0 ? arr[i - 1] : null;
+      let content = m.content;
+      if (prev?.role === "assistant" && prev.actionStatus) {
+        if (prev.actionStatus === "confirmed" || prev.actionStatus === "auto_confirmed") {
+          content = `[The "${prev.action?.action_id}" action was applied successfully]\n${content}`;
+        } else if (prev.actionStatus === "cancelled") {
+          content = `[The proposed action was cancelled by the user]\n${content}`;
+        }
+      }
+      return { role: m.role, content };
+    });
 
     const request: ChatRequest = {
       messages: apiMessages,
@@ -228,7 +256,7 @@ export function useChatbot({
 
     try {
       streamedContentRef.current = "";
-      await chatbotChat(
+      const chatResult = await chatbotChat(
         request,
         (chunk) => {
           chunkBufferRef.current += chunk;
@@ -242,14 +270,30 @@ export function useChatbot({
         controller.signal,
       );
 
+      // Track token usage: per-request (for context window) and cumulative (for session total)
+      if (chatResult.usage) {
+        setLastRequestUsage({ ...chatResult.usage });
+        setSessionUsage(prev => prev
+          ? {
+              input_tokens: prev.input_tokens + chatResult.usage!.input_tokens,
+              output_tokens: prev.output_tokens + chatResult.usage!.output_tokens,
+              total_tokens: prev.total_tokens + chatResult.usage!.total_tokens,
+            }
+          : { ...chatResult.usage! },
+        );
+        onUsageRef.current?.(chatResult.usage);
+      }
+
       // Flush any remaining buffered content to DOM
       cancelAnimationFrame(flushRafRef.current);
       flushRafRef.current = 0;
       streamedContentRef.current += chunkBufferRef.current;
       chunkBufferRef.current = "";
 
-      // Now commit the final content to React state (single re-render)
-      const finalContent = streamedContentRef.current;
+      // Use the cleaned text from chatResult (usage marker already stripped by api.ts)
+      const finalContent = chatResult.text
+        ? chatResult.text
+        : streamedContentRef.current;
       streamedContentRef.current = "";
       setMessages(prev => {
         const updated = [...prev];
@@ -350,6 +394,8 @@ export function useChatbot({
     abortRef.current?.abort();
     setMessages([]);
     setIsStreaming(false);
+    setSessionUsage(null);
+    setLastRequestUsage(null);
   }, []);
 
   const confirmAction = useCallback(async (messageId: string) => {
@@ -656,7 +702,7 @@ export function useChatbot({
 
   return {
     messages, isStreaming, sendMessage, clearMessages, hasApiKey,
-    confirmAction, cancelAction,
+    confirmAction, cancelAction, sessionUsage, lastRequestUsage,
     isVoiceActive, voiceConnecting, partialTranscript, voiceText, clearVoiceText, toggleVoice,
     audioDevices, selectedDeviceId, onDeviceChange,
   };

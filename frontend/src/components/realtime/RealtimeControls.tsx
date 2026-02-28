@@ -125,7 +125,12 @@ export function RealtimeControls({
   // just re-enumerate — no need to activate the mic. Only call getUserMedia when
   // labels are absent (Safari before first permission grant) to unlock them.
   // This prevents triggering the iPhone Continuity Mic popup on Chrome.
+  // On iOS, skip the early getUserMedia() to avoid repeated permission prompts
+  // (iOS Safari has no "Always Allow" option). Labels will refresh once the user
+  // starts a realtime session via the synthetic devicechange event.
   useEffect(() => {
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     navigator.mediaDevices
       .enumerateDevices()
       .then((devices) => {
@@ -133,6 +138,9 @@ export function RealtimeControls({
           .filter((d) => d.kind === "audioinput")
           .some((d) => d.label !== "");
         if (hasLabels) {
+          loadDevices();
+        } else if (isIOS) {
+          // On iOS, just enumerate with fallback labels — don't prompt for permission
           loadDevices();
         } else {
           navigator.mediaDevices

@@ -143,10 +143,10 @@ If you need to run git commands while SSHed in as root, always use:
 ssh root@<IP> "su - deploy -c 'cd /opt/AIAudioSummary && git pull origin main'"
 ```
 
-If you encounter git permission errors (`insufficient permission for adding an object to repository database .git/objects`), fix ownership with:
+If you encounter git permission errors (`insufficient permission`, `unable to unlink`), fix ownership of the **entire repo** (not just `.git`):
 
 ```bash
-ssh root@<IP> "chown -R deploy:deploy /opt/AIAudioSummary/.git"
+ssh root@<IP> "chown -R deploy:deploy /opt/AIAudioSummary"
 ```
 
 ## Step 6: Verify

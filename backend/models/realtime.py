@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, model_validator
 
-from models.llm import AzureConfig, LangdockConfig, LLMProvider
+from models.llm import AzureConfig, LangdockConfig, LLMProvider, TokenUsage
 
 
 class IncrementalSummaryRequest(BaseModel):
@@ -29,3 +29,4 @@ class IncrementalSummaryRequest(BaseModel):
 class IncrementalSummaryResponse(BaseModel):
     summary: str = Field(..., description="The updated AI summary")
     updated_at: str = Field(..., description="ISO timestamp of when the summary was generated")
+    usage: TokenUsage | None = Field(None, description="Token usage for this request")

@@ -6,8 +6,8 @@ PROVIDER_MODELS = {
     "azure_openai": [],  # Uses deployment name from Azure config
     "langdock": [
         # "gpt-5.2", "gpt-5.2-pro",  # Disabled — see user_stories/langdock_openai_bug_report.md
-        "claude-sonnet-4-5-20250929", "claude-sonnet-4-6-default", "claude-opus-4-6-default",
-        "gemini-2.5-pro", "gemini-2.5-flash",
+        "claude-sonnet-4-6-default", "claude-opus-4-6-default",
+        # "gemini-2.5-pro", "gemini-2.5-flash",  # Temporarily disabled
     ],
 }
 

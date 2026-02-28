@@ -619,7 +619,7 @@ Transitions:
 - **2 -> 3**: `handleGenerate()` — calls `/createSummary` with streaming (forward navigation goes directly without confirmation)
 - **3 -> 2**: "Back to Transcript" button
 - **3 -> 1**: "Start Over" returns to step 1 but transcript/summary persist in localStorage until a new file is uploaded
-- **On mount**: step is derived from loaded session data (e.g., if transcript + summary exist, starts at step 3)
+- **On mount**: step is restored from persisted `current_step` (localStorage + server sync), with validation that required data exists for that step; falls back to deriving from session data if no persisted step exists
 - **"Show previous" links**: allow returning to existing transcript/summary/form data from earlier steps
 
 ### Realtime Mode
@@ -812,10 +812,10 @@ Most application state lives in `page.tsx` using `useState`. Three React context
 | Chatbot actions     | Yes (localStorage) | Yes               | `aias:v1:chatbot_actions`   |
 | Sync std + realtime | Yes (localStorage) | Yes               | `aias:v1:sync_standard_realtime` |
 | Mic device ID       | Yes (localStorage) | No                | `aias:v1:mic_device_id` (shared by AudioRecorder, RealtimeControls, useChatbot) |
-| Session data (std)  | Yes (localStorage) | Yes               | `aias:v1:session:standard:*` (transcript, summary, form, output_mode) |
+| Session data (std)  | Yes (localStorage) | Yes               | `aias:v1:session:standard:*` (transcript, summary, form, output_mode, current_step) |
 | Session data (rt)   | Yes (localStorage) | Yes               | `aias:v1:session:realtime:*` (transcript, summary, form, questions) |
 | Chatbot messages    | Yes (localStorage) | Yes               | `aias:v1:session:chatbot:*` (messages, updated_at) |
-| Workflow state      | No (derived)       | No                | - (step derived from persisted session data on mount) |
+| Workflow state      | Yes (localStorage) | Yes               | `aias:v1:session:standard:current_step` (persisted step survives reload + cross-device sync) |
 | Prompt/language     | No                 | No                | -                           |
 | Realtime session    | No (hook state)    | No                | -                           |
 | Realtime transcript | No (page state)    | No                | - (lifted from RealtimeMode via onTranscriptChange for chatbot context) |
@@ -843,7 +843,7 @@ The `useSessionPersistence` hook (`frontend/src/hooks/useSessionPersistence.ts`)
 
 | Mode | Persisted Fields |
 |---|---|
-| Standard | `transcript`, `summary`, `form_template_id`, `form_values`, `output_mode`, `updated_at` |
+| Standard | `transcript`, `summary`, `form_template_id`, `form_values`, `output_mode`, `current_step`, `updated_at` |
 | Realtime | `transcript`, `summary`, `form_template_id`, `form_values`, `questions`, `updated_at` |
 | Chatbot | `messages` (role + content only), `updated_at` |
 
@@ -851,7 +851,7 @@ The `useSessionPersistence` hook (`frontend/src/hooks/useSessionPersistence.ts`)
 
 **How it works**:
 
-- **Standard mode**: On mount, transcript, summary, form values, selected template, and output mode are initialized from localStorage. The current step is derived from the loaded data (e.g., transcript + summary present implies step 3).
+- **Standard mode**: On mount, transcript, summary, form values, selected template, output mode, and current step are initialized from localStorage. The current step is restored from persisted `current_step` with validation (falls back to deriving from session data if no persisted step exists).
 - **Realtime mode**: `RealtimeMode` is always mounted (hidden via CSS when in standard mode) so WebSocket connections survive mode switching. Initial values (`initialTranscript`, `initialSummary`, `initialQuestions`, `initialValues`) are passed as props to sub-hooks.
 - **"Start Over"**: Returns to step 1 but transcript/summary persist in localStorage until a new file is uploaded.
 - **Step navigation**: Forward navigation (e.g., step 2 to 3) goes directly without confirmation. "Show previous transcript/summary/form" links allow returning to existing data.
@@ -984,7 +984,7 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 | `aias:v1:custom_templates`      | JSON array of custom prompt templates (`PromptTemplate[]`) | Yes |
 | `aias:v1:form_templates`        | JSON array of form templates (`FormTemplate[]`) for structured form output | Yes |
 | `aias:v1:sync_standard_realtime` | Sync Standard + Realtime toggle (`true`/`false`) | Yes |
-| `aias:v1:session:standard:*`   | Standard mode session data (transcript, summary, form_template_id, form_values, output_mode, updated_at) | Yes (as `session_standard` object) |
+| `aias:v1:session:standard:*`   | Standard mode session data (transcript, summary, form_template_id, form_values, output_mode, current_step, updated_at) | Yes (as `session_standard` object) |
 | `aias:v1:session:realtime:*`   | Realtime mode session data (transcript, summary, form_template_id, form_values, questions, updated_at) | Yes (as `session_realtime` object) |
 | `aias:v1:session:chatbot:*`    | Chatbot session data (messages, updated_at) | Yes (as `session_chatbot` object) |
 

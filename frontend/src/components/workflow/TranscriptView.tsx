@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, Copy, Maximize2, Trash2 } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Loader2, Maximize2, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,7 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
+import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
+import type { ContentPayload } from "@/lib/types";
 
 interface TranscriptViewProps {
   transcript: string;
@@ -41,14 +42,15 @@ export function TranscriptView({
   const [fullscreen, setFullscreen] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(transcript);
-      toast.success("Transcript copied to clipboard", { position: "bottom-center" });
-    } catch {
-      toast.error("Failed to copy to clipboard");
-    }
-  };
+  const contentPayload = useMemo<ContentPayload | null>(() => {
+    if (!transcript) return null;
+    return {
+      type: "transcript",
+      plainText: transcript,
+      markdown: transcript,
+      fileNamePrefix: "transcript",
+    };
+  }, [transcript]);
 
   if (loading) {
     return (
@@ -97,20 +99,11 @@ export function TranscriptView({
               <TooltipContent>Clear transcript</TooltipContent>
             </Tooltip>
           ) : null}
-          {transcript ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleCopy}
-                  className="text-foreground-secondary hover:text-foreground"
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Copy transcript</TooltipContent>
-            </Tooltip>
+          {transcript && !readOnly ? (
+            <>
+              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+            </>
           ) : null}
           {transcript ? (
             <Button
@@ -139,6 +132,12 @@ export function TranscriptView({
             placeholder="Transcript will appear here..."
           />
         )}
+        {transcript && readOnly ? (
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+            <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+          </div>
+        ) : null}
       </CardContent>
 
       <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>

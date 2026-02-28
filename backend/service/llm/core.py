@@ -167,14 +167,15 @@ class LLMService:
         )
         return system_prompt, user_prompt
 
-    async def generate_summary(self, request: CreateSummaryRequest) -> Union[str, AsyncGenerator[str, None]]:
+    async def generate_summary(self, request: CreateSummaryRequest) -> Union[str, tuple[str, object], AsyncGenerator[str, None]]:
         """Generate a summary using the specified LLM provider.
 
         Args:
             request: The summary request with provider, model, key, prompt, and text.
 
         Returns:
-            Either a string (complete response) or an async generator (streaming chunks).
+            Streaming: async generator of string chunks (usage marker appended at end).
+            Non-streaming: tuple of (output_text, usage).
         """
         # Use deployment_name as model name for Azure OpenAI
         model_name = request.model
@@ -208,7 +209,7 @@ class LLMService:
             return self._stream_response(agent, user_prompt)
         else:
             result = await agent.run(user_prompt)
-            return result.output
+            return result.output, result.usage()
 
     async def extract_key_points(self, request: ExtractKeyPointsRequest) -> ExtractKeyPointsResponse:
         """Extract 1-3 sentence key point summaries per speaker from a transcript."""
@@ -270,12 +271,24 @@ class LLMService:
 
     async def _stream_response(self, agent: Agent, user_prompt: str) -> AsyncGenerator[str, None]:
         """Stream response chunks from the LLM agent."""
+        import json as _json
         has_yielded = False
         try:
             async with agent.run_stream(user_prompt) as stream:
                 async for chunk in stream.stream_text(delta=True):
                     has_yielded = True
                     yield chunk
+                # After stream completes, yield usage marker
+                try:
+                    usage = stream.usage()
+                    usage_data = _json.dumps({
+                        "input_tokens": usage.request_tokens or 0,
+                        "output_tokens": usage.response_tokens or 0,
+                        "total_tokens": (usage.request_tokens or 0) + (usage.response_tokens or 0),
+                    })
+                    yield f"\n\n<!--TOKEN_USAGE:{usage_data}-->"
+                except Exception:
+                    pass
         except RuntimeError as e:
             if "cancel scope" in str(e) and has_yielded:
                 return
