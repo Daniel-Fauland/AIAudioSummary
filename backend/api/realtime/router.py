@@ -7,6 +7,7 @@ from langdetect import LangDetectException, detect
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
+from models.llm import TokenUsage
 from models.realtime import IncrementalSummaryRequest, IncrementalSummaryResponse
 from service.llm.core import LLMService
 from service.realtime.core import RealtimeTranscriptionService
@@ -113,9 +114,21 @@ async def create_incremental_summary(
 
         result = await agent.run(user_prompt)
 
+        token_usage = None
+        try:
+            usage = result.usage()
+            token_usage = TokenUsage(
+                input_tokens=usage.request_tokens or 0,
+                output_tokens=usage.response_tokens or 0,
+                total_tokens=(usage.request_tokens or 0) + (usage.response_tokens or 0),
+            )
+        except Exception:
+            pass
+
         return IncrementalSummaryResponse(
             summary=result.output,
             updated_at=datetime.now(timezone.utc).isoformat(),
+            usage=token_usage,
         )
 
     except Exception as e:
