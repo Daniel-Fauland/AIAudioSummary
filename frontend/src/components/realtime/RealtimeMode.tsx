@@ -462,6 +462,7 @@ export function RealtimeMode({
             isSessionEnded={session.isSessionEnded}
             onClear={handleClearSummary}
             tokenUsage={session.summaryAccumulatedUsage}
+            lastRequestUsage={session.summaryLastRequestUsage}
             contextWindow={getContextWindow(config, selectedProvider, selectedModel)}
           />
         </div>

@@ -29,6 +29,7 @@
    - [4.17 Session Data Persistence](#417-session-data-persistence)
    - [4.18 AI Assistant (Chatbot)](#418-ai-assistant-chatbot)
    - [4.19 Sync Standard + Realtime](#419-sync-standard--realtime)
+   - [4.20 AI Usage Tracking](#420-ai-usage-tracking)
 5. [Common Workflows](#5-common-workflows)
    - [5.1 Transcribing and Summarising a Recording](#51-transcribing-and-summarising-a-recording)
    - [5.2 Recording Live Audio and Getting a Summary](#52-recording-live-audio-and-getting-a-summary)
@@ -134,6 +135,7 @@ At the very bottom of the page:
 Click your **avatar** in the top-right to open the user menu:
 
 - Your **name** and **email** are shown at the top.
+- **AI Usage** — opens a dialog showing your token usage analytics over the past week, month, or year (see [Section 4.20](#420-ai-usage-tracking)).
 - **Storage Mode** — switch between Local Storage and Account Storage (see [Section 4.13](#413-storage-mode)).
 - **Export / Import Settings** — export or import your settings as a portable config string (see [Section 4.14](#414-export--import-settings)).
 - **Admin Panel** — visible only to administrators; opens the user management page.
@@ -207,9 +209,10 @@ After transcription completes (or after skipping upload), you land on the **Tran
 **What you see:**
 
 - The transcript text, formatted as `Speaker A: [text]`, `Speaker B: [text]`, etc. (one line per speaker turn).
-- Three icon buttons in the top-right corner of the card:
+- Icon buttons in the top-right corner of the card:
   - **Trash icon** — clears the entire transcript (with confirmation).
-  - **Copy icon** — copies the full transcript to the clipboard.
+  - **Copy as** (split button) — copies the transcript in your chosen format. Click the main button to use your default format, or open the dropdown for all options: **Formatted** (rich text), **Plain Text**, **Markdown**. The default format can be changed in Settings (see [Section 4.12](#412-settings-panel)).
+  - **Save as** (split button) — downloads the transcript as a file. Click the main button to use your default format, or open the dropdown for all options: **.txt**, **.md**, **.docx**, **.pdf**, **.html**.
   - **Expand icon** — opens the transcript in a fullscreen view.
 
 **Editing the transcript:**
@@ -361,16 +364,18 @@ After clicking **Generate Summary**, the app moves to **Step 3** — the Summary
 - The summary streams in word-by-word in real time, with a blinking orange cursor while generating.
 - A **"Generating..."** badge in the Summary card header. Hover over it to reveal a **"Stop Generating"** option — click to cancel mid-stream.
 
-**After generation completes, four buttons appear:**
+**After generation completes, the following controls appear:**
 
 | Button                 | What it does                                                                           |
 | ---------------------- | -------------------------------------------------------------------------------------- |
-| **Copy Summary**       | Copies the summary to the clipboard as formatted rich text (with headings, bold, etc.) |
-| **Copy as Markdown**   | Copies the raw Markdown source                                                         |
+| **Copy as** (split)    | Copies the summary in your chosen format. Click the main button to use your default, or use the dropdown: **Formatted** (rich text), **Plain Text**, **Markdown**. |
+| **Save as** (split)    | Downloads the summary as a file. Click the main button to use your default format, or use the dropdown: **.txt**, **.md**, **.docx**, **.pdf**, **.html**. |
 | **Regenerate**         | Runs the summary again with the same settings                                          |
 | **Back to Transcript** | Returns to Step 2 to edit the transcript or prompt settings                            |
 
-**Fullscreen view:** Click the **expand icon** (top-right of the Summary card) to open the summary in a large fullscreen dialog. The same Copy and Regenerate buttons are available there.
+**Token usage badge:** After generation completes, a small badge appears in the Summary card header showing how many tokens were used (e.g., **"1.2k / 200k"** — input tokens relative to the model's context window, or **"1.2k tokens"** as a session total when the context window is unknown). Hover to see a detailed breakdown of input, output, and total tokens for the last request and the full session. See [Section 4.20](#420-ai-usage-tracking) for details.
+
+**Fullscreen view:** Click the **expand icon** (top-right of the Summary card) to open the summary in a large fullscreen dialog. The same Copy as, Save as, and Regenerate buttons are available there.
 
 **Start Over:** The **Start Over** button below the cards returns to Step 1 (Upload) but preserves your data. You can navigate back to the Transcript or Summary steps using the step indicators or the **"Show previous transcript"** / **"Show previous summary"** / **"Show previous form"** links that appear on the upload screen. Your data is only cleared when you upload a new audio file or skip upload.
 
@@ -427,6 +432,8 @@ If both the transcript and summary are already empty, clicking **Start** begins 
 - Shows the AI-generated running summary in Markdown format (headings, bullet points).
 - An **"Updating..."** badge appears while a new summary is being generated.
 - A timestamp below the summary shows when it was last updated.
+- **Copy as / Save as** (split buttons) — copy or download the running summary in multiple formats, same options as in Standard mode (see [Section 4.8](#48-summary-generation)).
+- A **token usage badge** shows accumulated token usage across all summary updates in the current session. Hover for a detailed breakdown (see [Section 4.20](#420-ai-usage-tracking)).
 - A **trash icon** (to the left of the fullscreen button) lets you clear the current summary. A confirmation dialog appears before clearing. A new summary will be generated automatically at the next summary interval.
 
 #### Summary Interval
@@ -514,7 +521,7 @@ Instead of adding fields manually, you can let the AI design a template for you:
 4. Click **Fill Form** — the AI analyses the transcript and extracts values for each field.
 5. The app moves to Step 3, showing the transcript on the left and the filled form on the right.
 6. Review the extracted values. You can **edit any field** manually.
-7. Click **Re-fill** to regenerate values from the transcript, or **Copy** to copy the form as plain text.
+7. Click **Re-fill** to regenerate values from the transcript, or use the **Copy as** / **Save as** split buttons to copy or download the form in your preferred format. Copy formats: Formatted, Plain Text, Markdown, JSON. Save formats: .txt, .md, .docx, .pdf, .html, .json.
 
 > The AI only fills a field if the information is clearly stated in the transcript. Fields without matching content are left empty. When a Meeting Date is provided, the AI may use it to fill date fields if no specific date is mentioned in the transcript.
 
@@ -593,6 +600,19 @@ Override the default model for individual features. Click the section to expand 
 - Form Output
 
 This is useful if, for example, you want to use a cheaper model for key point extraction but a more capable model for final summaries.
+
+---
+
+#### Content Output Formats
+
+Set the default format used when clicking the main **Copy as** or **Save as** button on any output section (transcript, summary, form output, questions):
+
+| Setting                 | What it does                                                                                                                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Default Copy Format** | The format used by the main **Copy as** button: **Formatted** (rich text with headings and bold, ideal for pasting into emails or documents — default), **Plain Text**, or **Markdown**. |
+| **Default Save Format** | The format used by the main **Save as** button: **.docx** (Word — default), **.txt**, **.md**, **.pdf**, **.html**, or **.json** (JSON available for Form Output and Questions only).     |
+
+You can always override the format for a single copy or save by clicking the dropdown arrow on the split button, without changing your saved default.
 
 ---
 
@@ -724,7 +744,7 @@ Your session data (transcripts, summaries, form output values, questions and top
 
 #### Standard Mode
 
-- Your **transcript**, **summary**, **form values**, and **output mode** (Summary vs Form Output) are automatically saved and restored when you reload the page or navigate away and return.
+- Your **transcript**, **summary**, **form values**, **output mode** (Summary vs Form Output), and **current step** (Upload, Transcript, or Summary) are automatically saved and restored when you reload the page or navigate away and return. The app reopens on the same step you were on, as long as the required data is still present.
 - Clicking **"Start Over"** returns you to the Upload step but **preserves your data**. From the upload screen, you can navigate back to the Transcript or Summary steps using the step indicators or the **"Show previous transcript"** / **"Show previous summary"** / **"Show previous form"** links that appear.
 - Your session data is only cleared when you **upload a new audio file** or **skip upload** — this starts a fresh session.
 
@@ -739,7 +759,7 @@ Your session data (transcripts, summaries, form output values, questions and top
 
 When **Account Storage** is enabled, session data is also synced to the server alongside your other preferences. This means:
 
-- After transcription, summary generation, form fill, or output mode change completes, the data is automatically pushed to the server.
+- After transcription, summary generation, form fill, output mode change, or step navigation, the data is automatically pushed to the server.
 - When you open the app on a **different device** or browser (with the same account and Account Storage enabled), your last session is restored from the server.
 - **Switching from Local → Account storage** uploads your current session data to the server.
 - **Switching from Account → Local storage** downloads your server session data to the current browser.
@@ -887,6 +907,37 @@ This means you can navigate to the Admin Panel or other pages without losing you
 
 ---
 
+### 4.20 AI Usage Tracking
+
+The app automatically tracks how many tokens are consumed by each AI operation (summary generation, chatbot messages, realtime incremental summaries). All tracking happens locally in your browser.
+
+#### Token usage badge
+
+A small badge appears in the header of the Summary card (Standard and Realtime modes) and in the Chatbot panel header after each AI operation:
+
+- **"1.2k / 200k"** — input tokens used in the last request relative to the model's context window (e.g., 200k for Claude Sonnet, 1M for GPT-5). Helps you gauge how much of the context limit is being used.
+- **"1.2k tokens"** — shown when the model's context window size is not available; displays the session total instead.
+- **Red text** — the badge turns red when the last request used ≥ 90% of the model's context window, indicating you are approaching the limit.
+- **Hover tooltip** — shows a full breakdown: last request input tokens, last request output tokens, session total input, session total output, and grand total.
+
+For Realtime mode, the badge accumulates usage across all incremental summary updates in the session. For the chatbot, it tracks the running total of all messages sent.
+
+#### AI Usage dialog
+
+Open it via **user avatar → AI Usage**. It displays a chart and statistics about your token consumption over time:
+
+| Control                   | What it does                                                                                    |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Time period** (buttons) | Switch between **1 week**, **1 month**, and **1 year** views.                                   |
+| **Token mode** (dropdown) | Toggle between **Total tokens**, **Input only**, or **Output only**.                            |
+| **Area chart**            | Plots daily (week/month view) or weekly (year view) token consumption over the selected period. |
+| **Stats below chart**     | Total input tokens, total output tokens, total request count, and most-used model.              |
+| **Clear history** button  | Permanently deletes all stored usage records after a confirmation prompt.                       |
+
+Token history is stored in your browser's localStorage (up to 10,000 entries) and is not synced to the server or included in the Export / Import Settings config string.
+
+---
+
 ## 5. Common Workflows
 
 ### 5.1 Transcribing and Summarising a Recording
@@ -902,7 +953,7 @@ This means you can navigate to the Admin Panel or other pages without losing you
 7. Scroll down to **Prompt Settings**. Choose a **Template** from the dropdown, select the **Language**, and optionally set the **Meeting Date**.
 8. Click the orange **Generate Summary** button.
 9. The app moves to the **Summary** step. Watch the summary stream in.
-10. When complete, click **Copy Summary** to copy it as formatted text (ready to paste into an email, doc, etc.) or **Copy as Markdown** for the raw Markdown source.
+10. When complete, use **Copy as** to copy the summary in your preferred format (Formatted, Plain Text, or Markdown), or **Save as** to download it as a file (.docx, .txt, .md, .pdf, .html). The main button uses your default format (set in Settings); click the dropdown arrow to choose a different format for this copy/save.
 
 ---
 

@@ -31,6 +31,7 @@ interface RealtimeSummaryViewProps {
   isSessionEnded: boolean;
   onClear?: () => void;
   tokenUsage?: TokenUsage | null;
+  lastRequestUsage?: TokenUsage | null;
   contextWindow?: number;
 }
 
@@ -50,6 +51,7 @@ export function RealtimeSummaryView({
   isSessionEnded,
   onClear,
   tokenUsage,
+  lastRequestUsage,
   contextWindow,
 }: RealtimeSummaryViewProps) {
   const [relativeTime, setRelativeTime] = useState("");
@@ -85,7 +87,7 @@ export function RealtimeSummaryView({
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <CardTitle className="text-lg">Summary</CardTitle>
-          <TokenUsageBadge usage={tokenUsage} contextWindow={contextWindow} />
+          <TokenUsageBadge usage={tokenUsage} lastRequestUsage={lastRequestUsage} contextWindow={contextWindow} />
         </div>
         <div className="flex items-center gap-2">
           {isSummaryUpdating && (

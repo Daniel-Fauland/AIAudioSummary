@@ -42,6 +42,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
   const [summaryInterval, setSummaryIntervalState] = useState<SummaryInterval>(2);
   const [summaryCountdown, setSummaryCountdown] = useState(0);
   const [accumulatedUsage, setAccumulatedUsage] = useState<TokenUsage | null>(null);
+  const [lastRequestUsage, setLastRequestUsage] = useState<TokenUsage | null>(null);
 
   const onUsageRef = useRef(onUsage);
   onUsageRef.current = onUsage;
@@ -109,6 +110,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
 
     const accumulateUsage = (u: TokenUsage | undefined) => {
       if (!u) return;
+      setLastRequestUsage({ ...u });
       setAccumulatedUsage(prev => prev
         ? { input_tokens: prev.input_tokens + u.input_tokens, output_tokens: prev.output_tokens + u.output_tokens, total_tokens: prev.total_tokens + u.total_tokens }
         : { ...u },
@@ -222,6 +224,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
     setIsSummaryUpdating(false);
     setSummaryCountdown(0);
     setAccumulatedUsage(null);
+    setLastRequestUsage(null);
     realtimeSummaryRef.current = "";
     summaryCountRef.current = 0;
     lastSummaryTranscriptLenRef.current = 0;
@@ -243,6 +246,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
     summaryInterval,
     summaryCountdown,
     accumulatedUsage,
+    lastRequestUsage,
     setSummaryInterval,
     setLlmConfig,
     triggerManualSummary,

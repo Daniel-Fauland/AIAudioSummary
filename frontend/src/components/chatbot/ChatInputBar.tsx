@@ -137,7 +137,6 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
         }}
         onKeyDown={handleKeyDown}
         placeholder={isVoiceActive ? "Listening..." : (placeholder ?? "Type a message...")}
-        disabled={disabled}
         readOnly={isVoiceActive && !!partialTranscript}
         rows={1}
         className={cn(

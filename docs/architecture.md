@@ -154,7 +154,7 @@ project-root/
 │   │   │   └── globals.css         # Theme variables, animations
 │   │   ├── components/
 │   │   │   ├── admin/              # AddUserDialog, DeleteUserDialog
-│   │   ├── auth/               # SessionWrapper, UserMenu, StorageModeDialog, ConfigExportDialog
+│   │   ├── auth/               # SessionWrapper, UserMenu, StorageModeDialog, ConfigExportDialog, AIUsageDialog
 │   │   │   ├── layout/             # Header, Footer, StepIndicator, SettingsSheet
 │   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm, LangdockConfigForm
 │   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor (+ Prompt Assistant trigger), SummaryView
@@ -164,7 +164,7 @@ project-root/
 │   │   │   ├── prompt-assistant/  # PromptAssistantModal, StepBasePrompt, StepQuestions, StepSummary, StepResult, QuestionField, usePromptAssistant hook
 │   │   │   ├── chatbot/          # ChatbotFAB, ChatbotModal, ChatMessage, ChatMessageList, ChatInputBar, TranscriptBadge, ActionConfirmCard
 │   │   │   ├── global/           # GlobalProviders (context nesting), RecordingIndicator (persistent header bar on non-home pages)
-│   │   │   └── ui/                 # shadcn/ui primitives + AudioPlayer composite component
+│   │   │   └── ui/                 # shadcn/ui primitives + AudioPlayer, ContentActions, TokenUsageBadge composite components
 │   │   ├── contexts/
 │   │   │   ├── GlobalRecordingContext.tsx  # Standard recording state (mic stream, audio context, recorder state)
 │   │   │   ├── GlobalRealtimeContext.tsx   # Realtime session state (WS connection, transcript, partials)
@@ -175,14 +175,17 @@ project-root/
 │   │   │   ├── useCustomTemplates.ts # Custom prompt template CRUD (localStorage + server sync)
 │   │   │   ├── useFormTemplates.ts  # Form template CRUD (localStorage + server sync)
 │   │   │   ├── usePreferences.ts   # Server preference sync (loads on mount, fire-and-forget saves)
-│   │   │   ├── useSessionPersistence.ts # Session data persistence (localStorage: transcript, summary, form output, questions)
+│   │   │   ├── useSessionPersistence.ts # Session data persistence (localStorage: transcript, summary, form output, questions, current_step)
+│   │   │   ├── useTokenUsage.ts    # Token usage history management (localStorage, up to 10k entries, cross-tab sync)
 │   │   │   ├── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
 │   │   │   ├── useRealtimeSummary.ts # Realtime summary logic (extracted from useRealtimeSession)
 │   │   │   └── useChatbot.ts      # Chatbot hook (messages, streaming, actions, persistent voice session, mic device selection)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
 │   │       ├── config-export.ts    # Settings export/import: collect, serialize, compress (pako), encode (Base64), validate, restore
+│   │       ├── content-formats.ts  # Copy/save format definitions per content type, copy/download helpers (txt/md/docx/pdf/html/json)
 │   │       ├── errors.ts           # getErrorMessage() — maps ApiError status codes to user-friendly strings
+│   │       ├── token-utils.ts      # Token count formatting (formatTokenCount, formatTokenCountExact) and context window lookup
 │   │       ├── types.ts            # TypeScript types (mirrors backend models)
 │   │       └── utils.ts            # cn() Tailwind merge utility
 │   ├── public/
@@ -400,14 +403,14 @@ Key models:
 
 | File                         | Key Classes                                                                                      |
 | ---------------------------- | ------------------------------------------------------------------------------------------------ |
-| `models/llm.py`              | `LLMProvider` (enum: openai, anthropic, gemini, azure_openai, langdock), `CreateSummaryRequest`, `CreateSummaryResponse`, `AzureConfig`, `LangdockConfig` |
-| `models/config.py`           | `ConfigResponse`, `ProviderInfo`, `PromptTemplate`, `LanguageOption`, speaker models             |
+| `models/llm.py`              | `LLMProvider` (enum: openai, anthropic, gemini, azure_openai, langdock), `TokenUsage` (input_tokens, output_tokens, total_tokens), `CreateSummaryRequest`, `CreateSummaryResponse` (includes `usage: TokenUsage | None`), `AzureConfig`, `LangdockConfig` |
+| `models/config.py`           | `ConfigResponse`, `ProviderInfo` (includes `model_context_windows: dict[str, int]`), `PromptTemplate`, `LanguageOption`, speaker models |
 | `models/assemblyai.py`       | `CreateTranscriptResponse`                                                                       |
-| `models/realtime.py`         | `IncrementalSummaryRequest`, `IncrementalSummaryResponse`                                        |
+| `models/realtime.py`         | `IncrementalSummaryRequest`, `IncrementalSummaryResponse` (includes `usage: TokenUsage | None`)  |
 | `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest`, `AnalyzeResponse` (incl. `suggested_target_system`), `GenerateRequest/Response` |
 | `models/live_questions.py`   | `QuestionInput`, `EvaluateQuestionsRequest`, `QuestionEvaluation`, `EvaluateQuestionsResponse`                                                    |
 | `models/form_output.py`     | `FormFieldType` (enum: string, number, date, boolean, list_str, enum, multi_select), `FormFieldDefinition`, `FillFormRequest` (includes `previous_values`, `meeting_date`), `FillFormResponse`, `GenerateTemplateRequest/Response`, `GeneratedField` |
-| `models/chatbot.py`         | `ChatRole` (enum), `ChatMessage`, `ActionProposal`, `ChatRequest`, `ChatResponse`                |
+| `models/chatbot.py`         | `ChatRole` (enum), `ChatMessage`, `ActionProposal`, `ChatRequest`, `ChatResponse` (includes `usage: TokenUsage | None`) |
 
 ### Configuration & Environment
 
@@ -702,7 +705,8 @@ RootLayout (layout.tsx)
         └── / ── Home (page.tsx) ─── Outer shell: useConfig() + usePreferences(), loading gate
             └── HomeInner ──────────── All state lives here (mounts after prefs loaded)
             ├── Header
-        │   ├── UserMenu       ← dropdown: avatar, storage mode, config export/import, admin panel link, sign-out
+        │   ├── UserMenu       ← dropdown: avatar, AI usage, storage mode, config export/import, admin panel link, sign-out
+        │   │   ├── AIUsageDialog     ← token usage analytics (area chart, time period selector, stats, clear history)
         │   │   ├── StorageModeDialog ← upload/download prefs when switching storage modes
         │   │   └── ConfigExportDialog ← export/import settings as portable compressed config string (CFG1_ prefix + Base64 + pako deflate)
         │   └── Settings gear icon
@@ -721,26 +725,26 @@ RootLayout (layout.tsx)
         │   ├── StepIndicator          ← visual 3-step progress bar
         │   └── Step Content (conditional):
         │       ├── Step 1: tab toggle → FileUpload | AudioRecorder
-        │       ├── Step 2: TranscriptView + SpeakerMapper + [Summary|Form Output] toggle
+        │       ├── Step 2: TranscriptView (ContentActions: Copy as + Save as) + SpeakerMapper + [Summary|Form Output] toggle
         │       │               ├── (Summary mode) PromptEditor
         │       │               │   └── PromptAssistantModal (Dialog)
         │       │               │       ├── StepBasePrompt, StepQuestions, StepSummary, StepResult
         │       │               └── (Form Output mode) FormTemplateSelector + FormTemplateEditor (Dialog, with AI Generate)
-        │       └── Step 3: TranscriptView (readonly) + SummaryView | FormOutputView
+        │       └── Step 3: TranscriptView (ContentActions) + SummaryView (ContentActions + TokenUsageBadge) | FormOutputView (ContentActions)
         │
         ├── RealtimeMode (always mounted, hidden via CSS when in standard mode):
         │   └── orchestrator, uses useRealtimeSession() + useFormOutput() + useLiveQuestions() hooks
         │       ├── RealtimeControls   ← Start/Pause/Stop, mic selector, elapsed timer, countdown + Refresh button
         │       │   └── ConnectionStatus
-        │       ├── RealtimeTranscriptView  ← live transcript with auto-scroll + trash/clear icon
-        │       ├── RealtimeSummaryView     ← markdown summary with periodic updates + trash/clear icon
+        │       ├── RealtimeTranscriptView  ← live transcript with auto-scroll + ContentActions (Copy as/Save as) + trash/clear icon
+        │       ├── RealtimeSummaryView     ← markdown summary with ContentActions (Copy as/Save as) + TokenUsageBadge (accumulated session usage) + trash/clear icon
         │       └── [Questions & Topics | Form Output] tab bar
-        │           ├── LiveQuestions        ← questions + topics evaluation + clear all icon
+        │           ├── LiveQuestions        ← questions + topics evaluation + ContentActions (Copy as/Save as) + clear all icon
         │           └── RealtimeFormOutput   ← live form filling with template selector ("No template" option)
         │
         ├── (Chatbot overlay, when chatbotEnabled):
         │   ├── ChatbotFAB            ← Floating action button (bottom-right, shifts when settings open)
-        │   └── ChatbotModal          ← Chat panel, uses useChatbot() hook
+        │   └── ChatbotModal          ← Chat panel, uses useChatbot() hook; TokenUsageBadge in header (session + last request)
         │       ├── ChatMessageList   ← Scrollable messages with auto-scroll, thinking indicator
         │       │   └── ChatMessage   ← User/assistant bubble, copy button, ActionConfirmCard
         │       ├── TranscriptBadge   ← Shows when transcript available; active (attached) or suspended (paused) state; live variant (green pulsing dot + bucketed word count) in realtime mode
@@ -811,6 +815,9 @@ Most application state lives in `page.tsx` using `useState`. Three React context
 | Chatbot transcript  | Yes (localStorage) | Yes               | `aias:v1:chatbot_transcript`|
 | Chatbot actions     | Yes (localStorage) | Yes               | `aias:v1:chatbot_actions`   |
 | Sync std + realtime | Yes (localStorage) | Yes               | `aias:v1:sync_standard_realtime` |
+| Default copy format | Yes (localStorage) | Yes               | `aias:v1:default_copy_format` ("formatted" default; options: formatted, plain, markdown) |
+| Default save format | Yes (localStorage) | Yes               | `aias:v1:default_save_format` ("docx" default; options: txt, md, docx, pdf, html, json) |
+| Token usage history | Yes (localStorage) | **No**            | `aias:v1:token_usage_history` (JSON array of `TokenUsageEntry`, max 10,000 entries, trimmed oldest first) |
 | Mic device ID       | Yes (localStorage) | No                | `aias:v1:mic_device_id` (shared by AudioRecorder, RealtimeControls, useChatbot) |
 | Session data (std)  | Yes (localStorage) | Yes               | `aias:v1:session:standard:*` (transcript, summary, form, output_mode, current_step) |
 | Session data (rt)   | Yes (localStorage) | Yes               | `aias:v1:session:realtime:*` (transcript, summary, form, questions) |
@@ -869,6 +876,34 @@ The `useSessionPersistence` hook (`frontend/src/hooks/useSessionPersistence.ts`)
 
 **Chatbot transcript context**: The chatbot always uses the transcript from the currently active mode (Standard or Realtime). When the user switches modes, the transcript context switches automatically. The transcript can be **suspended** (detached) by the user via the TranscriptBadge × button — this sets `chatbotTranscriptDetached` to `true` in page state, causing `chatbotTranscript` to be `null` while `availableTranscript` remains non-null. The badge stays visible in a dimmed "paused" state with a reattach button. New transcript content (from either mode) automatically reattaches by resetting the detached flag.
 
+### Token Usage Tracking
+
+The `useTokenUsage` hook (`frontend/src/hooks/useTokenUsage.ts`) manages token usage history in localStorage (`aias:v1:token_usage_history`):
+
+- **Max 10,000 entries** — oldest entries are trimmed when the limit is exceeded
+- **Cross-tab sync** — initializes from localStorage on mount so history is consistent across tabs
+- **Exports**: `usageHistory`, `recordUsage(entry: TokenUsageEntry)`, `clearHistory()`
+
+Token usage is recorded at three integration points:
+1. **Standard summary** (`page.tsx`): records after `createSummary()` resolves and passes usage to `SummaryView` for badge display
+2. **Realtime summary** (`useRealtimeSummary`): accumulates across all incremental calls — `summaryAccumulatedUsage` (session total) and `summaryLastRequestUsage` (latest call) both passed to `RealtimeSummaryView`
+3. **Chatbot** (`useChatbot`): records each message response; maintains `sessionUsage` (cumulative) and `lastRequestUsage` (last message) for the `TokenUsageBadge` in `ChatbotModal`
+
+The `lib/token-utils.ts` helpers:
+- `formatTokenCount(n)` — `< 1k: "842"`, `≥ 1k: "1.2k"`, `≥ 1m: "1.2m"`
+- `formatTokenCountExact(n)` — locale-aware with thousands separators: `"12,345"`
+- `getContextWindow(config, provider, model)` — looks up `model_context_windows` from the backend config response
+
+The `lib/content-formats.ts` module defines format availability per content type and implements all copy/download operations:
+
+| Function | Description |
+|---|---|
+| `COPY_FORMATS_BY_TYPE` | Which `CopyFormat` options each `ContentType` supports |
+| `SAVE_FORMATS_BY_TYPE` | Which `SaveFormat` options each `ContentType` supports |
+| `buildFormPayload()` / `buildQuestionsPayload()` | Converts structured data to `ContentPayload` with plain/markdown/json representations |
+| `copyAs(payload, format)` | Clipboard API; "formatted" writes both `text/html` and `text/plain` simultaneously |
+| `saveAs(payload, format, filename)` | Triggers file download; `.docx` uses markdown-to-docx parsing (tables, headings, bullets); `.pdf` uses canvas with text wrapping and multi-page support |
+
 ### API Client
 
 All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which routes all requests through the Next.js API proxy layer (`src/app/api/proxy/[...path]/route.ts`). The proxy forwards to the backend using `BACKEND_INTERNAL_URL`.
@@ -880,14 +915,14 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 | `getSpeakers()`                | POST   | `/getSpeakers`               | `string[]` (speaker labels)                   |
 | `updateSpeakers()`             | POST   | `/updateSpeakers`            | `string` (updated transcript)                 |
 | `extractKeyPoints()`           | POST   | `/extractKeyPoints`          | `ExtractKeyPointsResponse`                    |
-| `createSummary()`              | POST   | `/createSummary`             | `string` (full text, with streaming callback) |
-| `createIncrementalSummary()`   | POST   | `/createIncrementalSummary`  | `IncrementalSummaryResponse`                  |
+| `createSummary()`              | POST   | `/createSummary`             | `{ text: string, usage: TokenUsage | null }` (streams text via `onChunk` callback, resolves with final text + token usage) |
+| `createIncrementalSummary()`   | POST   | `/createIncrementalSummary`  | `IncrementalSummaryResponse` (includes `usage: TokenUsage | None`) |
 | `analyzePrompt()`              | POST   | `/prompt-assistant/analyze`  | `PromptAssistantAnalyzeResponse`              |
 | `generatePrompt()`             | POST   | `/prompt-assistant/generate` | `PromptAssistantGenerateResponse`             |
 | `evaluateLiveQuestions()`      | POST   | `/live-questions/evaluate`   | `EvaluateQuestionsResponse`                   |
 | `fillForm()`                   | POST   | `/form-output/fill`          | `FillFormResponse`                            |
 | `generateTemplate()`           | POST   | `/form-output/generate-template` | `GenerateTemplateResponse`                |
-| `chatbotChat()`                | POST   | `/chatbot/chat`              | `string` (streaming, same pattern as summary) |
+| `chatbotChat()`                | POST   | `/chatbot/chat`              | `{ text: string, usage: TokenUsage | null }` (streaming, same pattern as summary) |
 | `getMe()`                      | GET    | `/users/me`                  | `UserProfile`                                 |
 | `getUsers()`                   | GET    | `/users`                     | `UserProfile[]` (admin only)                  |
 | `createUser(email, name?)`     | POST   | `/users`                     | `UserProfile` (admin only)                    |
@@ -984,6 +1019,9 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 | `aias:v1:custom_templates`      | JSON array of custom prompt templates (`PromptTemplate[]`) | Yes |
 | `aias:v1:form_templates`        | JSON array of form templates (`FormTemplate[]`) for structured form output | Yes |
 | `aias:v1:sync_standard_realtime` | Sync Standard + Realtime toggle (`true`/`false`) | Yes |
+| `aias:v1:default_copy_format`   | Default copy format for Copy as button (`"formatted"` default) | Yes |
+| `aias:v1:default_save_format`   | Default save format for Save as button (`"docx"` default) | Yes |
+| `aias:v1:token_usage_history`   | JSON array of `TokenUsageEntry` (timestamp, feature, provider, model, input/output/total tokens) — max 10,000 entries | **Never** |
 | `aias:v1:session:standard:*`   | Standard mode session data (transcript, summary, form_template_id, form_values, output_mode, current_step, updated_at) | Yes (as `session_standard` object) |
 | `aias:v1:session:realtime:*`   | Realtime mode session data (transcript, summary, form_template_id, form_values, questions, updated_at) | Yes (as `session_realtime` object) |
 | `aias:v1:session:chatbot:*`    | Chatbot session data (messages, updated_at) | Yes (as `session_chatbot` object) |
@@ -1036,6 +1074,10 @@ Currently used: `badge`, `button`, `calendar`, `card`, `checkbox`, `collapsible`
 
 `components/ui/date-picker.tsx` is a custom composite component (not generated by shadcn CLI) that combines `Calendar` and `Popover` into a date picker widget. Accepts a `value: string | null` (YYYY-MM-DD format) and `onChange` callback. Shows the selected date in `dd.MM.yyyy` format, a calendar popover for selection, an inline × button to clear the value, and footer buttons for "Clear" and "Today". Used by `PromptEditor` and `FormTemplateSelector` to let users set a meeting date.
 
+`components/ui/ContentActions.tsx` is a custom composite component (not generated by shadcn CLI) providing unified **Copy as** and **Save as** split buttons for any output section (transcript, summary, form, questions). The main button uses the user's saved default format; a dropdown shows all formats available for the content type. Copy formats: `formatted` (HTML + plain text), `plain`, `markdown`, `json` (forms/questions only). Save formats: `txt`, `md`, `docx`, `pdf`, `html`, `json` (forms/questions only). Defaults are persisted in localStorage as `aias:v1:default_copy_format` and `aias:v1:default_save_format`. Format support per content type is defined in `lib/content-formats.ts`.
+
+`components/ui/TokenUsageBadge.tsx` is a custom composite component that displays AI token usage. In single-request mode shows "X.Xk / 200k" (last input tokens vs context window) or "X.Xk tokens" (session total when context window unknown). Turns red when last request ≥ 90% of context window. Hover tooltip shows full breakdown (last request + session totals). Accepts `lastRequestUsage`, `sessionUsage`, and the config/provider/model for context window lookup via `lib/token-utils.ts`.
+
 `components/ui/theme-toggle.tsx` is a custom component that renders a ghost icon button cycling through Light / Dark / System themes using `useTheme` from `next-themes`. Placed in the header between UserMenu and Settings.
 
 `components/ui/Logo.tsx` is a custom component that renders the branded wordmark: an `AudioLines` Lucide icon + "AI" (orange accent, bold) + "Audio Summary" (foreground, semibold, hidden on mobile). Wrapped in a `<Link href="/">` with a hover opacity effect.
@@ -1059,6 +1101,7 @@ export interface ProviderInfo {
   name: string;
   models: string[];
   requires_azure_config: boolean;
+  model_context_windows: Record<string, number>;  // context window size per model (tokens)
 }
 
 export interface ConfigResponse {
@@ -1066,6 +1109,29 @@ export interface ConfigResponse {
   prompt_templates: PromptTemplate[];
   languages: LanguageOption[];
 }
+
+// Token usage (mirrors backend TokenUsage model)
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+}
+
+// Stored in localStorage token usage history
+export interface TokenUsageEntry {
+  timestamp: number;     // Unix ms
+  feature: string;       // e.g. "summary_generation", "chatbot", "realtime_summary"
+  provider: string;      // e.g. "openai"
+  model: string;         // e.g. "gpt-4.1-mini"
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+}
+
+// Content types and format enums (used by ContentActions component)
+export type ContentType = "transcript" | "summary" | "form" | "questions";
+export type CopyFormat = "formatted" | "plain" | "markdown" | "json";
+export type SaveFormat = "txt" | "md" | "docx" | "pdf" | "html" | "json";
 // ... etc.
 ```
 
@@ -1217,7 +1283,7 @@ api.ts: getConfig() → GET /getConfig
     │
     ▼
 misc/router.py:
-    ├── Hardcoded PROVIDERS list (with model suggestions)
+    ├── Hardcoded PROVIDERS list (with model suggestions and model_context_windows per provider)
     ├── Loads prompt templates from markdown files in prompt_template_directory
     ├── Hardcoded LANGUAGES list
     ├── Returns ConfigResponse

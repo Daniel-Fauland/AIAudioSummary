@@ -138,6 +138,7 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
     summaryInterval: summary.summaryInterval,
     summaryCountdown: summary.summaryCountdown,
     summaryAccumulatedUsage: summary.accumulatedUsage,
+    summaryLastRequestUsage: summary.lastRequestUsage,
 
     // Functions
     startSession,
