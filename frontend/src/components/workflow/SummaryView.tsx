@@ -13,7 +13,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
+
 } from "@/components/ui/dialog";
 import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
 import { TokenUsageBadge } from "@/components/ui/TokenUsageBadge";
@@ -151,13 +151,13 @@ export function SummaryView({
           <DialogHeader>
             <DialogTitle>Summary</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1 rounded-md bg-card">
-            <div className="p-4 markdown-prose">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
-            </div>
-          </ScrollArea>
-          <DialogFooter className="sm:justify-start">
-            <div className="grid w-full grid-cols-2 gap-2">
+          <div className="flex flex-1 min-h-0 flex-col rounded-md bg-card">
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-4 markdown-prose">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
+              </div>
+            </ScrollArea>
+            <div className="grid grid-cols-2 gap-2 p-4 pt-2">
               <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
               <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
               <Button variant="secondary" className="justify-start" onClick={onRegenerate}>
@@ -169,7 +169,7 @@ export function SummaryView({
                 Back to Transcript
               </Button>
             </div>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </Card>

@@ -161,7 +161,7 @@ export function RealtimeSummaryView({
           <DialogHeader>
             <DialogTitle>Summary</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 min-h-0">
             <div className="p-4 markdown-prose">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
             </div>
