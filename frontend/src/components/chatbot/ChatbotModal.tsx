@@ -9,7 +9,7 @@ import { ChatInputBar } from "./ChatInputBar";
 import type { ChatInputBarHandle } from "./ChatInputBar";
 import { TranscriptBadge } from "./TranscriptBadge";
 import { TokenUsageBadge } from "@/components/ui/TokenUsageBadge";
-import type { ChatMessageType, TokenUsage } from "@/lib/types";
+import type { ChatMessageType, TokenUsage, ChatbotCopyFormat } from "@/lib/types";
 
 interface ChatbotModalProps {
   open: boolean;
@@ -46,6 +46,7 @@ interface ChatbotModalProps {
   sessionUsage?: TokenUsage | null;
   lastRequestUsage?: TokenUsage | null;
   contextWindow?: number;
+  chatbotCopyFormat?: ChatbotCopyFormat;
 }
 
 export function ChatbotModal({
@@ -83,6 +84,7 @@ export function ChatbotModal({
   sessionUsage,
   lastRequestUsage,
   contextWindow,
+  chatbotCopyFormat,
 }: ChatbotModalProps) {
   const inputBarRef = useRef<ChatInputBarHandle>(null);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -213,6 +215,7 @@ export function ChatbotModal({
             isStreaming={isStreaming}
             onConfirmAction={onConfirmAction}
             onCancelAction={onCancelAction}
+            chatbotCopyFormat={chatbotCopyFormat}
           />
           {transcriptAttached && (
             <TranscriptBadge

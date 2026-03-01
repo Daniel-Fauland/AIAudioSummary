@@ -10,6 +10,7 @@ class UserResponse(BaseModel):
     role: str
     storage_mode: str
     created_at: datetime
+    last_visit_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

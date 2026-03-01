@@ -27,8 +27,8 @@ import { AzureConfigForm } from "@/components/settings/AzureConfigForm";
 import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
 import { FeatureModelOverrides } from "@/components/settings/FeatureModelOverrides";
 import { ChatbotSettings } from "@/components/settings/ChatbotSettings";
-import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat } from "@/lib/types";
-import { COPY_FORMAT_LABELS, SAVE_FORMAT_LABELS } from "@/lib/content-formats";
+import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat, ChatbotCopyFormat } from "@/lib/types";
+import { COPY_FORMAT_LABELS, SAVE_FORMAT_LABELS, CHATBOT_COPY_FORMAT_LABELS } from "@/lib/content-formats";
 
 interface SettingsSheetProps {
   open: boolean;
@@ -73,6 +73,8 @@ interface SettingsSheetProps {
   onDefaultCopyFormatChange: (format: CopyFormat) => void;
   defaultSaveFormat: SaveFormat;
   onDefaultSaveFormatChange: (format: SaveFormat) => void;
+  defaultChatbotCopyFormat: ChatbotCopyFormat;
+  onDefaultChatbotCopyFormatChange: (format: ChatbotCopyFormat) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -144,6 +146,8 @@ export function SettingsSheet({
   onDefaultCopyFormatChange,
   defaultSaveFormat,
   onDefaultSaveFormatChange,
+  defaultChatbotCopyFormat,
+  onDefaultChatbotCopyFormatChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -423,6 +427,25 @@ export function SettingsSheet({
                         </SelectTrigger>
                         <SelectContent>
                           {(Object.entries(SAVE_FORMAT_LABELS) as [SaveFormat, string][]).map(([key, label]) => (
+                            <SelectItem key={key} value={key}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm">Default Chatbot Copy Format</Label>
+                      <Select
+                        value={defaultChatbotCopyFormat}
+                        onValueChange={(v) => onDefaultChatbotCopyFormatChange(v as ChatbotCopyFormat)}
+                      >
+                        <SelectTrigger className="h-8 w-[160px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.entries(CHATBOT_COPY_FORMAT_LABELS) as [ChatbotCopyFormat, string][]).map(([key, label]) => (
                             <SelectItem key={key} value={key}>
                               {label}
                             </SelectItem>

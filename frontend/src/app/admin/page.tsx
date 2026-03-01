@@ -47,6 +47,16 @@ function formatDate(dateStr: string): string {
   });
 }
 
+function formatDateTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `${day}.${month}.${year} ${hours}:${minutes}`;
+}
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -133,7 +143,7 @@ export default function AdminPage() {
       </header>
 
       {/* Main content */}
-      <main className="mx-auto max-w-3xl px-4 py-8 md:px-6">
+      <main className="mx-auto max-w-5xl px-4 py-8 md:px-6">
         {/* Back link + page title */}
         <div className="mb-6">
           <Link
@@ -188,7 +198,9 @@ export default function AdminPage() {
                   <th className="pb-3 text-left font-medium text-foreground-secondary">Email</th>
                   <th className="hidden pb-3 text-left font-medium text-foreground-secondary md:table-cell">Name</th>
                   <th className="pb-3 text-left font-medium text-foreground-secondary">Role</th>
+                  <th className="hidden pb-3 text-left font-medium text-foreground-secondary lg:table-cell">Account Storage</th>
                   <th className="hidden pb-3 text-left font-medium text-foreground-secondary sm:table-cell">Joined</th>
+                  <th className="hidden pb-3 text-left font-medium text-foreground-secondary lg:table-cell">Last Visit</th>
                   <th className="pb-3 text-right font-medium text-foreground-secondary">Actions</th>
                 </tr>
               </thead>
@@ -199,13 +211,15 @@ export default function AdminPage() {
                       <td className="py-3 pr-4"><Skeleton className="h-4 w-40" /></td>
                       <td className="hidden py-3 pr-4 md:table-cell"><Skeleton className="h-4 w-24" /></td>
                       <td className="py-3 pr-4"><Skeleton className="h-5 w-14 rounded-md" /></td>
+                      <td className="hidden py-3 pr-4 lg:table-cell"><Skeleton className="h-4 w-12" /></td>
                       <td className="hidden py-3 pr-4 sm:table-cell"><Skeleton className="h-4 w-20" /></td>
+                      <td className="hidden py-3 pr-4 lg:table-cell"><Skeleton className="h-4 w-28" /></td>
                       <td className="py-3 text-right"><Skeleton className="ml-auto h-7 w-16 rounded-md" /></td>
                     </tr>
                   ))
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-foreground-muted">
+                    <td colSpan={7} className="py-8 text-center text-foreground-muted">
                       No users found.
                     </td>
                   </tr>
@@ -219,8 +233,18 @@ export default function AdminPage() {
                       <td className="py-3 pr-4">
                         <RoleBadge role={user.role} />
                       </td>
+                      <td className="hidden py-3 pr-4 lg:table-cell">
+                        {user.storage_mode === "account" ? (
+                          <span className="text-green-500 font-medium text-xs">True</span>
+                        ) : (
+                          <span className="text-foreground-muted text-xs">False</span>
+                        )}
+                      </td>
                       <td className="hidden py-3 pr-4 text-foreground-muted sm:table-cell">
                         {formatDate(user.created_at)}
+                      </td>
+                      <td className="hidden py-3 pr-4 text-foreground-muted lg:table-cell">
+                        {user.last_visit_at ? formatDateTime(user.last_visit_at) : ""}
                       </td>
                       <td className="py-3 text-right">
                         {user.role !== "admin" && (

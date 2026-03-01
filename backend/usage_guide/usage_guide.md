@@ -128,7 +128,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.7.0** — click to view the changelog of recent updates
+- **v1.8.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -366,12 +366,12 @@ After clicking **Generate Summary**, the app moves to **Step 3** — the Summary
 
 **After generation completes, the following controls appear:**
 
-| Button                 | What it does                                                                           |
-| ---------------------- | -------------------------------------------------------------------------------------- |
+| Button                 | What it does                                                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Copy as** (split)    | Copies the summary in your chosen format. Click the main button to use your default, or use the dropdown: **Formatted** (rich text), **Plain Text**, **Markdown**. |
-| **Save as** (split)    | Downloads the summary as a file. Click the main button to use your default format, or use the dropdown: **.txt**, **.md**, **.docx**, **.pdf**, **.html**. |
-| **Regenerate**         | Runs the summary again with the same settings                                          |
-| **Back to Transcript** | Returns to Step 2 to edit the transcript or prompt settings                            |
+| **Save as** (split)    | Downloads the summary as a file. Click the main button to use your default format, or use the dropdown: **.txt**, **.md**, **.docx**, **.pdf**, **.html**.         |
+| **Regenerate**         | Runs the summary again with the same settings                                                                                                                      |
+| **Back to Transcript** | Returns to Step 2 to edit the transcript or prompt settings                                                                                                        |
 
 **Token usage badge:** After generation completes, a small badge appears in the Summary card header showing how many tokens were used (e.g., **"1.2k / 200k"** — input tokens relative to the model's context window, or **"1.2k tokens"** as a session total when the context window is unknown). Hover to see a detailed breakdown of input, output, and total tokens for the last request and the full session. See [Section 4.20](#420-ai-usage-tracking) for details.
 
@@ -607,10 +607,11 @@ This is useful if, for example, you want to use a cheaper model for key point ex
 
 Set the default format used when clicking the main **Copy as** or **Save as** button on any output section (transcript, summary, form output, questions):
 
-| Setting                 | What it does                                                                                                                                                                            |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Default Copy Format** | The format used by the main **Copy as** button: **Formatted** (rich text with headings and bold, ideal for pasting into emails or documents — default), **Plain Text**, or **Markdown**. |
-| **Default Save Format** | The format used by the main **Save as** button: **.docx** (Word — default), **.txt**, **.md**, **.pdf**, **.html**, or **.json** (JSON available for Form Output and Questions only).     |
+| Setting                         | What it does                                                                                                                                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Default Copy Format**         | The format used by the main **Copy as** button: **Formatted** (rich text with headings and bold, ideal for pasting into emails or documents — default), **Plain Text**, or **Markdown**.     |
+| **Default Save Format**         | The format used by the main **Save as** button: **.docx** (Word — default), **.txt**, **.md**, **.pdf**, **.html**, or **.json** (JSON available for Form Output and Questions only).        |
+| **Default Chatbot Copy Format** | The format used when copying AI Assistant messages via the copy button: **Formatted Text** (rich text — default), **Plain Text** (markdown stripped), or **Markdown** (raw markdown source). |
 
 You can always override the format for a single copy or save by clicking the dropdown arrow on the split button, without changing your saved default.
 
@@ -808,6 +809,16 @@ The panel header shows two small key badges: **⌥** and **C**. These highlight 
 3. If transcript context is enabled (see [AI Chatbot settings](#412-settings-panel)), the assistant automatically uses your current transcript as background context. A badge above the input field shows the transcript status (e.g. **"Live Transcript"** or **"Transcript attached"**) along with the word count.
 4. Use **Shift + Enter** to insert a line break in your message without sending.
 
+#### Copying messages
+
+Hover over any assistant message to reveal a **copy button** in the top-right corner. The copy format is controlled by the **Default Chatbot Copy Format** setting (see [Content Output Formats](#412-settings-panel)):
+
+- **Formatted Text** (default) — copies as rich text (HTML) so it pastes with formatting in Word, Google Docs, etc.
+- **Plain Text** — copies the visible text with all markdown formatting stripped.
+- **Markdown** — copies the raw markdown source.
+
+For long messages that overflow the visible chat area, a second copy button appears at the bottom-right corner so you don't have to scroll back up.
+
 #### Transcript badge
 
 When transcript context is enabled and a transcript is available, a small badge appears above the input field:
@@ -830,31 +841,34 @@ The AI may propose actions that change app settings or create content on your be
 
 The following actions are available:
 
-| Action                               | What it does                                                                                |
-| ------------------------------------ | ------------------------------------------------------------------------------------------- |
-| **Change theme**                     | Switch between light, dark, or system theme.                                                |
-| **Switch app mode**                  | Switch between Standard and Realtime mode.                                                  |
-| **Change LLM provider**              | Change the AI provider (OpenAI, Anthropic, Gemini, Azure, Langdock).                        |
-| **Change model**                     | Change the selected AI model for the current provider.                                      |
-| **Toggle Sync mode**                 | Enable or disable Sync Standard + Realtime (shared microphone, coordinated start/stop).     |
-| **Toggle Speaker Key Points**        | Enable or disable automatic key point extraction per speaker.                               |
-| **Toggle Speaker Labels**            | Enable or disable real speaker name suggestions from transcript content.                    |
-| **Change speaker count**             | Update the expected min/max number of speakers for transcription.                           |
-| **Update Realtime system prompt**    | Replace the system prompt used for Realtime summary generation.                             |
-| **Change Realtime summary interval** | Set how often Realtime summaries are generated (1, 2, 3, 5, or 10 minutes).                 |
-| **Toggle Final Summary on Stop**     | Enable or disable automatic full summary generation when a Realtime session is stopped.     |
-| **Update API key**                   | Store or update an API key for any provider.                                                |
-| **Open Settings**                    | Open the Settings panel.                                                                    |
-| **Save prompt template**             | Create and save a custom prompt template for summary generation.                            |
-| **List prompt templates**            | Show all saved custom prompt templates (no confirmation needed).                            |
-| **Show prompt template details**     | Display the full content of a specific prompt template (no confirmation needed).            |
-| **Update prompt template**           | Modify an existing prompt template's name or content.                                       |
-| **Delete prompt template**           | Remove a custom prompt template.                                                            |
-| **Save form template**               | Create and save a form template for structured data extraction.                             |
-| **List form templates**              | Show all saved custom form templates (no confirmation needed).                              |
-| **Show form template details**       | Display the full fields and structure of a specific form template (no confirmation needed). |
-| **Update form template**             | Modify an existing form template's name or fields.                                          |
-| **Delete form template**             | Remove a custom form template.                                                              |
+| Action                                 | What it does                                                                                     |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Change theme**                       | Switch between light, dark, or system theme.                                                     |
+| **Switch app mode**                    | Switch between Standard and Realtime mode.                                                       |
+| **Change LLM provider**                | Change the AI provider (OpenAI, Anthropic, Gemini, Azure, Langdock).                             |
+| **Change model**                       | Change the selected AI model for the current provider.                                           |
+| **Toggle Sync mode**                   | Enable or disable Sync Standard + Realtime (shared microphone, coordinated start/stop).          |
+| **Toggle Speaker Key Points**          | Enable or disable automatic key point extraction per speaker.                                    |
+| **Toggle Speaker Labels**              | Enable or disable real speaker name suggestions from transcript content.                         |
+| **Change speaker count**               | Update the expected min/max number of speakers for transcription.                                |
+| **Update Realtime system prompt**      | Replace the system prompt used for Realtime summary generation.                                  |
+| **Change Realtime summary interval**   | Set how often Realtime summaries are generated (1, 2, 3, 5, or 10 minutes).                      |
+| **Toggle Final Summary on Stop**       | Enable or disable automatic full summary generation when a Realtime session is stopped.          |
+| **Change Default Copy Format**         | Change the default format for the Copy as button (Formatted, Plain Text, Markdown, or JSON).     |
+| **Change Default Save Format**         | Change the default file format for the Save as button (.txt, .md, .docx, .pdf, .html, or .json). |
+| **Change Default Chatbot Copy Format** | Change the format used when copying chatbot messages (Formatted Text, Plain Text, or Markdown).  |
+| **Update API key**                     | Store or update an API key for any provider.                                                     |
+| **Open Settings**                      | Open the Settings panel.                                                                         |
+| **Save prompt template**               | Create and save a custom prompt template for summary generation.                                 |
+| **List prompt templates**              | Show all saved custom prompt templates (no confirmation needed).                                 |
+| **Show prompt template details**       | Display the full content of a specific prompt template (no confirmation needed).                 |
+| **Update prompt template**             | Modify an existing prompt template's name or content.                                            |
+| **Delete prompt template**             | Remove a custom prompt template.                                                                 |
+| **Save form template**                 | Create and save a form template for structured data extraction.                                  |
+| **List form templates**                | Show all saved custom form templates (no confirmation needed).                                   |
+| **Show form template details**         | Display the full fields and structure of a specific form template (no confirmation needed).      |
+| **Update form template**               | Modify an existing form template's name or fields.                                               |
+| **Delete form template**               | Remove a custom form template.                                                                   |
 
 You can also ask the chatbot to **create custom prompt templates** (e.g. "Create a prompt template for summarizing technical design meetings") or **create form templates** (e.g. "Create a form template for tracking project status with priority, assignee, due date, and status"). The AI will craft the template and propose saving it as an action. Once confirmed, the template appears in the corresponding dropdown (PromptEditor for prompt templates, FormTemplateSelector for form templates).
 

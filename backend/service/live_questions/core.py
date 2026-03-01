@@ -18,6 +18,7 @@ RULES:
 - If the transcript mentions the topic but does not fully answer the specific question, do NOT mark it as answered.
 - When in doubt, leave the question as unanswered. It is better to wait for more transcript than to give a wrong or incomplete answer.
 - Answers must be SHORT (one sentence max) and cite the specific information from the transcript.
+- Always answer in the same language as the question. Use proper Unicode characters (e.g., ü, ä, ö, ß for German) — never use ASCII substitutions like ue, ae, oe, ss.
 - For yes/no or topic-check questions (e.g., "Was X discussed?"), mark as answered if the topic appears in the transcript, and provide a brief summary of what was said.
 - For specific detail questions (e.g., "What date was decided?"), only mark as answered if the exact detail is present in the transcript.
 - If a question has no id in the transcript, set answered to false and omit the answer field entirely.

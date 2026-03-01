@@ -10,9 +10,33 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.8.0",
+    date: "2026-03-01",
+    title:
+      "Chatbot copy format settings, smarter synced mode switching & improved copy button accessibility",
+    changes: [
+      {
+        type: "added",
+        description:
+          "The chatbot can now change Default Copy Format, Default Save Format, and Default Chatbot Copy Format on behalf of the user. A new configurable Chatbot Copy Format setting controls how chatbot messages are copied to the clipboard (Formatted Text, Plain Text, or Markdown), defaulting to Formatted Text.",
+      },
+      {
+        type: "changed",
+        description:
+          "Switching to Standard mode after a synced recording started from Realtime now shows the Record Audio tab instead of the previously saved step position",
+      },
+      {
+        type: "changed",
+        description:
+          "Chatbot copy button now appears at both the top and bottom of long assistant messages that overflow the visible area, so you no longer need to scroll back up to copy",
+      },
+    ],
+  },
+  {
     version: "1.7.0",
     date: "2026-02-28",
-    title: "Step persistence in standard mode",
+    title:
+      "Added more ways to copy output, added download functionality, added token usage tracking, step persistence in standard mode & fixed iOS microphone permission prompts",
     changes: [
       {
         type: "added",
@@ -30,7 +54,7 @@ export const changelog: ChangelogEntry[] = [
           "Standard mode now remembers your last viewed step (Upload, Transcript, or Summary) across page reloads and devices",
       },
       {
-        type: "changed",
+        type: "fixed",
         description:
           'Skipped the early microphone permission prompt on iOS to avoid repeated prompts on every page load — iOS Safari has no "Always Allow" option, so permission is now only requested when starting a recording or realtime session',
       },

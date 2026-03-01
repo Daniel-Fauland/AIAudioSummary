@@ -69,6 +69,55 @@ ACTION_REGISTRY = [
         "params": {"enabled": {"type": "boolean"}},
     },
     {
+        "action_id": "change_default_copy_format",
+        "description": "Change the default format used when copying content (transcript, summary, etc.) to the clipboard",
+        "params": {
+            "format": {
+                "type": "string",
+                "enum": ["formatted", "plain", "markdown", "json"],
+                "labels": {
+                    "formatted": "Formatted Text",
+                    "plain": "Plain Text",
+                    "markdown": "Markdown",
+                    "json": "JSON",
+                },
+            },
+        },
+    },
+    {
+        "action_id": "change_default_save_format",
+        "description": "Change the default file format used when saving/downloading content (transcript, summary, etc.)",
+        "params": {
+            "format": {
+                "type": "string",
+                "enum": ["txt", "md", "docx", "pdf", "html", "json"],
+                "labels": {
+                    "txt": ".txt (Plain Text)",
+                    "md": ".md (Markdown)",
+                    "docx": ".docx (Word Document)",
+                    "pdf": ".pdf (PDF)",
+                    "html": ".html (HTML)",
+                    "json": ".json (JSON)",
+                },
+            },
+        },
+    },
+    {
+        "action_id": "change_default_chatbot_copy_format",
+        "description": "Change the default format used when copying chatbot messages to the clipboard",
+        "params": {
+            "format": {
+                "type": "string",
+                "enum": ["markdown", "plain", "formatted"],
+                "labels": {
+                    "markdown": "Markdown (raw source)",
+                    "plain": "Plain Text (no formatting)",
+                    "formatted": "Formatted Text (rich text with styling)",
+                },
+            },
+        },
+    },
+    {
         "action_id": "update_api_key",
         "description": "Update an API key for a provider",
         "params": {"provider": {"type": "string"}, "key": {"type": "string"}},

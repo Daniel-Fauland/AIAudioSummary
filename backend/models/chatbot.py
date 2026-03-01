@@ -51,6 +51,9 @@ class AppContext(BaseModel):
     changelog: str | None = None
     user_timestamp: str | None = None
     last_visit_timestamp: str | None = None
+    default_copy_format: str | None = None
+    default_save_format: str | None = None
+    default_chatbot_copy_format: str | None = None
     custom_templates: list[PromptTemplateInfo] | None = None
     form_templates: list[FormTemplateInfo] | None = None
 

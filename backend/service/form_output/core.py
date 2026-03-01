@@ -30,7 +30,8 @@ RULES:
 - For list_str fields, extract a list of relevant string items from the transcript.
 - For boolean fields, only set true/false when the transcript clearly indicates yes/no for that topic.
 - For number fields, extract numeric values only when explicitly stated.
-- Be precise and concise in extracted values. Do not add information not present in the transcript."""
+- Be precise and concise in extracted values. Do not add information not present in the transcript.
+- For text fields (string, list_str), respond in the same language as the field labels and descriptions. Use proper Unicode characters (e.g., ü, ä, ö, ß for German) — never use ASCII substitutions like ue, ae, oe, ss."""
 
 _INCREMENTAL_SYSTEM_PROMPT_ADDITION = """
 INCREMENTAL UPDATE RULES:

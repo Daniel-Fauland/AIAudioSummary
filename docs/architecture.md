@@ -466,6 +466,7 @@ The backend uses **async SQLAlchemy 2.x** with **asyncpg** and **Alembic** for s
 | `storage_mode` | `VARCHAR(10)` | `'local'` or `'account'`, default `'local'` |
 | `created_at` | `TIMESTAMPTZ` | Server default `now()` |
 | `updated_at` | `TIMESTAMPTZ` | Server default `now()`, updated on write |
+| `last_visit_at` | `TIMESTAMPTZ` | Nullable; updated on each `/users/me` call for account-storage users |
 
 **Startup behaviour** (in `main.py` lifespan):
 1. If `DATABASE_URL` is set: runs `alembic upgrade head` in a thread executor (keeps async event loop clean), then seeds any emails in `INITIAL_ADMINS` as `role='admin'`.

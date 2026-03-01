@@ -37,6 +37,8 @@ export interface GlobalSyncContextValue {
   setSyncEnabled: (enabled: boolean) => void;
   /** Register the AssemblyAI key so sync can auto-start realtime mode. */
   setAssemblyAiKey: (key: string) => void;
+  /** Ephemeral flag: when true, switching to standard mode should show Step 1 / Record tab. */
+  pendingStandardRecordViewRef: React.RefObject<boolean>;
 }
 
 const GlobalSyncContext = createContext<GlobalSyncContextValue | null>(null);
@@ -70,6 +72,9 @@ export function GlobalSyncProvider({ children }: { children: ReactNode }) {
 
   // Guard against re-entrant sync triggers
   const syncingRef = useRef(false);
+
+  // Ephemeral flag: set when realtime sync auto-starts standard recording
+  const pendingStandardRecordViewRef = useRef(false);
 
   const setSyncEnabled = useCallback((enabled: boolean) => {
     setSyncEnabledState(enabled);
@@ -145,6 +150,7 @@ export function GlobalSyncProvider({ children }: { children: ReactNode }) {
     // Realtime just connected → auto-start standard recording
     if (prev !== "connected" && curr === "connected") {
       if (recording.recorderState === "idle") {
+        pendingStandardRecordViewRef.current = true;
         syncingRef.current = true;
         // Pass the display stream from realtime to avoid second Chrome prompt
         const sharedDisplay = recording.recordMode === "meeting"
@@ -252,6 +258,7 @@ export function GlobalSyncProvider({ children }: { children: ReactNode }) {
     setDialogBOpen(false);
     recording.resetRecording();
     window.dispatchEvent(new CustomEvent("aias:sync-clear-standard"));
+    pendingStandardRecordViewRef.current = true;
     syncingRef.current = true;
     const sharedDisplay = recording.recordMode === "meeting"
       ? realtime._displayStreamRef.current ?? undefined
@@ -279,6 +286,7 @@ export function GlobalSyncProvider({ children }: { children: ReactNode }) {
     syncEnabled,
     setSyncEnabled,
     setAssemblyAiKey,
+    pendingStandardRecordViewRef,
   };
 
   return (

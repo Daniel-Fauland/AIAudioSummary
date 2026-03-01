@@ -2,16 +2,17 @@
 
 import { useLayoutEffect, useRef, useCallback } from "react";
 import { ChatMessage } from "./ChatMessage";
-import type { ChatMessageType } from "@/lib/types";
+import type { ChatMessageType, ChatbotCopyFormat } from "@/lib/types";
 
 interface ChatMessageListProps {
   messages: ChatMessageType[];
   isStreaming: boolean;
   onConfirmAction?: (messageId: string) => void;
   onCancelAction?: (messageId: string) => void;
+  chatbotCopyFormat?: ChatbotCopyFormat;
 }
 
-export function ChatMessageList({ messages, isStreaming, onConfirmAction, onCancelAction }: ChatMessageListProps) {
+export function ChatMessageList({ messages, isStreaming, onConfirmAction, onCancelAction, chatbotCopyFormat }: ChatMessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isUserScrolledUp = useRef(false);
 
@@ -56,6 +57,7 @@ export function ChatMessageList({ messages, isStreaming, onConfirmAction, onCanc
             isStreaming={isStreaming}
             onConfirmAction={onConfirmAction}
             onCancelAction={onCancelAction}
+            copyFormat={chatbotCopyFormat}
           />
         ))}
         {isStreaming && messages[messages.length - 1]?.role === "assistant" && messages[messages.length - 1]?.content === "" && (

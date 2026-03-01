@@ -68,6 +68,7 @@ const CHATBOT_ACTIONS_KEY = "aias:v1:chatbot_actions";
 const SYNC_STANDARD_REALTIME_KEY = "aias:v1:sync_standard_realtime";
 const DEFAULT_COPY_FORMAT_KEY = "aias:v1:default_copy_format";
 const DEFAULT_SAVE_FORMAT_KEY = "aias:v1:default_save_format";
+const DEFAULT_CHATBOT_COPY_FORMAT_KEY = "aias:v1:default_chatbot_copy_format";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -225,12 +226,6 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     () => (serverPreferences?.app_mode as "standard" | "realtime") || safeGet(APP_MODE_KEY, "standard") as "standard" | "realtime",
   );
 
-  const handleModeChange = useCallback((mode: "standard" | "realtime") => {
-    setAppMode(mode);
-    safeSet(APP_MODE_KEY, mode);
-    savePreferences();
-  }, [savePreferences]);
-
   // Provider / model (persisted in localStorage)
   const initProvider = serverPreferences?.selected_provider || safeGet(PROVIDER_KEY, "openai");
   const [selectedProvider, setSelectedProvider] = useState<LLMProvider>(
@@ -288,6 +283,18 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [stepNavDialogOpen, setStepNavDialogOpen] = useState(false);
   const [pendingStep, setPendingStep] = useState<1 | 2 | 3 | null>(null);
   const [step1Mode, setStep1Mode] = useState<"upload" | "record">("upload");
+
+  const handleModeChange = useCallback((mode: "standard" | "realtime") => {
+    if (mode === "standard" && globalSync.pendingStandardRecordViewRef.current) {
+      globalSync.pendingStandardRecordViewRef.current = false;
+      setCurrentStep(1);
+      setStep1Mode("record");
+    }
+    setAppMode(mode);
+    safeSet(APP_MODE_KEY, mode);
+    savePreferences();
+  }, [savePreferences, globalSync.pendingStandardRecordViewRef, setCurrentStep]);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [transcript, setTranscript] = useState(initialStandardSession.transcript);
@@ -626,6 +633,16 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
   }, [savePreferences]);
 
+  const [defaultChatbotCopyFormat, setDefaultChatbotCopyFormat] = useState<import("@/lib/types").ChatbotCopyFormat>(
+    () => (serverPreferences?.default_chatbot_copy_format as import("@/lib/types").ChatbotCopyFormat) || safeGet(DEFAULT_CHATBOT_COPY_FORMAT_KEY, "formatted") as import("@/lib/types").ChatbotCopyFormat,
+  );
+
+  const handleDefaultChatbotCopyFormatChange = useCallback((format: import("@/lib/types").ChatbotCopyFormat) => {
+    setDefaultChatbotCopyFormat(format);
+    safeSet(DEFAULT_CHATBOT_COPY_FORMAT_KEY, format);
+    savePreferences();
+  }, [savePreferences]);
+
   // Keep sync context's AssemblyAI key up to date
   useEffect(() => {
     const key = getKey("assemblyai");
@@ -685,6 +702,21 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     },
     toggle_final_summary: async ({ enabled }) => {
       handleRealtimeFinalSummaryEnabledChange(enabled as boolean);
+    },
+    change_default_copy_format: async ({ format }) => {
+      const validFormats: import("@/lib/types").CopyFormat[] = ["formatted", "plain", "markdown", "json"];
+      if (!validFormats.includes(format as import("@/lib/types").CopyFormat)) throw new Error(`Invalid copy format: ${format}. Valid formats: ${validFormats.join(", ")}`);
+      handleDefaultCopyFormatChange(format as import("@/lib/types").CopyFormat);
+    },
+    change_default_save_format: async ({ format }) => {
+      const validFormats: import("@/lib/types").SaveFormat[] = ["txt", "md", "docx", "pdf", "html", "json"];
+      if (!validFormats.includes(format as import("@/lib/types").SaveFormat)) throw new Error(`Invalid save format: ${format}. Valid formats: ${validFormats.join(", ")}`);
+      handleDefaultSaveFormatChange(format as import("@/lib/types").SaveFormat);
+    },
+    change_default_chatbot_copy_format: async ({ format }) => {
+      const validFormats: import("@/lib/types").ChatbotCopyFormat[] = ["markdown", "plain", "formatted"];
+      if (!validFormats.includes(format as import("@/lib/types").ChatbotCopyFormat)) throw new Error(`Invalid chatbot copy format: ${format}. Valid formats: ${validFormats.join(", ")}`);
+      handleDefaultChatbotCopyFormatChange(format as import("@/lib/types").ChatbotCopyFormat);
     },
     open_settings: async () => {
       setSettingsOpen(true);
@@ -782,7 +814,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       deleteFormTemplate(id as string);
       toast.success(`Form template "${template.name}" deleted`);
     },
-  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, setKey, config, selectedProvider, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates]);
+  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates]);
 
   const getAssemblyAiKey = useCallback((): string | null => {
     const key = getKey("assemblyai");
@@ -820,10 +852,13 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       changelog: changelogText,
       user_timestamp: "",
       last_visit_timestamp: lastVisitTimestamp,
+      default_copy_format: defaultCopyFormat,
+      default_save_format: defaultSaveFormat,
+      default_chatbot_copy_format: defaultChatbotCopyFormat,
       custom_templates: customTemplates.length > 0 ? customTemplates.map(t => ({ id: t.id, name: t.name, content: t.content })) : undefined,
       form_templates: formTemplates.length > 0 ? formTemplates.map(t => ({ id: t.id, name: t.name, fields: t.fields.map(f => ({ label: f.label, type: f.type, description: f.description, options: f.options })) })) : undefined,
     };
-  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp, customTemplates, formTemplates]);
+  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp, defaultCopyFormat, defaultSaveFormat, defaultChatbotCopyFormat, customTemplates, formTemplates]);
 
   const onChatbotMessagesChange = useCallback((msgs: import("@/lib/types").ChatMessageType[]) => {
     if (msgs.length === 0) {
@@ -1371,6 +1406,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onDefaultCopyFormatChange={handleDefaultCopyFormatChange}
         defaultSaveFormat={defaultSaveFormat}
         onDefaultSaveFormatChange={handleDefaultSaveFormatChange}
+        defaultChatbotCopyFormat={defaultChatbotCopyFormat}
+        onDefaultChatbotCopyFormatChange={handleDefaultChatbotCopyFormatChange}
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
@@ -1739,6 +1776,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             sessionUsage={chatSessionUsage}
             lastRequestUsage={chatLastRequestUsage}
             contextWindow={getContextWindow(config, resolveModelConfig("chatbot").provider, resolveModelConfig("chatbot").model)}
+            chatbotCopyFormat={defaultChatbotCopyFormat}
           />
         </>
       )}

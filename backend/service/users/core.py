@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,9 +10,15 @@ from db.models import User
 
 class UsersService:
     async def get_me(self, user: User, token_name: str | None, db: AsyncSession) -> User:
-        """Update name from token if different, then return user."""
+        """Update name from token if different, update last_visit_at for account storage users, then return user."""
+        dirty = False
         if token_name and token_name != user.name:
             user.name = token_name
+            dirty = True
+        if user.storage_mode == "account":
+            user.last_visit_at = datetime.now(timezone.utc)
+            dirty = True
+        if dirty:
             await db.commit()
             await db.refresh(user)
         return user

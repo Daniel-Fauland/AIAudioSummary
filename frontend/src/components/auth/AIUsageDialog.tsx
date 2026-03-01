@@ -34,7 +34,6 @@ import { formatTokenCount, formatTokenCountExact } from "@/lib/token-utils";
 import type { TokenUsageEntry } from "@/lib/types";
 
 type Period = "1w" | "1m" | "1y";
-type TokenMode = "total" | "input" | "output";
 
 interface AIUsageDialogProps {
   open: boolean;
@@ -43,17 +42,24 @@ interface AIUsageDialogProps {
   onClearHistory: () => void;
 }
 
+function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function getDateKey(ts: number, period: Period): string {
   const d = new Date(ts);
   if (period === "1y") {
     // Weekly aggregation: ISO week start (Monday)
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const dow = d.getDay();
+    const diff = d.getDate() - dow + (dow === 0 ? -6 : 1);
     const monday = new Date(d.getFullYear(), d.getMonth(), diff);
-    return monday.toISOString().slice(0, 10);
+    return toLocalDateKey(monday);
   }
   // Daily aggregation
-  return d.toISOString().slice(0, 10);
+  return toLocalDateKey(d);
 }
 
 function formatDateLabel(key: string, period: Period): string {
@@ -83,7 +89,6 @@ export function AIUsageDialog({
   onClearHistory,
 }: AIUsageDialogProps) {
   const [period, setPeriod] = useState<Period>("1m");
-  const [tokenMode, setTokenMode] = useState<TokenMode>("total");
   const [confirmClear, setConfirmClear] = useState(false);
 
   const filteredData = useMemo(() => {
@@ -154,23 +159,14 @@ export function AIUsageDialog({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Period & Mode Controls */}
-              <div className="flex items-center justify-between gap-2">
-                <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
-                  <TabsList>
-                    <TabsTrigger value="1w">1 Week</TabsTrigger>
-                    <TabsTrigger value="1m">1 Month</TabsTrigger>
-                    <TabsTrigger value="1y">1 Year</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                <Tabs value={tokenMode} onValueChange={(v) => setTokenMode(v as TokenMode)}>
-                  <TabsList>
-                    <TabsTrigger value="total">Total</TabsTrigger>
-                    <TabsTrigger value="input">Input</TabsTrigger>
-                    <TabsTrigger value="output">Output</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
+              {/* Period Controls */}
+              <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+                <TabsList>
+                  <TabsTrigger value="1w">1 Week</TabsTrigger>
+                  <TabsTrigger value="1m">1 Month</TabsTrigger>
+                  <TabsTrigger value="1y">1 Year</TabsTrigger>
+                </TabsList>
+              </Tabs>
 
               {/* Chart */}
               {chartData.length > 0 ? (
@@ -202,26 +198,22 @@ export function AIUsageDialog({
                           name.charAt(0).toUpperCase() + name.slice(1),
                         ]) as any}
                       />
-                      {(tokenMode === "total" || tokenMode === "input") && (
-                        <Area
-                          type="monotone"
-                          dataKey="input"
-                          stackId="1"
-                          stroke="hsl(var(--primary))"
-                          fill="hsl(var(--primary) / 0.3)"
-                          name="Input"
-                        />
-                      )}
-                      {(tokenMode === "total" || tokenMode === "output") && (
-                        <Area
-                          type="monotone"
-                          dataKey="output"
-                          stackId={tokenMode === "total" ? "1" : "2"}
-                          stroke="hsl(142 71% 45%)"
-                          fill="hsl(142 71% 45% / 0.3)"
-                          name="Output"
-                        />
-                      )}
+                      <Area
+                        type="monotone"
+                        dataKey="input"
+                        stackId="1"
+                        stroke="hsl(var(--primary))"
+                        fill="hsl(var(--primary) / 0.3)"
+                        name="Input"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="output"
+                        stackId="1"
+                        stroke="hsl(142 71% 45%)"
+                        fill="hsl(142 71% 45% / 0.3)"
+                        name="Output"
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>

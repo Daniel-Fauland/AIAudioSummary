@@ -283,6 +283,9 @@ export interface AppContext {
   changelog: string;
   user_timestamp: string;
   last_visit_timestamp: string | null;
+  default_copy_format?: string;
+  default_save_format?: string;
+  default_chatbot_copy_format?: string;
   custom_templates?: { id: string; name: string; content: string }[];
   form_templates?: { id: string; name: string; fields: { label: string; type: string; description?: string; options?: string[] }[] }[];
 }
@@ -311,12 +314,14 @@ export interface UserProfile {
   role: "user" | "admin";
   storage_mode: "local" | "account";
   created_at: string;
+  last_visit_at: string | null;
 }
 
 // === Content Actions types ===
 
 export type ContentType = "transcript" | "summary" | "form" | "questions";
 export type CopyFormat = "formatted" | "plain" | "markdown" | "json";
+export type ChatbotCopyFormat = "markdown" | "plain" | "formatted";
 export type SaveFormat = "txt" | "md" | "docx" | "pdf" | "html" | "json";
 
 export interface ContentPayload {
@@ -357,6 +362,7 @@ export interface UserPreferences {
   sync_standard_realtime?: boolean;
   default_copy_format?: CopyFormat;
   default_save_format?: SaveFormat;
+  default_chatbot_copy_format?: ChatbotCopyFormat;
   session_standard?: {
     transcript?: string;
     summary?: string;

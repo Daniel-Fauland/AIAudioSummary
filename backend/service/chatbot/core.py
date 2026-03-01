@@ -62,6 +62,15 @@ class ChatbotService:
             if ctx.last_visit_timestamp:
                 context_lines.append(
                     f"- User's last visit: {ctx.last_visit_timestamp}")
+            if ctx.default_copy_format:
+                context_lines.append(
+                    f"- Default copy format: {ctx.default_copy_format}")
+            if ctx.default_save_format:
+                context_lines.append(
+                    f"- Default save format: {ctx.default_save_format}")
+            if ctx.default_chatbot_copy_format:
+                context_lines.append(
+                    f"- Default chatbot copy format: {ctx.default_chatbot_copy_format}")
             if ctx.custom_templates:
                 tpl_lines = []
                 for t in ctx.custom_templates:

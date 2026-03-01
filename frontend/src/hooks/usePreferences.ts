@@ -182,6 +182,7 @@ function collectPreferences(): UserPreferences {
   const syncStandardRealtime = safeLocalGet("aias:v1:sync_standard_realtime");
   const defaultCopyFormat = safeLocalGet("aias:v1:default_copy_format");
   const defaultSaveFormat = safeLocalGet("aias:v1:default_save_format");
+  const defaultChatbotCopyFormat = safeLocalGet("aias:v1:default_chatbot_copy_format");
 
   // Token usage history
   let tokenUsageHistory: import("@/lib/types").TokenUsageEntry[] | undefined;
@@ -218,6 +219,7 @@ function collectPreferences(): UserPreferences {
     sync_standard_realtime: syncStandardRealtime ? syncStandardRealtime === "true" : undefined,
     default_copy_format: (defaultCopyFormat as import("@/lib/types").CopyFormat) || undefined,
     default_save_format: (defaultSaveFormat as import("@/lib/types").SaveFormat) || undefined,
+    default_chatbot_copy_format: (defaultChatbotCopyFormat as import("@/lib/types").ChatbotCopyFormat) || undefined,
     session_standard: sessionStandard,
     session_realtime: sessionRealtime,
     session_chatbot: sessionChatbot,
@@ -251,6 +253,7 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.sync_standard_realtime !== undefined) safeLocalSet("aias:v1:sync_standard_realtime", prefs.sync_standard_realtime ? "true" : "false");
   if (prefs.default_copy_format) safeLocalSet("aias:v1:default_copy_format", prefs.default_copy_format);
   if (prefs.default_save_format) safeLocalSet("aias:v1:default_save_format", prefs.default_save_format);
+  if (prefs.default_chatbot_copy_format) safeLocalSet("aias:v1:default_chatbot_copy_format", prefs.default_chatbot_copy_format);
   if (prefs.token_usage_history) safeLocalSet("aias:v1:token_usage_history", JSON.stringify(prefs.token_usage_history));
   applySessionData(prefs);
 }

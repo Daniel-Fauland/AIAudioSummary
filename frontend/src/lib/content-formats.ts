@@ -1,4 +1,4 @@
-import type { ContentType, CopyFormat, SaveFormat, ContentPayload, FormFieldDefinition, LiveQuestion } from "@/lib/types";
+import type { ContentType, CopyFormat, SaveFormat, ChatbotCopyFormat, ContentPayload, FormFieldDefinition, LiveQuestion } from "@/lib/types";
 
 // === Format availability per content type ===
 
@@ -31,6 +31,12 @@ export const COPY_FORMAT_LABELS: Record<CopyFormat, string> = {
   plain: "Plain Text",
   markdown: "Markdown",
   json: "JSON",
+};
+
+export const CHATBOT_COPY_FORMAT_LABELS: Record<ChatbotCopyFormat, string> = {
+  markdown: "Markdown",
+  plain: "Plain Text",
+  formatted: "Formatted Text",
 };
 
 export const SAVE_FORMAT_LABELS: Record<SaveFormat, string> = {
