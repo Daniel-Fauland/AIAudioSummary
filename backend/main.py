@@ -70,6 +70,8 @@ async def lifespan(app: FastAPI):
             await loop.run_in_executor(None, _run_migrations_sync)
             logger.info("Database migrations complete.")
             await _seed_admins()
+            from utils.seed import seed_dev_user
+            await seed_dev_user()
         except Exception as e:
             logger.error(f"Database startup failed: {e}")
             raise
