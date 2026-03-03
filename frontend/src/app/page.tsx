@@ -69,6 +69,7 @@ const SYNC_STANDARD_REALTIME_KEY = "aias:v1:sync_standard_realtime";
 const DEFAULT_COPY_FORMAT_KEY = "aias:v1:default_copy_format";
 const DEFAULT_SAVE_FORMAT_KEY = "aias:v1:default_save_format";
 const DEFAULT_CHATBOT_COPY_FORMAT_KEY = "aias:v1:default_chatbot_copy_format";
+const ADVANCED_SETTINGS_KEY = "aias:v1:advanced_settings";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -371,6 +372,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     () => serverPreferences?.sync_standard_realtime !== undefined ? serverPreferences.sync_standard_realtime : safeGet(SYNC_STANDARD_REALTIME_KEY, "false") === "true",
   );
 
+  const [advancedSettings, setAdvancedSettings] = useState(
+    () => serverPreferences?.advanced_settings !== undefined ? serverPreferences.advanced_settings : safeGet(ADVANCED_SETTINGS_KEY, "false") === "true",
+  );
+
   // Form output state — initialize from persisted session
   const [outputMode, setOutputMode] = useState<"summary" | "form">(initialStandardSession.outputMode);
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState<string | null>(initialStandardSession.formTemplateId);
@@ -612,6 +617,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     globalSync.setSyncEnabled(enabled);
     savePreferences();
   }, [savePreferences, globalSync]);
+
+  const handleAdvancedSettingsChange = useCallback((enabled: boolean) => {
+    setAdvancedSettings(enabled);
+    safeSet(ADVANCED_SETTINGS_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
 
   // Default copy/save format state
   const [defaultCopyFormat, setDefaultCopyFormat] = useState<import("@/lib/types").CopyFormat>(
@@ -1408,6 +1419,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onDefaultSaveFormatChange={handleDefaultSaveFormatChange}
         defaultChatbotCopyFormat={defaultChatbotCopyFormat}
         onDefaultChatbotCopyFormatChange={handleDefaultChatbotCopyFormatChange}
+        advancedSettings={advancedSettings}
+        onAdvancedSettingsChange={handleAdvancedSettingsChange}
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 md:px-6">

@@ -180,6 +180,7 @@ function collectPreferences(): UserPreferences {
   const realtimeSystemPrompt = safeLocalGet("aias:v1:realtime_system_prompt");
 
   const syncStandardRealtime = safeLocalGet("aias:v1:sync_standard_realtime");
+  const advancedSettings = safeLocalGet("aias:v1:advanced_settings");
   const defaultCopyFormat = safeLocalGet("aias:v1:default_copy_format");
   const defaultSaveFormat = safeLocalGet("aias:v1:default_save_format");
   const defaultChatbotCopyFormat = safeLocalGet("aias:v1:default_chatbot_copy_format");
@@ -217,6 +218,7 @@ function collectPreferences(): UserPreferences {
     custom_templates: customTemplates,
     form_templates: formTemplates,
     sync_standard_realtime: syncStandardRealtime ? syncStandardRealtime === "true" : undefined,
+    advanced_settings: advancedSettings ? advancedSettings === "true" : undefined,
     default_copy_format: (defaultCopyFormat as import("@/lib/types").CopyFormat) || undefined,
     default_save_format: (defaultSaveFormat as import("@/lib/types").SaveFormat) || undefined,
     default_chatbot_copy_format: (defaultChatbotCopyFormat as import("@/lib/types").ChatbotCopyFormat) || undefined,
@@ -251,6 +253,7 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.custom_templates) safeLocalSet("aias:v1:custom_templates", JSON.stringify(prefs.custom_templates));
   if (prefs.form_templates) safeLocalSet("aias:v1:form_templates", JSON.stringify(prefs.form_templates));
   if (prefs.sync_standard_realtime !== undefined) safeLocalSet("aias:v1:sync_standard_realtime", prefs.sync_standard_realtime ? "true" : "false");
+  if (prefs.advanced_settings !== undefined) safeLocalSet("aias:v1:advanced_settings", prefs.advanced_settings ? "true" : "false");
   if (prefs.default_copy_format) safeLocalSet("aias:v1:default_copy_format", prefs.default_copy_format);
   if (prefs.default_save_format) safeLocalSet("aias:v1:default_save_format", prefs.default_save_format);
   if (prefs.default_chatbot_copy_format) safeLocalSet("aias:v1:default_chatbot_copy_format", prefs.default_chatbot_copy_format);

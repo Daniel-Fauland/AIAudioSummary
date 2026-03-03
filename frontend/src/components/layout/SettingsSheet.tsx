@@ -75,6 +75,8 @@ interface SettingsSheetProps {
   onDefaultSaveFormatChange: (format: SaveFormat) => void;
   defaultChatbotCopyFormat: ChatbotCopyFormat;
   onDefaultChatbotCopyFormatChange: (format: ChatbotCopyFormat) => void;
+  advancedSettings: boolean;
+  onAdvancedSettingsChange: (enabled: boolean) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -148,6 +150,8 @@ export function SettingsSheet({
   onDefaultSaveFormatChange,
   defaultChatbotCopyFormat,
   onDefaultChatbotCopyFormatChange,
+  advancedSettings,
+  onAdvancedSettingsChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -347,15 +351,19 @@ export function SettingsSheet({
                     </>
                   ) : null}
 
-                  <Separator />
+                  {advancedSettings && (
+                    <>
+                      <Separator />
 
-                  <FeatureModelOverrides
-                    featureOverrides={featureOverrides}
-                    onFeatureOverridesChange={onFeatureOverridesChange}
-                    defaultProvider={selectedProvider}
-                    defaultModel={selectedModel}
-                    providers={providers}
-                  />
+                      <FeatureModelOverrides
+                        featureOverrides={featureOverrides}
+                        onFeatureOverridesChange={onFeatureOverridesChange}
+                        defaultProvider={selectedProvider}
+                        defaultModel={selectedModel}
+                        providers={providers}
+                      />
+                    </>
+                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -370,237 +378,262 @@ export function SettingsSheet({
                     <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">
                       General
                     </p>
-                    <ChatbotSettings
-                      chatbotEnabled={chatbotEnabled}
-                      onChatbotEnabledChange={onChatbotEnabledChange}
-                      chatbotQAEnabled={chatbotQAEnabled}
-                      onChatbotQAEnabledChange={onChatbotQAEnabledChange}
-                      chatbotTranscriptEnabled={chatbotTranscriptEnabled}
-                      onChatbotTranscriptEnabledChange={onChatbotTranscriptEnabledChange}
-                      chatbotActionsEnabled={chatbotActionsEnabled}
-                      onChatbotActionsEnabledChange={onChatbotActionsEnabledChange}
-                    />
 
                     <div className="flex items-center justify-between gap-3">
                       <div className="space-y-0.5">
-                        <Label htmlFor="sync-standard-realtime" className="text-sm">
-                          Sync Standard + Realtime
+                        <Label htmlFor="advanced-settings" className="text-sm">
+                          Advanced Settings
                         </Label>
                         <p className="text-xs text-foreground-muted">
-                          Starting one mode automatically starts the other with shared microphone input
+                          Show all configuration options for power users
                         </p>
                       </div>
                       <Switch
-                        id="sync-standard-realtime"
-                        checked={syncStandardRealtime}
-                        onCheckedChange={onSyncStandardRealtimeChange}
+                        id="advanced-settings"
+                        checked={advancedSettings}
+                        onCheckedChange={onAdvancedSettingsChange}
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-sm">Default Copy Format</Label>
-                      <Select
-                        value={defaultCopyFormat}
-                        onValueChange={(v) => onDefaultCopyFormatChange(v as CopyFormat)}
-                      >
-                        <SelectTrigger className="h-8 w-[160px] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.entries(COPY_FORMAT_LABELS) as [CopyFormat, string][]).map(([key, label]) => (
-                            <SelectItem key={key} value={key}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {advancedSettings && (
+                      <>
+                        <ChatbotSettings
+                          chatbotEnabled={chatbotEnabled}
+                          onChatbotEnabledChange={onChatbotEnabledChange}
+                          chatbotQAEnabled={chatbotQAEnabled}
+                          onChatbotQAEnabledChange={onChatbotQAEnabledChange}
+                          chatbotTranscriptEnabled={chatbotTranscriptEnabled}
+                          onChatbotTranscriptEnabledChange={onChatbotTranscriptEnabledChange}
+                          chatbotActionsEnabled={chatbotActionsEnabled}
+                          onChatbotActionsEnabledChange={onChatbotActionsEnabledChange}
+                        />
 
-                    <div className="space-y-2">
-                      <Label className="text-sm">Default Save Format</Label>
-                      <Select
-                        value={defaultSaveFormat}
-                        onValueChange={(v) => onDefaultSaveFormatChange(v as SaveFormat)}
-                      >
-                        <SelectTrigger className="h-8 w-[160px] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.entries(SAVE_FORMAT_LABELS) as [SaveFormat, string][]).map(([key, label]) => (
-                            <SelectItem key={key} value={key}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm">Default Chatbot Copy Format</Label>
-                      <Select
-                        value={defaultChatbotCopyFormat}
-                        onValueChange={(v) => onDefaultChatbotCopyFormatChange(v as ChatbotCopyFormat)}
-                      >
-                        <SelectTrigger className="h-8 w-[160px] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.entries(CHATBOT_COPY_FORMAT_LABELS) as [ChatbotCopyFormat, string][]).map(([key, label]) => (
-                            <SelectItem key={key} value={key}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Standard mode sub-section */}
-                  <div className="space-y-4">
-                    <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">
-                      Standard
-                    </p>
-
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="auto-key-points" className="text-sm">
-                          Speaker Key Points
-                        </Label>
-                        <p className="text-xs text-foreground-muted">
-                          Auto-extract key point summaries per speaker after transcription
-                        </p>
-                      </div>
-                      <Switch
-                        id="auto-key-points"
-                        checked={autoKeyPointsEnabled}
-                        onCheckedChange={onAutoKeyPointsChange}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="speaker-labels" className="text-sm">
-                          Speaker Labels
-                        </Label>
-                        <p className="text-xs text-foreground-muted">
-                          Suggest real speaker names from transcript content when extracting key points
-                        </p>
-                      </div>
-                      <Switch
-                        id="speaker-labels"
-                        checked={speakerLabelsEnabled}
-                        onCheckedChange={onSpeakerLabelsChange}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm">Speaker Count Range</Label>
-                      <p className="text-xs text-foreground-muted">
-                        Expected number of speakers in the recording
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xs text-foreground-muted">Min</span>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={maxSpeakers}
-                            value={minSpeakersInput}
-                            onChange={(e) => setMinSpeakersInput(e.target.value)}
-                            onBlur={() => {
-                              const v = Math.max(1, Math.min(parseInt(minSpeakersInput) || 1, maxSpeakers));
-                              onMinSpeakersChange(v);
-                              setMinSpeakersInput(String(v));
-                            }}
-                            className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="sync-standard-realtime" className="text-sm">
+                              Sync Standard + Realtime
+                            </Label>
+                            <p className="text-xs text-foreground-muted">
+                              Starting one mode automatically starts the other with shared microphone input
+                            </p>
+                          </div>
+                          <Switch
+                            id="sync-standard-realtime"
+                            checked={syncStandardRealtime}
+                            onCheckedChange={onSyncStandardRealtimeChange}
                           />
                         </div>
-                        <span className="mt-5 text-foreground-muted">–</span>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xs text-foreground-muted">Max</span>
-                          <Input
-                            type="number"
-                            min={minSpeakers}
-                            max={20}
-                            value={maxSpeakersInput}
-                            onChange={(e) => setMaxSpeakersInput(e.target.value)}
-                            onBlur={() => {
-                              const v = Math.max(
-                                minSpeakers,
-                                Math.min(parseInt(maxSpeakersInput) || minSpeakers, 20),
-                              );
-                              onMaxSpeakersChange(v);
-                              setMaxSpeakersInput(String(v));
-                            }}
-                            className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Default Copy Format</Label>
+                          <Select
+                            value={defaultCopyFormat}
+                            onValueChange={(v) => onDefaultCopyFormatChange(v as CopyFormat)}
+                          >
+                            <SelectTrigger className="h-8 w-[160px] text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(Object.entries(COPY_FORMAT_LABELS) as [CopyFormat, string][]).map(([key, label]) => (
+                                <SelectItem key={key} value={key}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Default Save Format</Label>
+                          <Select
+                            value={defaultSaveFormat}
+                            onValueChange={(v) => onDefaultSaveFormatChange(v as SaveFormat)}
+                          >
+                            <SelectTrigger className="h-8 w-[160px] text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(Object.entries(SAVE_FORMAT_LABELS) as [SaveFormat, string][]).map(([key, label]) => (
+                                <SelectItem key={key} value={key}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Default Chatbot Copy Format</Label>
+                          <Select
+                            value={defaultChatbotCopyFormat}
+                            onValueChange={(v) => onDefaultChatbotCopyFormatChange(v as ChatbotCopyFormat)}
+                          >
+                            <SelectTrigger className="h-8 w-[160px] text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(Object.entries(CHATBOT_COPY_FORMAT_LABELS) as [ChatbotCopyFormat, string][]).map(([key, label]) => (
+                                <SelectItem key={key} value={key}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {advancedSettings && (
+                    <>
+                      <Separator />
+
+                      {/* Standard mode sub-section */}
+                      <div className="space-y-4">
+                        <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">
+                          Standard
+                        </p>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="auto-key-points" className="text-sm">
+                              Speaker Key Points
+                            </Label>
+                            <p className="text-xs text-foreground-muted">
+                              Auto-extract key point summaries per speaker after transcription
+                            </p>
+                          </div>
+                          <Switch
+                            id="auto-key-points"
+                            checked={autoKeyPointsEnabled}
+                            onCheckedChange={onAutoKeyPointsChange}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="speaker-labels" className="text-sm">
+                              Speaker Labels
+                            </Label>
+                            <p className="text-xs text-foreground-muted">
+                              Suggest real speaker names from transcript content when extracting key points
+                            </p>
+                          </div>
+                          <Switch
+                            id="speaker-labels"
+                            checked={speakerLabelsEnabled}
+                            onCheckedChange={onSpeakerLabelsChange}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Speaker Count Range</Label>
+                          <p className="text-xs text-foreground-muted">
+                            Expected number of speakers in the recording
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs text-foreground-muted">Min</span>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={maxSpeakers}
+                                value={minSpeakersInput}
+                                onChange={(e) => setMinSpeakersInput(e.target.value)}
+                                onBlur={() => {
+                                  const v = Math.max(1, Math.min(parseInt(minSpeakersInput) || 1, maxSpeakers));
+                                  onMinSpeakersChange(v);
+                                  setMinSpeakersInput(String(v));
+                                }}
+                                className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              />
+                            </div>
+                            <span className="mt-5 text-foreground-muted">–</span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs text-foreground-muted">Max</span>
+                              <Input
+                                type="number"
+                                min={minSpeakers}
+                                max={20}
+                                value={maxSpeakersInput}
+                                onChange={(e) => setMaxSpeakersInput(e.target.value)}
+                                onBlur={() => {
+                                  const v = Math.max(
+                                    minSpeakers,
+                                    Math.min(parseInt(maxSpeakersInput) || minSpeakers, 20),
+                                  );
+                                  onMaxSpeakersChange(v);
+                                  setMaxSpeakersInput(String(v));
+                                }}
+                                className="h-8 w-16 bg-card-elevated px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* Realtime mode sub-section */}
+                      <div className="space-y-4">
+                        <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">
+                          Realtime
+                        </p>
+
+                        {/* System Prompt */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="text-sm">System Prompt</Label>
+                            <Button variant="outline" size="sm" onClick={openPromptEditor} className="h-7 px-2 text-xs shrink-0">
+                              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                              Edit
+                            </Button>
+                          </div>
+                          <p className="text-xs text-foreground-muted">
+                            Customize the system prompt used for realtime summary generation.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm">Summary Interval</Label>
+                          <p className="text-xs text-foreground-muted">
+                            How often to automatically generate a summary during live recording
+                          </p>
+                          <Select
+                            value={String(realtimeSummaryInterval)}
+                            onValueChange={(v) => onRealtimeSummaryIntervalChange(Number(v) as SummaryInterval)}
+                          >
+                            <SelectTrigger className="h-8 w-[100px] text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {([1, 2, 3, 5, 10] as SummaryInterval[]).map((v) => (
+                                <SelectItem key={v} value={String(v)}>
+                                  {v} min
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="final-summary" className="text-sm">
+                              Final Summary on Stop
+                            </Label>
+                            <p className="text-xs text-foreground-muted">
+                              Automatically generate a full summary when recording is stopped
+                            </p>
+                          </div>
+                          <Switch
+                            id="final-summary"
+                            checked={realtimeFinalSummaryEnabled}
+                            onCheckedChange={onRealtimeFinalSummaryEnabledChange}
                           />
                         </div>
                       </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Realtime mode sub-section */}
-                  <div className="space-y-4">
-                    <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">
-                      Realtime
-                    </p>
-
-                    {/* System Prompt */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="text-sm">System Prompt</Label>
-                        <Button variant="outline" size="sm" onClick={openPromptEditor} className="h-7 px-2 text-xs shrink-0">
-                          <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                          Edit
-                        </Button>
-                      </div>
-                      <p className="text-xs text-foreground-muted">
-                        Customize the system prompt used for realtime summary generation.
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm">Summary Interval</Label>
-                      <p className="text-xs text-foreground-muted">
-                        How often to automatically generate a summary during live recording
-                      </p>
-                      <Select
-                        value={String(realtimeSummaryInterval)}
-                        onValueChange={(v) => onRealtimeSummaryIntervalChange(Number(v) as SummaryInterval)}
-                      >
-                        <SelectTrigger className="h-8 w-[100px] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {([1, 2, 3, 5, 10] as SummaryInterval[]).map((v) => (
-                            <SelectItem key={v} value={String(v)}>
-                              {v} min
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="final-summary" className="text-sm">
-                          Final Summary on Stop
-                        </Label>
-                        <p className="text-xs text-foreground-muted">
-                          Automatically generate a full summary when recording is stopped
-                        </p>
-                      </div>
-                      <Switch
-                        id="final-summary"
-                        checked={realtimeFinalSummaryEnabled}
-                        onCheckedChange={onRealtimeFinalSummaryEnabledChange}
-                      />
-                    </div>
-                  </div>
+                    </>
+                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>
