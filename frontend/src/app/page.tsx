@@ -691,6 +691,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       }
       handleModelChange(model as string);
     },
+    toggle_advanced_settings: async ({ enabled }) => {
+      handleAdvancedSettingsChange(enabled as boolean);
+    },
     toggle_sync_mode: async ({ enabled }) => {
       handleSyncStandardRealtimeChange(enabled as boolean);
     },

@@ -548,7 +548,9 @@ Instead of adding fields manually, you can let the AI design a template for you:
 
 Open the Settings panel by clicking the **gear icon (⚙)** in the header, or using the keyboard shortcut **Alt + S** (⌥S on Mac). The shortcut is displayed as a key badge (⌥ S) next to the panel title on desktop — the badges highlight as you press each key.
 
-The panel slides in from the right side of the screen. It has three collapsible sections:
+The panel slides in from the right side of the screen. It has three collapsible sections: **API Keys**, **AI Model**, and **Features**.
+
+**Simplified vs. Advanced view:** By default (for new users), the Settings panel shows a simplified view with only the most essential options — API Keys, AI Model (without per-feature overrides), and a single **Advanced Settings** toggle under Features > General. To reveal all configuration options, enable the **Advanced Settings** toggle. The sections below describe the full (advanced) view.
 
 ---
 
@@ -589,7 +591,7 @@ Each key field has an **eye icon** to show/hide the key value, and an **× butto
 
 - **Region** — select your Langdock region (e.g., EU).
 
-**Feature-Specific Models** (collapsible):
+**Feature-Specific Models** (collapsible, only visible when **Advanced Settings** is enabled):
 Override the default model for individual features. Click the section to expand it and configure per-feature providers and models for:
 
 - Summary Generation
@@ -618,6 +620,14 @@ You can always override the format for a single copy or save by clicking the dro
 ---
 
 #### Features
+
+**General** sub-section:
+
+| Setting                          | What it does                                                                                                                                                                                        |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Advanced Settings** (toggle)   | When off (default for new users), only essential settings are visible: API Keys, AI Model, and this toggle. When on, all settings described below become available. This is always visible.          |
+
+The following sub-sections and their settings are only visible when **Advanced Settings** is enabled:
 
 **Standard** sub-section:
 
@@ -847,6 +857,7 @@ The following actions are available:
 | **Switch app mode**                    | Switch between Standard and Realtime mode.                                                       |
 | **Change LLM provider**                | Change the AI provider (OpenAI, Anthropic, Gemini, Azure, Langdock).                             |
 | **Change model**                       | Change the selected AI model for the current provider.                                           |
+| **Toggle Advanced Settings**           | Enable or disable the advanced settings view in the Settings panel.                              |
 | **Toggle Sync mode**                   | Enable or disable Sync Standard + Realtime (shared microphone, coordinated start/stop).          |
 | **Toggle Speaker Key Points**          | Enable or disable automatic key point extraction per speaker.                                    |
 | **Toggle Speaker Labels**              | Enable or disable real speaker name suggestions from transcript content.                         |

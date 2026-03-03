@@ -34,6 +34,11 @@ ACTION_REGISTRY = [
         "valid_models_per_provider": PROVIDER_MODELS,
     },
     {
+        "action_id": "toggle_advanced_settings",
+        "description": "Enable or disable advanced settings. When disabled, only essential settings are shown (API Keys, AI Model, and this toggle). When enabled, all configuration options are visible.",
+        "params": {"enabled": {"type": "boolean"}},
+    },
+    {
         "action_id": "toggle_sync_mode",
         "description": "Enable or disable sync mode (Standard + Realtime). When enabled, starting one mode automatically starts the other with shared microphone input.",
         "params": {"enabled": {"type": "boolean"}},
