@@ -76,7 +76,8 @@
       "Bash(docker ps:*)",
       "Bash(docker:*)",
       "Bash(make help:*)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(npx next:*)"
     ]
   }
 }

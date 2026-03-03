@@ -363,6 +363,7 @@ export interface UserPreferences {
   default_copy_format?: CopyFormat;
   default_save_format?: SaveFormat;
   default_chatbot_copy_format?: ChatbotCopyFormat;
+  advanced_settings?: boolean;
   session_standard?: {
     transcript?: string;
     summary?: string;
