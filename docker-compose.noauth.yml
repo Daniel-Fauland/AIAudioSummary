@@ -1,0 +1,12 @@
+# No-auth overlay — bypasses Google OAuth for local usage
+# Usage:
+#   Local dev (hot-reload):  docker compose -f docker-compose.dev.yml -f docker-compose.noauth.yml up -d
+#   Local build:             docker compose -f docker-compose.yml -f docker-compose.noauth.yml up -d
+services:
+  backend:
+    environment:
+      SEED_DEV_USER: "user@example.com"
+  frontend:
+    environment:
+      AUTH_BYPASS: "true"
+      AUTH_SECRET: ${AUTH_SECRET}

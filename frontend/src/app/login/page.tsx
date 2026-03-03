@@ -9,6 +9,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await auth();
   if (session) redirect("/");
 
+  // Auto-sign-in for local no-auth mode (throws NEXT_REDIRECT, never renders)
+  if (process.env.AUTH_BYPASS === "true") {
+    await signIn("credentials", { email: "user@example.com", redirectTo: "/" });
+  }
+
   const params = await searchParams;
   const isAccessDenied = params.error === "AccessDenied";
 

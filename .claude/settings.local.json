@@ -74,7 +74,9 @@
       "Bash(docker image:*)",
       "mcp__plugin_context7_context7__query-docs",
       "Bash(docker ps:*)",
-      "Bash(docker:*)"
+      "Bash(docker:*)",
+      "Bash(make help:*)",
+      "Bash(make:*)"
     ]
   }
 }
