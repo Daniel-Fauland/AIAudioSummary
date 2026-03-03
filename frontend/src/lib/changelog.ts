@@ -10,10 +10,21 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.9.0",
+    date: "2026-03-03",
+    title: "Simplified settings panel for new users",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Added an Advanced Settings toggle in Settings > Features > General — when off, only essential settings are shown: API Keys, AI Model, and the toggle itself. Power users can enable it to access all configuration options.",
+      },
+    ],
+  },
+  {
     version: "1.8.0",
     date: "2026-03-01",
-    title:
-      "Chatbot copy format settings, smarter synced mode switching & improved copy button accessibility",
+    title: "Chatbot copy format settings, smarter synced mode switching & improved copy button accessibility",
     changes: [
       {
         type: "added",
