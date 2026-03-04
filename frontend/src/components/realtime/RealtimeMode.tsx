@@ -48,6 +48,7 @@ interface RealtimeModeProps {
   onOpenSettings: () => void;
   summaryInterval: SummaryInterval;
   realtimeFinalSummaryEnabled: boolean;
+  realtimeReevaluateAll: boolean;
   realtimeSystemPrompt: string;
   liveQuestionsProvider: LLMProvider;
   liveQuestionsModel: string;
@@ -88,6 +89,7 @@ export function RealtimeMode({
   onOpenSettings,
   summaryInterval,
   realtimeFinalSummaryEnabled,
+  realtimeReevaluateAll,
   realtimeSystemPrompt,
   liveQuestionsProvider,
   liveQuestionsModel,
@@ -359,6 +361,36 @@ export function RealtimeMode({
     session.clearSummary();
   }, [session]);
 
+  const handleRefreshQuestions = useCallback(() => {
+    const transcript = session.accumulatedTranscript;
+    if (!transcript) return;
+    const apiKey = getKey(liveQuestionsProvider);
+    if (!apiKey) return;
+    liveQuestions.triggerEvaluation(transcript, {
+      provider: liveQuestionsProvider,
+      apiKey,
+      model: liveQuestionsModel,
+      azureConfig: liveQuestionsProvider === "azure_openai" ? azureConfig ?? undefined : undefined,
+      langdockConfig: liveQuestionsProvider === "langdock" ? langdockConfig : undefined,
+    }, true, realtimeReevaluateAll);
+  }, [session.accumulatedTranscript, liveQuestions, liveQuestionsProvider, liveQuestionsModel, azureConfig, langdockConfig, getKey, realtimeReevaluateAll]);
+
+  const handleRefreshForm = useCallback(() => {
+    const transcript = session.accumulatedTranscript;
+    if (!transcript) return;
+    const selectedTemplate = formTemplates.find((t) => t.id === selectedFormTemplateId);
+    if (!selectedTemplate) return;
+    const formApiKey = getKey(formOutputProvider);
+    if (!formApiKey) return;
+    formOutput.triggerFill(transcript, selectedTemplate.fields, {
+      provider: formOutputProvider,
+      apiKey: formApiKey,
+      model: formOutputModel,
+      azureConfig: formOutputProvider === "azure_openai" ? azureConfig ?? undefined : undefined,
+      langdockConfig: formOutputProvider === "langdock" ? langdockConfig : undefined,
+    }, true);
+  }, [session.accumulatedTranscript, formTemplates, selectedFormTemplateId, formOutput, formOutputProvider, formOutputModel, azureConfig, langdockConfig, getKey]);
+
   const liveQuestionsCard = (
     <LiveQuestions
       questions={liveQuestions.questions}
@@ -369,6 +401,9 @@ export function RealtimeMode({
       onReset={liveQuestions.resetQuestion}
       onDismissWarning={liveQuestions.dismissWarning}
       onClearAll={liveQuestions.clearAll}
+      onRefresh={handleRefreshQuestions}
+      hasTranscript={!!session.accumulatedTranscript}
+      reevaluateAll={realtimeReevaluateAll}
     />
   );
 
@@ -390,6 +425,8 @@ export function RealtimeMode({
       llmModel={formOutputModel}
       llmAzureConfig={formOutputAzureConfig}
       llmLangdockConfig={formOutputLangdockConfig}
+      onRefresh={handleRefreshForm}
+      hasTranscript={!!session.accumulatedTranscript}
     />
   );
 

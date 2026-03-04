@@ -74,6 +74,11 @@ ACTION_REGISTRY = [
         "params": {"enabled": {"type": "boolean"}},
     },
     {
+        "action_id": "toggle_reevaluate_all_questions",
+        "description": "Enable or disable re-evaluating already answered questions when manually refreshing Questions & Topics. When enabled, the manual refresh button sends all questions (including answered ones) to the LLM for re-evaluation.",
+        "params": {"enabled": {"type": "boolean"}},
+    },
+    {
         "action_id": "change_default_copy_format",
         "description": "Change the default format used when copying content (transcript, summary, etc.) to the clipboard",
         "params": {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Info, Loader2, Trash2 } from "lucide-react";
+import { Info, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +31,9 @@ interface LiveQuestionsProps {
   onReset: (id: string) => void;
   onDismissWarning: () => void;
   onClearAll?: () => void;
+  onRefresh?: () => void;
+  hasTranscript?: boolean;
+  reevaluateAll?: boolean;
 }
 
 export function LiveQuestions({
@@ -42,6 +45,9 @@ export function LiveQuestions({
   onReset,
   onDismissWarning,
   onClearAll,
+  onRefresh,
+  hasTranscript,
+  reevaluateAll,
 }: LiveQuestionsProps) {
   const [confirmClear, setConfirmClear] = useState(false);
   const contentPayload = useMemo(() => {
@@ -65,6 +71,22 @@ export function LiveQuestions({
           <div className="flex items-center gap-2">
             {isEvaluating && (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground-muted" />
+            )}
+            {totalCount > 0 && onRefresh && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-foreground-muted hover:text-foreground"
+                    onClick={onRefresh}
+                    disabled={isEvaluating || !hasTranscript || (!reevaluateAll && questions.filter(q => q.status === "unanswered").length === 0)}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Re-evaluate questions</TooltipContent>
+              </Tooltip>
             )}
             {totalCount > 0 && onClearAll && (
               <Tooltip>

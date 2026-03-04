@@ -10,6 +10,23 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "1.10.0",
+    date: "2026-03-04",
+    title: "Independent refresh for Questions & Form Output in Realtime mode",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Added independent refresh buttons to the Questions & Topics and Form Output sections in Realtime mode — re-evaluate questions or re-fill forms at any time without triggering a full summary refresh.",
+      },
+      {
+        type: "added",
+        description:
+          'Added a "Re-evaluate Answered Questions" setting under Settings > Features > Realtime — when enabled, the manual Questions refresh also re-evaluates already answered questions against the latest transcript.',
+      },
+    ],
+  },
+  {
     version: "1.9.0",
     date: "2026-03-03",
     title: "Simplified settings panel for new users",

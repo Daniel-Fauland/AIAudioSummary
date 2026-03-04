@@ -93,18 +93,23 @@ export function useLiveQuestions(options?: UseLiveQuestionsOptions) {
    * Skips if already evaluating or shouldEvaluate returns false.
    */
   const triggerEvaluation = useCallback(
-    async (transcript: string, llmConfig: LiveQuestionsLlmConfig) => {
+    async (
+      transcript: string,
+      llmConfig: LiveQuestionsLlmConfig,
+      force = false,
+      reevaluateAll = false,
+    ) => {
       if (isEvaluatingRef.current) return;
-      if (!shouldEvaluate(transcript)) return;
+      if (!force && !shouldEvaluate(transcript)) return;
 
       const current = questionsRef.current;
-      const unanswered = current.filter((q) => q.status === "unanswered");
-      if (unanswered.length === 0) return;
+      const candidates = reevaluateAll ? current : current.filter((q) => q.status === "unanswered");
+      if (candidates.length === 0) return;
 
       isEvaluatingRef.current = true;
       setIsEvaluating(true);
 
-      const questionsToEvaluate = unanswered.map((q) => ({
+      const questionsToEvaluate = candidates.map((q) => ({
         id: q.id,
         question: q.question,
       }));
@@ -121,7 +126,7 @@ export function useLiveQuestions(options?: UseLiveQuestionsOptions) {
         });
 
         lastEvaluatedTranscriptLengthRef.current = transcript.length;
-        lastEvaluatedQuestionIdsRef.current = unanswered.map((q) => q.id);
+        lastEvaluatedQuestionIdsRef.current = candidates.filter((q) => q.status === "unanswered").map((q) => q.id);
 
         const answeredMap = new Map(
           response.evaluations
@@ -129,21 +134,28 @@ export function useLiveQuestions(options?: UseLiveQuestionsOptions) {
             .map((e) => [e.id, e.answer])
         );
 
-        if (answeredMap.size > 0) {
-          setQuestions((prev) =>
-            prev.map((q) => {
-              if (answeredMap.has(q.id)) {
-                return {
-                  ...q,
-                  status: "answered" as const,
-                  answer: answeredMap.get(q.id) ?? undefined,
-                  answeredAtTranscriptLength: transcript.length,
-                };
-              }
-              return q;
-            })
-          );
-        }
+        setQuestions((prev) =>
+          prev.map((q) => {
+            if (answeredMap.has(q.id)) {
+              return {
+                ...q,
+                status: "answered" as const,
+                answer: answeredMap.get(q.id) ?? undefined,
+                answeredAtTranscriptLength: transcript.length,
+              };
+            }
+            // If re-evaluating all and LLM says not answered, reset previously answered
+            if (reevaluateAll && !answeredMap.has(q.id) && candidates.some((c) => c.id === q.id)) {
+              return {
+                ...q,
+                status: "unanswered" as const,
+                answer: undefined,
+                answeredAtTranscriptLength: undefined,
+              };
+            }
+            return q;
+          })
+        );
       } catch {
         toast.error("Failed to evaluate questions against the transcript");
       } finally {

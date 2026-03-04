@@ -59,6 +59,7 @@ const MAX_SPEAKERS_KEY = "aias:v1:max_speakers";
 const APP_MODE_KEY = "aias:v1:app_mode";
 const REALTIME_INTERVAL_KEY = "aias:v1:realtime_interval";
 const REALTIME_FINAL_SUMMARY_KEY = "aias:v1:realtime_final_summary";
+const REALTIME_REEVALUATE_ALL_KEY = "aias:v1:realtime_reevaluate_all";
 const REALTIME_SYSTEM_PROMPT_KEY = "aias:v1:realtime_system_prompt";
 const FEATURE_OVERRIDES_KEY = "aias:v1:feature_overrides";
 const CHATBOT_ENABLED_KEY = "aias:v1:chatbot_enabled";
@@ -337,6 +338,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [realtimeFinalSummaryEnabled, setRealtimeFinalSummaryEnabled] = useState(
     () => serverPreferences?.realtime_final_summary !== undefined ? serverPreferences.realtime_final_summary : safeGet(REALTIME_FINAL_SUMMARY_KEY, "true") !== "false",
   );
+  const [realtimeReevaluateAll, setRealtimeReevaluateAll] = useState(
+    () => serverPreferences?.realtime_reevaluate_all !== undefined ? serverPreferences.realtime_reevaluate_all : safeGet(REALTIME_REEVALUATE_ALL_KEY, "false") === "true",
+  );
   const [realtimeSystemPrompt, setRealtimeSystemPrompt] = useState(
     () => serverPreferences?.realtime_system_prompt || safeGet(REALTIME_SYSTEM_PROMPT_KEY, DEFAULT_REALTIME_SYSTEM_PROMPT),
   );
@@ -564,6 +568,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
   }, [savePreferences]);
 
+  const handleRealtimeReevaluateAllChange = useCallback((enabled: boolean) => {
+    setRealtimeReevaluateAll(enabled);
+    safeSet(REALTIME_REEVALUATE_ALL_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
   const handleRealtimeSystemPromptChange = useCallback((prompt: string) => {
     setRealtimeSystemPrompt(prompt);
     safeSet(REALTIME_SYSTEM_PROMPT_KEY, prompt);
@@ -716,6 +726,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     },
     toggle_final_summary: async ({ enabled }) => {
       handleRealtimeFinalSummaryEnabledChange(enabled as boolean);
+    },
+    toggle_reevaluate_all_questions: async ({ enabled }) => {
+      handleRealtimeReevaluateAllChange(enabled as boolean);
     },
     change_default_copy_format: async ({ format }) => {
       const validFormats: import("@/lib/types").CopyFormat[] = ["formatted", "plain", "markdown", "json"];
@@ -1401,6 +1414,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onRealtimeSummaryIntervalChange={handleRealtimeSummaryIntervalChange}
         realtimeFinalSummaryEnabled={realtimeFinalSummaryEnabled}
         onRealtimeFinalSummaryEnabledChange={handleRealtimeFinalSummaryEnabledChange}
+        realtimeReevaluateAll={realtimeReevaluateAll}
+        onRealtimeReevaluateAllChange={handleRealtimeReevaluateAllChange}
         realtimeSystemPrompt={realtimeSystemPrompt}
         onRealtimeSystemPromptChange={handleRealtimeSystemPromptChange}
         defaultRealtimeSystemPrompt={DEFAULT_REALTIME_SYSTEM_PROMPT}
@@ -1478,6 +1493,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             onOpenSettings={() => setSettingsOpen(true)}
             summaryInterval={realtimeSummaryInterval}
             realtimeFinalSummaryEnabled={realtimeFinalSummaryEnabled}
+            realtimeReevaluateAll={realtimeReevaluateAll}
             realtimeSystemPrompt={realtimeSystemPrompt}
             liveQuestionsProvider={resolvedLiveQuestionsConfig.provider}
             liveQuestionsModel={resolvedLiveQuestionsConfig.model}

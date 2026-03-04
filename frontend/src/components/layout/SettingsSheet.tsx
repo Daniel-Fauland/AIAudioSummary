@@ -54,6 +54,8 @@ interface SettingsSheetProps {
   onRealtimeSummaryIntervalChange: (interval: SummaryInterval) => void;
   realtimeFinalSummaryEnabled: boolean;
   onRealtimeFinalSummaryEnabledChange: (enabled: boolean) => void;
+  realtimeReevaluateAll: boolean;
+  onRealtimeReevaluateAllChange: (enabled: boolean) => void;
   realtimeSystemPrompt: string;
   onRealtimeSystemPromptChange: (prompt: string) => void;
   defaultRealtimeSystemPrompt: string;
@@ -129,6 +131,8 @@ export function SettingsSheet({
   onRealtimeSummaryIntervalChange,
   realtimeFinalSummaryEnabled,
   onRealtimeFinalSummaryEnabledChange,
+  realtimeReevaluateAll,
+  onRealtimeReevaluateAllChange,
   realtimeSystemPrompt,
   onRealtimeSystemPromptChange,
   defaultRealtimeSystemPrompt,
@@ -629,6 +633,22 @@ export function SettingsSheet({
                             id="final-summary"
                             checked={realtimeFinalSummaryEnabled}
                             onCheckedChange={onRealtimeFinalSummaryEnabledChange}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="reevaluate-all" className="text-sm">
+                              Re-evaluate Answered Questions
+                            </Label>
+                            <p className="text-xs text-foreground-muted">
+                              Include already answered questions when manually refreshing Questions &amp; Topics
+                            </p>
+                          </div>
+                          <Switch
+                            id="reevaluate-all"
+                            checked={realtimeReevaluateAll}
+                            onCheckedChange={onRealtimeReevaluateAllChange}
                           />
                         </div>
                       </div>

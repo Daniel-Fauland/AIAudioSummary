@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { Plus, Pencil, Trash2, Loader2, Lock, Unlock } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Lock, Unlock, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { FormTemplateEditor } from "./FormTemplateEditor";
 import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
 import { buildFormPayload } from "@/lib/content-formats";
@@ -167,6 +168,8 @@ interface RealtimeFormOutputProps {
   llmModel?: string;
   llmAzureConfig?: AzureConfig | null;
   llmLangdockConfig?: LangdockConfig;
+  onRefresh?: () => void;
+  hasTranscript?: boolean;
 }
 
 export function RealtimeFormOutput({
@@ -186,6 +189,8 @@ export function RealtimeFormOutput({
   llmModel,
   llmAzureConfig,
   llmLangdockConfig,
+  onRefresh,
+  hasTranscript,
 }: RealtimeFormOutputProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<FormTemplate | null>(
@@ -243,6 +248,22 @@ export function RealtimeFormOutput({
             <div className="flex items-center gap-2">
               {isFilling && (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground-muted" />
+              )}
+              {selectedTemplate && onRefresh && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-foreground-muted hover:text-foreground"
+                      onClick={onRefresh}
+                      disabled={isFilling || !hasTranscript}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Re-evaluate form</TooltipContent>
+                </Tooltip>
               )}
               {selectedTemplate && (
                 <Badge variant="secondary" className="text-xs font-normal">

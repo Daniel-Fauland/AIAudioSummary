@@ -128,7 +128,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.9.0** — click to view the changelog of recent updates
+- **v1.10.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -623,9 +623,9 @@ You can always override the format for a single copy or save by clicking the dro
 
 **General** sub-section:
 
-| Setting                          | What it does                                                                                                                                                                                        |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Advanced Settings** (toggle)   | When off (default for new users), only essential settings are visible: API Keys, AI Model, and this toggle. When on, all settings described below become available. This is always visible.          |
+| Setting                        | What it does                                                                                                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Advanced Settings** (toggle) | When off (default for new users), only essential settings are visible: API Keys, AI Model, and this toggle. When on, all settings described below become available. This is always visible. |
 
 The following sub-sections and their settings are only visible when **Advanced Settings** is enabled:
 

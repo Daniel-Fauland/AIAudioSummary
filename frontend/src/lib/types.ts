@@ -351,6 +351,7 @@ export interface UserPreferences {
   min_speakers?: number;
   max_speakers?: number;
   realtime_final_summary?: boolean;
+  realtime_reevaluate_all?: boolean;
   realtime_system_prompt?: string;
   custom_templates?: { id: string; name: string; content: string }[];
   form_templates?: FormTemplate[];

@@ -43,11 +43,12 @@ export function useFormOutput(options?: UseFormOutputOptions) {
       transcript: string,
       fields: FormFieldDefinition[],
       llmConfig: FormOutputLlmConfig,
+      force = false,
     ) => {
       if (isFillingRef.current) return;
-      if (isComplete) return;
+      if (!force && isComplete) return;
       if (fields.length === 0) return;
-      if (!shouldFill(transcript)) return;
+      if (!force && !shouldFill(transcript)) return;
 
       isFillingRef.current = true;
       setIsFilling(true);
