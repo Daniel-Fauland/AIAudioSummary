@@ -7,6 +7,9 @@ services:
     environment:
       SEED_DEV_USER: "user@example.com"
   frontend:
+    build:
+      args:
+        NEXT_PUBLIC_BACKEND_WS_URL: ws://localhost:8080
     environment:
       AUTH_BYPASS: "true"
       AUTH_SECRET: ${AUTH_SECRET}
