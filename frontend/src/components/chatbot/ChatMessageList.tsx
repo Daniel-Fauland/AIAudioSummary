@@ -51,7 +51,7 @@ export function ChatMessageList({ messages, isStreaming, onConfirmAction, onCanc
       <div className="space-y-3 p-4">
         {messages.map((msg, i) => (
           <ChatMessage
-            key={msg.id}
+            key={msg.id || `msg-${i}`}
             message={msg}
             isLastAssistant={i === lastAssistantIdx}
             isStreaming={isStreaming}

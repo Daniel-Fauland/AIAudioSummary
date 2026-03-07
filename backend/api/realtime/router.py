@@ -271,15 +271,25 @@ async def _run_relay(
         nonlocal aai_ws
         pending_final: str | None = None
         pending_task: asyncio.Task | None = None
+        # Timestamp tracking
+        current_turn_start: int = 0  # start_ms for the current turn
+        last_sent_end_ms: int = 0    # end_ms of the last send_final call
+        last_final_text: str = ""    # text of last sent final (to detect progressive vs new)
 
         async def send_final(text: str):
             """Send a finalized turn to browser and session_manager."""
+            nonlocal last_sent_end_ms, last_final_text
             await session_manager.append_final_text(session_id, text + " ")
             await session_manager.update_partial(session_id, "")
+            end_ms = await session_manager.elapsed_ms(session_id)
+            last_sent_end_ms = end_ms
+            last_final_text = text
             await ws.send_json({
                 "type": "turn",
                 "transcript": text,
                 "is_final": True,
+                "start_ms": current_turn_start,
+                "end_ms": end_ms,
             })
 
         async def delayed_flush():
@@ -345,6 +355,9 @@ async def _run_relay(
                         # Progressive final — buffer and reset debounce timer
                         if pending_task and not pending_task.done():
                             pending_task.cancel()
+                        # Detect new turn: if text doesn't extend previous, advance start
+                        if last_final_text and not transcript.startswith(last_final_text):
+                            current_turn_start = last_sent_end_ms
                         pending_final = transcript
                         pending_task = asyncio.create_task(delayed_flush())
                     elif not is_eos and transcript:

@@ -77,7 +77,8 @@
       "Bash(docker:*)",
       "Bash(make help:*)",
       "Bash(make:*)",
-      "Bash(npx next:*)"
+      "Bash(npx next:*)",
+      "WebFetch(domain:assemblyai.com)"
     ]
   }
 }

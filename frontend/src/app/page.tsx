@@ -10,7 +10,7 @@ import { StepIndicator } from "@/components/layout/StepIndicator";
 import { SettingsSheet } from "@/components/layout/SettingsSheet";
 import { FileUpload } from "@/components/workflow/FileUpload";
 import { AudioRecorder } from "@/components/workflow/AudioRecorder";
-import { TranscriptView } from "@/components/workflow/TranscriptView";
+import { TranscriptView, formatTranscriptWithTimestamps } from "@/components/workflow/TranscriptView";
 import { SpeakerMapper } from "@/components/workflow/SpeakerMapper";
 import { PromptEditor } from "@/components/workflow/PromptEditor";
 import { SummaryView } from "@/components/workflow/SummaryView";
@@ -43,7 +43,7 @@ import { createTranscript, createSummary, extractKeyPoints, fillForm } from "@/l
 import { getErrorMessage } from "@/lib/errors";
 import { extractDateFromFilename } from "@/lib/utils";
 import { parseConfigString, importSettings, configContainsApiKeys } from "@/lib/config-export";
-import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType, TokenUsage } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType, TokenUsage, TranscriptUtterance } from "@/lib/types";
 import { getContextWindow } from "@/lib/token-utils";
 import { APP_VERSION } from "@/lib/constants";
 import { changelog } from "@/lib/changelog";
@@ -71,6 +71,8 @@ const DEFAULT_COPY_FORMAT_KEY = "aias:v1:default_copy_format";
 const DEFAULT_SAVE_FORMAT_KEY = "aias:v1:default_save_format";
 const DEFAULT_CHATBOT_COPY_FORMAT_KEY = "aias:v1:default_chatbot_copy_format";
 const ADVANCED_SETTINGS_KEY = "aias:v1:advanced_settings";
+const SHOW_STANDARD_TIMESTAMPS_KEY = "aias:v1:show_standard_timestamps";
+const SHOW_REALTIME_TIMESTAMPS_KEY = "aias:v1:show_realtime_timestamps";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -300,6 +302,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [transcript, setTranscript] = useState(initialStandardSession.transcript);
+  const [utterances, setUtterances] = useState<TranscriptUtterance[]>(initialStandardSession.utterances ?? []);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [summary, setSummary] = useState(initialStandardSession.summary);
   const [summaryUsage, setSummaryUsage] = useState<TokenUsage | null>(null);
@@ -380,6 +383,13 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     () => serverPreferences?.advanced_settings !== undefined ? serverPreferences.advanced_settings : safeGet(ADVANCED_SETTINGS_KEY, "false") === "true",
   );
 
+  const [showStandardTimestamps, setShowStandardTimestamps] = useState(
+    () => safeGet(SHOW_STANDARD_TIMESTAMPS_KEY, "true") !== "false",
+  );
+  const [showRealtimeTimestamps, setShowRealtimeTimestamps] = useState(
+    () => safeGet(SHOW_REALTIME_TIMESTAMPS_KEY, "true") !== "false",
+  );
+
   // Form output state — initialize from persisted session
   const [outputMode, setOutputMode] = useState<"summary" | "form">(initialStandardSession.outputMode);
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState<string | null>(initialStandardSession.formTemplateId);
@@ -393,13 +403,29 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
 
   // Realtime transcript and connection status for chatbot context
   const [realtimeTranscript, setRealtimeTranscript] = useState("");
+  const [realtimeUtterancesForLLM, setRealtimeUtterancesForLLM] = useState<TranscriptUtterance[]>([]);
   const [realtimeConnectionStatus, setRealtimeConnectionStatus] = useState<"disconnected" | "connecting" | "connected" | "reconnecting" | "error">("disconnected");
+
+  // Transcript text enriched with timestamps for LLM consumption
+  const transcriptForLLM = useMemo(() => {
+    if (showStandardTimestamps && utterances.length > 0) {
+      return formatTranscriptWithTimestamps(utterances);
+    }
+    return transcript;
+  }, [transcript, utterances, showStandardTimestamps]);
+
+  const realtimeTranscriptForLLM = useMemo(() => {
+    if (showRealtimeTimestamps && realtimeUtterancesForLLM.length > 0) {
+      return formatTranscriptWithTimestamps(realtimeUtterancesForLLM);
+    }
+    return realtimeTranscript;
+  }, [realtimeTranscript, realtimeUtterancesForLLM, showRealtimeTimestamps]);
 
   // Transcript available for the current mode (ignoring suspended state)
   const availableTranscript = (() => {
     if (!chatbotTranscriptEnabled) return null;
-    if (appMode === "standard" && transcript) return transcript;
-    if (appMode === "realtime" && realtimeTranscript) return realtimeTranscript;
+    if (appMode === "standard" && transcript) return transcriptForLLM;
+    if (appMode === "realtime" && realtimeTranscript) return realtimeTranscriptForLLM;
     return null;
   })();
 
@@ -425,6 +451,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   }, [transcript, sessionPersistence.saveStandardTranscript]);
 
   useEffect(() => {
+    if (utterances.length > 0) sessionPersistence.saveStandardUtterances(utterances);
+  }, [utterances, sessionPersistence.saveStandardUtterances]);
+
+  useEffect(() => {
     if (summary) sessionPersistence.saveStandardSummary(summary);
   }, [summary, sessionPersistence.saveStandardSummary]);
 
@@ -445,6 +475,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     const handler = () => {
       sessionPersistence.clearStandardSession();
       setSummary("");
+      setUtterances([]);
       setFormValues({});
       setSelectedFormTemplateId(null);
       setOutputMode("summary");
@@ -634,6 +665,18 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
   }, [savePreferences]);
 
+  const handleShowStandardTimestampsChange = useCallback((enabled: boolean) => {
+    setShowStandardTimestamps(enabled);
+    safeSet(SHOW_STANDARD_TIMESTAMPS_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleShowRealtimeTimestampsChange = useCallback((enabled: boolean) => {
+    setShowRealtimeTimestamps(enabled);
+    safeSet(SHOW_REALTIME_TIMESTAMPS_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
   // Default copy/save format state
   const [defaultCopyFormat, setDefaultCopyFormat] = useState<import("@/lib/types").CopyFormat>(
     () => (serverPreferences?.default_copy_format as import("@/lib/types").CopyFormat) || safeGet(DEFAULT_COPY_FORMAT_KEY, "formatted") as import("@/lib/types").CopyFormat,
@@ -729,6 +772,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     },
     toggle_reevaluate_all_questions: async ({ enabled }) => {
       handleRealtimeReevaluateAllChange(enabled as boolean);
+    },
+    toggle_standard_timestamps: async ({ enabled }) => {
+      handleShowStandardTimestampsChange(enabled as boolean);
+    },
+    toggle_realtime_timestamps: async ({ enabled }) => {
+      handleShowRealtimeTimestampsChange(enabled as boolean);
     },
     change_default_copy_format: async ({ format }) => {
       const validFormats: import("@/lib/types").CopyFormat[] = ["formatted", "plain", "markdown", "json"];
@@ -968,7 +1017,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           model: kpModel,
           azure_config: kpProvider === "azure_openai" ? azureConfig : null,
           langdock_config: kpProvider === "langdock" ? langdockConfig : undefined,
-          transcript: transcriptText,
+          transcript: transcriptForLLM,
           speakers,
           identify_speakers: speakerLabelsEnabled,
         });
@@ -980,7 +1029,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         setIsExtractingKeyPoints(false);
       }
     },
-    [resolveModelConfig, getKey, azureConfig, langdockConfig, applyRenames, speakerLabelsEnabled],
+    [resolveModelConfig, getKey, azureConfig, langdockConfig, applyRenames, speakerLabelsEnabled, transcriptForLLM],
   );
 
   const handleAutoExtractKeyPoints = useCallback(
@@ -1042,6 +1091,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       }
       return remapped;
     });
+
+    // Update utterance speaker fields
+    setUtterances((prev) =>
+      prev.map((u) => ({
+        ...u,
+        speaker: mappings[u.speaker] ?? u.speaker,
+      })),
+    );
   }, []);
 
   // Step 1 → 2: file selected, start transcription
@@ -1063,6 +1120,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
 
       // Clear previous session data — new upload replaces everything
       setSummary("");
+      setUtterances([]);
       setFormValues({});
       setSelectedFormTemplateId(null);
       setOutputMode("summary");
@@ -1081,8 +1139,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
 
       try {
         const result = await createTranscript(file, assemblyAiKey, undefined, minSpeakers, maxSpeakers);
-        setTranscript(result);
-        sessionPersistence.saveStandardTranscript(result);
+        setTranscript(result.transcript);
+        setUtterances(result.utterances);
+        sessionPersistence.saveStandardTranscript(result.transcript);
+        sessionPersistence.saveStandardUtterances(result.utterances);
         savePreferences();
         toast.success("Transcription complete!");
       } catch (e) {
@@ -1101,6 +1161,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const handleSkipUpload = useCallback(() => {
     // Clear previous session data
     setSummary("");
+    setUtterances([]);
     setFormValues({});
     setSelectedFormTemplateId(null);
     setOutputMode("summary");
@@ -1149,7 +1210,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           langdock_config: summaryProvider === "langdock" ? langdockConfig : undefined,
           stream: true,
           system_prompt: selectedPrompt,
-          text: transcript,
+          text: transcriptForLLM,
           target_language: selectedLanguage,
           informal_german: informalGerman,
           date: meetingDate,
@@ -1195,7 +1256,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     azureConfig,
     langdockConfig,
     selectedPrompt,
-    transcript,
+    transcriptForLLM,
     selectedLanguage,
     informalGerman,
     meetingDate,
@@ -1321,7 +1382,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         model: resolvedFormOutputConfig.model,
         azure_config: resolvedFormOutputConfig.provider === "azure_openai" ? azureConfig ?? undefined : undefined,
         langdock_config: resolvedFormOutputConfig.provider === "langdock" ? langdockConfig : undefined,
-        transcript,
+        transcript: transcriptForLLM,
         fields: template.fields,
         meeting_date: meetingDate ?? undefined,
       });
@@ -1359,7 +1420,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         model: resolvedFormOutputConfig.model,
         azure_config: resolvedFormOutputConfig.provider === "azure_openai" ? azureConfig ?? undefined : undefined,
         langdock_config: resolvedFormOutputConfig.provider === "langdock" ? langdockConfig : undefined,
-        transcript,
+        transcript: transcriptForLLM,
         fields: template.fields,
         previous_values: formValues,
         meeting_date: meetingDate ?? undefined,
@@ -1439,6 +1500,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onDefaultChatbotCopyFormatChange={handleDefaultChatbotCopyFormatChange}
         advancedSettings={advancedSettings}
         onAdvancedSettingsChange={handleAdvancedSettingsChange}
+        showStandardTimestamps={showStandardTimestamps}
+        onShowStandardTimestampsChange={handleShowStandardTimestampsChange}
+        showRealtimeTimestamps={showRealtimeTimestamps}
+        onShowRealtimeTimestampsChange={handleShowRealtimeTimestampsChange}
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
@@ -1498,6 +1563,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             liveQuestionsProvider={resolvedLiveQuestionsConfig.provider}
             liveQuestionsModel={resolvedLiveQuestionsConfig.model}
             onTranscriptChange={setRealtimeTranscript}
+            onUtterancesChange={setRealtimeUtterancesForLLM}
             onConnectionStatusChange={setRealtimeConnectionStatus}
             formOutputProvider={resolvedFormOutputConfig.provider}
             formOutputModel={resolvedFormOutputConfig.model}
@@ -1514,9 +1580,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             onPersistQuestions={sessionPersistence.saveRealtimeQuestions}
             onPersistFormValues={sessionPersistence.saveRealtimeFormValues}
             onPersistFormTemplateId={sessionPersistence.saveRealtimeFormTemplateId}
+            onPersistUtterances={sessionPersistence.saveRealtimeUtterances}
             onClearRealtimeSession={sessionPersistence.clearRealtimeSession}
             onSavePreferences={savePreferences}
             onSummaryUsage={handleRealtimeSummaryUsage}
+            showRealtimeTimestamps={showRealtimeTimestamps}
           />
         </div>
 
@@ -1727,7 +1795,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           {currentStep === 3 ? (
             <>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <TranscriptView transcript={transcript} onTranscriptChange={setTranscript} readOnly />
+                <TranscriptView transcript={transcript} onTranscriptChange={setTranscript} readOnly utterances={utterances} showTimestamps={showStandardTimestamps} />
                 {outputMode === "summary" ? (
                   <SummaryView
                     summary={summary}

@@ -79,6 +79,10 @@ interface SettingsSheetProps {
   onDefaultChatbotCopyFormatChange: (format: ChatbotCopyFormat) => void;
   advancedSettings: boolean;
   onAdvancedSettingsChange: (enabled: boolean) => void;
+  showStandardTimestamps: boolean;
+  onShowStandardTimestampsChange: (enabled: boolean) => void;
+  showRealtimeTimestamps: boolean;
+  onShowRealtimeTimestampsChange: (enabled: boolean) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -156,6 +160,10 @@ export function SettingsSheet({
   onDefaultChatbotCopyFormatChange,
   advancedSettings,
   onAdvancedSettingsChange,
+  showStandardTimestamps,
+  onShowStandardTimestampsChange,
+  showRealtimeTimestamps,
+  onShowRealtimeTimestampsChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -574,6 +582,22 @@ export function SettingsSheet({
                             </div>
                           </div>
                         </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="show-standard-timestamps" className="text-sm">
+                              Show Timestamps
+                            </Label>
+                            <p className="text-xs text-foreground-muted">
+                              Display start/end timestamps for each utterance in the transcript
+                            </p>
+                          </div>
+                          <Switch
+                            id="show-standard-timestamps"
+                            checked={showStandardTimestamps}
+                            onCheckedChange={onShowStandardTimestampsChange}
+                          />
+                        </div>
                       </div>
 
                       <Separator />
@@ -649,6 +673,22 @@ export function SettingsSheet({
                             id="reevaluate-all"
                             checked={realtimeReevaluateAll}
                             onCheckedChange={onRealtimeReevaluateAllChange}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="show-realtime-timestamps" className="text-sm">
+                              Show Timestamps
+                            </Label>
+                            <p className="text-xs text-foreground-muted">
+                              Display start/end timestamps for each utterance in the transcript
+                            </p>
+                          </div>
+                          <Switch
+                            id="show-realtime-timestamps"
+                            checked={showRealtimeTimestamps}
+                            onCheckedChange={onShowRealtimeTimestampsChange}
                           />
                         </div>
                       </div>

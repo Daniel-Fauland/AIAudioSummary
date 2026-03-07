@@ -73,6 +73,13 @@ class AssemblyAIService:
             raise RuntimeError()
 
         transcript_text = ""
+        utterances_data = []
         for utterance in transcript.utterances:
             transcript_text += f"Speaker {utterance.speaker}: {utterance.text}\n"
-        return transcript_text
+            utterances_data.append({
+                "speaker": f"Speaker {utterance.speaker}",
+                "text": utterance.text,
+                "start_ms": utterance.start,
+                "end_ms": utterance.end,
+            })
+        return transcript_text, utterances_data

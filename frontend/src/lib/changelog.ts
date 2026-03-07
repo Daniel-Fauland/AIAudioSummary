@@ -10,6 +10,18 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "2.0.0",
+    date: "2026-03-07",
+    title: "Transcript timestamps for Standard & Realtime mode",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Timestamps are now displayed for each utterance in the transcript view — Standard mode uses precise timestamps from AssemblyAI, Realtime mode uses wall-clock elapsed time. Toggle visibility in Settings > Features under Standard and Realtime sections.",
+      },
+    ],
+  },
+  {
     version: "1.10.0",
     date: "2026-03-04",
     title: "Independent refresh for Questions & Form Output in Realtime mode",

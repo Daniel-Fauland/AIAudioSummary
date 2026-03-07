@@ -49,8 +49,16 @@ export interface ConfigResponse {
 
 // === Transcript types ===
 
+export interface TranscriptUtterance {
+  speaker: string;
+  text: string;
+  start_ms: number;
+  end_ms: number;
+}
+
 export interface CreateTranscriptResponse {
   transcript: string;
+  utterances: TranscriptUtterance[];
 }
 
 // === Summary types ===
@@ -196,7 +204,7 @@ export type SummaryInterval = 1 | 2 | 3 | 5 | 10;
 export type RealtimeWsMessage =
   | { type: "session_started"; session_id: string }
   | { type: "session_ready" }
-  | { type: "turn"; transcript: string; is_final: boolean }
+  | { type: "turn"; transcript: string; is_final: boolean; start_ms?: number; end_ms?: number }
   | { type: "error"; message: string }
   | { type: "reconnecting"; attempt: number }
   | { type: "session_ended" };

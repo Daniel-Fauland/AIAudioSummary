@@ -18,7 +18,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
-import type { ContentPayload } from "@/lib/types";
+import { formatTimestamp, formatTranscriptWithTimestamps } from "@/components/workflow/TranscriptView";
+import type { ContentPayload, TranscriptUtterance } from "@/lib/types";
 
 interface RealtimeTranscriptViewProps {
   accumulatedTranscript: string;
@@ -26,6 +27,8 @@ interface RealtimeTranscriptViewProps {
   committedPartial: string;
   isSessionActive: boolean;
   onClear?: () => void;
+  utterances?: TranscriptUtterance[];
+  showTimestamps?: boolean;
 }
 
 export function RealtimeTranscriptView({
@@ -34,6 +37,8 @@ export function RealtimeTranscriptView({
   committedPartial,
   isSessionActive,
   onClear,
+  utterances,
+  showTimestamps,
 }: RealtimeTranscriptViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -72,15 +77,23 @@ export function RealtimeTranscriptView({
 
   const hasContent = accumulatedTranscript || committedPartial || currentPartial;
 
+  const hasTimestampedView = !!utterances?.length && !!showTimestamps;
+
   const contentPayload = useMemo<ContentPayload | null>(() => {
     if (!accumulatedTranscript) return null;
+    const timestampedText = hasTimestampedView
+      ? formatTranscriptWithTimestamps(utterances!)
+      : null;
+    const markdown = hasTimestampedView
+      ? utterances!.map((u) => `${u.text}\n*${formatTimestamp(u.start_ms)} - ${formatTimestamp(u.end_ms)}*`).join("\n\n")
+      : accumulatedTranscript;
     return {
       type: "transcript",
-      plainText: accumulatedTranscript,
-      markdown: accumulatedTranscript,
+      plainText: timestampedText ?? accumulatedTranscript,
+      markdown,
       fileNamePrefix: "transcript",
     };
-  }, [accumulatedTranscript]);
+  }, [accumulatedTranscript, hasTimestampedView, utterances]);
 
   return (
     <Card className="border-border flex flex-col">
@@ -123,9 +136,22 @@ export function RealtimeTranscriptView({
           <div className="p-4 font-mono text-sm leading-relaxed">
             {hasContent ? (
               <>
-                <span className="text-foreground">
-                  {accumulatedTranscript}
-                </span>
+                {hasTimestampedView ? (
+                  <div className="space-y-3">
+                    {utterances!.map((u, i) => (
+                      <div key={i} className="border-l-2 border-border pl-3 py-1">
+                        <p className="text-sm text-foreground">{u.text}</p>
+                        <span className="text-xs text-foreground-muted">
+                          {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-foreground">
+                    {accumulatedTranscript}
+                  </span>
+                )}
                 {committedPartial && (
                   <span className="text-foreground">
                     {committedPartial}
@@ -175,13 +201,32 @@ export function RealtimeTranscriptView({
             <DialogTitle>Live Transcript</DialogTitle>
           </DialogHeader>
           <ScrollArea className="flex-1">
-            <div className="font-mono text-sm text-foreground leading-relaxed p-4">
-              {accumulatedTranscript}
-              {committedPartial && ` ${committedPartial}`}
-              {currentPartial && (
-                <span className="text-foreground-muted"> {currentPartial}</span>
-              )}
-            </div>
+            {hasTimestampedView ? (
+              <div className="space-y-3 p-4">
+                {utterances!.map((u, i) => (
+                  <div key={i} className="border-l-2 border-border pl-3 py-1">
+                    <p className="font-mono text-sm text-foreground">{u.text}</p>
+                    <span className="text-xs text-foreground-muted">
+                      {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
+                    </span>
+                  </div>
+                ))}
+                {(committedPartial || currentPartial) && (
+                  <div className="font-mono text-sm text-foreground leading-relaxed">
+                    {committedPartial && <span>{committedPartial}</span>}
+                    {currentPartial && <span className="text-foreground-muted"> {currentPartial}</span>}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="font-mono text-sm text-foreground leading-relaxed p-4">
+                {accumulatedTranscript}
+                {committedPartial && ` ${committedPartial}`}
+                {currentPartial && (
+                  <span className="text-foreground-muted"> {currentPartial}</span>
+                )}
+              </div>
+            )}
           </ScrollArea>
         </DialogContent>
       </Dialog>

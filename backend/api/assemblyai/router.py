@@ -1,7 +1,7 @@
 import os
 from fastapi import APIRouter, UploadFile, File, Form, Header, HTTPException
 from service.assembly_ai.core import AssemblyAIService
-from models.assemblyai import CreateTranscriptResponse
+from models.assemblyai import CreateTranscriptResponse, TranscriptUtterance
 
 assembly_ai_router = APIRouter()
 service = AssemblyAIService()
@@ -38,7 +38,7 @@ async def create_transcript(
         temp_file_path = await service.save_uploaded_file_to_temp(file)
 
         # Get transcript using the temporary file path
-        transcript = await service.get_transcript(
+        transcript_text, utterances_data = await service.get_transcript(
             path_to_file=temp_file_path,
             api_key=x_assemblyai_key,
             lang_code=lang_code,
@@ -46,7 +46,10 @@ async def create_transcript(
             max_speaker=max_speaker
         )
 
-        return CreateTranscriptResponse(transcript=transcript)
+        return CreateTranscriptResponse(
+            transcript=transcript_text,
+            utterances=[TranscriptUtterance(**u) for u in utterances_data],
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing audio file: {str(e)}")

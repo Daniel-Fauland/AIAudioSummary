@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import type { RealtimeConnectionStatus, RealtimeWsMessage } from "@/lib/types";
+import type { RealtimeConnectionStatus, RealtimeWsMessage, TranscriptUtterance } from "@/lib/types";
 
 const WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL || "ws://localhost:8080";
 
@@ -24,6 +24,7 @@ export interface GlobalRealtimeContextValue {
   isPaused: boolean;
   elapsedTime: number;
   isSessionEnded: boolean;
+  realtimeUtterances: TranscriptUtterance[];
 
   // Functions
   connect: (assemblyAiKey: string, deviceId?: string, recordMode?: "mic" | "meeting", sharedDisplayStream?: MediaStream) => Promise<void>;
@@ -35,6 +36,7 @@ export interface GlobalRealtimeContextValue {
   setCommittedPartial: (value: string) => void;
   setCurrentPartial: (value: string) => void;
   setAccumulatedTranscript: React.Dispatch<React.SetStateAction<string>>;
+  setRealtimeUtterances: React.Dispatch<React.SetStateAction<TranscriptUtterance[]>>;
 
   // Internal refs exposed for summary hook
   _accumulatedTranscriptRef: React.RefObject<string>;
@@ -63,6 +65,8 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isSessionEnded, setIsSessionEnded] = useState(false);
+  const [realtimeUtterances, setRealtimeUtterances] = useState<TranscriptUtterance[]>([]);
+  const realtimeUtterancesRef = useRef<TranscriptUtterance[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -125,16 +129,41 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
 
       case "turn":
         if (msg.is_final) {
+          const hasTimestamps = msg.start_ms !== undefined && msg.end_ms !== undefined;
           setAccumulatedTranscript((prev) => {
             const lastFinal = lastFinalRef.current;
             if (lastFinal && msg.transcript.startsWith(lastFinal)) {
               // Progressive update: replace last final with the longer version
               const base = prev.slice(0, prev.length - lastFinal.length);
               lastFinalRef.current = msg.transcript;
+              // Also replace the last utterance
+              if (hasTimestamps) {
+                const updated = [...realtimeUtterancesRef.current];
+                if (updated.length > 0) {
+                  updated[updated.length - 1] = {
+                    speaker: "",
+                    text: msg.transcript,
+                    start_ms: msg.start_ms!,
+                    end_ms: msg.end_ms!,
+                  };
+                }
+                realtimeUtterancesRef.current = updated;
+                setRealtimeUtterances(updated);
+              }
               return base + msg.transcript;
             }
             // New turn
             lastFinalRef.current = msg.transcript;
+            if (hasTimestamps) {
+              const updated = [...realtimeUtterancesRef.current, {
+                speaker: "",
+                text: msg.transcript,
+                start_ms: msg.start_ms!,
+                end_ms: msg.end_ms!,
+              }];
+              realtimeUtterancesRef.current = updated;
+              setRealtimeUtterances(updated);
+            }
             return prev ? prev + " " + msg.transcript : msg.transcript;
           });
           setCurrentPartial("");
@@ -343,9 +372,11 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     setAccumulatedTranscript("");
     setCurrentPartial("");
     setCommittedPartial("");
+    setRealtimeUtterances([]);
     accumulatedTranscriptRef.current = "";
     currentPartialRef.current = "";
     lastFinalRef.current = "";
+    realtimeUtterancesRef.current = [];
   }, []);
 
   const resetSession = useCallback(() => {
@@ -364,9 +395,11 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     setIsPaused(false);
     setElapsedTime(0);
     setIsSessionEnded(false);
+    setRealtimeUtterances([]);
     accumulatedTranscriptRef.current = "";
     currentPartialRef.current = "";
     lastFinalRef.current = "";
+    realtimeUtterancesRef.current = [];
   }, [clearTimer, cleanupAudio]);
 
   // Cleanup on unmount
@@ -390,6 +423,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     isPaused,
     elapsedTime,
     isSessionEnded,
+    realtimeUtterances,
     connect,
     disconnect,
     pause,
@@ -399,6 +433,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     setCommittedPartial,
     setCurrentPartial,
     setAccumulatedTranscript,
+    setRealtimeUtterances,
     _accumulatedTranscriptRef: accumulatedTranscriptRef,
     _currentPartialRef: currentPartialRef,
     _wsRef: wsRef,

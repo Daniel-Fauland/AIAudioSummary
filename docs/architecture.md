@@ -77,7 +77,7 @@ The key architectural decision is **BYOK (Bring Your Own Key)**: API keys are st
 | Backend  | Python 3.12+, FastAPI, pydantic-ai             | uv              |
 | Frontend | Next.js 16, React 19, TypeScript 5             | npm             |
 | UI       | shadcn/ui, Tailwind CSS v4                     | -               |
-| STT      | AssemblyAI SDK + Streaming WebSocket API       | -               |
+| STT      | AssemblyAI SDK + Streaming WebSocket API (u3-rt-pro) | -          |
 | Realtime | websockets (Python), AudioWorklet (browser)    | -               |
 | LLMs     | pydantic-ai (OpenAI, Anthropic, Gemini, Azure, Langdock) | -          |
 
@@ -129,14 +129,18 @@ project-root/
 │   │   ├── env.py                 #   Async migration runner
 │   │   ├── script.py.mako         #   Migration file template
 │   │   └── versions/
-│   │       └── 0001_initial_users.py  #   Creates users table
+│   │       ├── 0001_initial_users.py  #   Creates users table
+│   │       └── 0002_add_last_visit_at.py  #   Adds last_visit_at column
 │   ├── utils/
 │   │   ├── helper.py              # File listing & reading utilities
-│   │   └── logging.py             # Logger configuration
+│   │   ├── logging.py             # Logger configuration
+│   │   └── seed.py                # seed_dev_user() for local no-auth mode (SEED_DEV_USER env var)
 │   ├── prompt_templates/           # Markdown prompt files (loaded dynamically)
 │   ├── alembic.ini                 # Alembic configuration
 │   ├── config.py                   # Pydantic BaseSettings (from .env)
-│   ├── main.py                     # FastAPI app entry point (lifespan: runs migrations + seeds admins)
+│   ├── main.py                     # FastAPI app entry point (lifespan: runs migrations + seeds admins + dev user)
+│   ├── Dockerfile                  # Multi-stage production build (uv builder → slim runtime)
+│   ├── Dockerfile.dev              # Development build with hot-reload (volume-mounted source)
 │   └── pyproject.toml              # uv dependencies
 │
 ├── frontend/
@@ -182,7 +186,9 @@ project-root/
 │   │   │   └── useChatbot.ts      # Chatbot hook (messages, streaming, actions, persistent voice session, mic device selection)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
+│   │       ├── changelog.ts        # Version history (ChangelogEntry[]) shown in Footer "What's New" dialog
 │   │       ├── config-export.ts    # Settings export/import: collect, serialize, compress (pako), encode (Base64), validate, restore
+│   │       ├── constants.ts        # APP_VERSION constant
 │   │       ├── content-formats.ts  # Copy/save format definitions per content type, copy/download helpers (txt/md/docx/pdf/html/json)
 │   │       ├── errors.ts           # getErrorMessage() — maps ApiError status codes to user-friendly strings
 │   │       ├── token-utils.ts      # Token count formatting (formatTokenCount, formatTokenCountExact) and context window lookup
@@ -191,9 +197,15 @@ project-root/
 │   ├── public/
 │   │   └── pcm-worklet-processor.js  # AudioWorklet for PCM16 capture
 │   ├── package.json
+│   ├── Dockerfile                  # Multi-stage production build (npm build → Next.js standalone)
+│   ├── Dockerfile.dev              # Development build with hot-reload (volume-mounted source)
 │   └── next.config.ts
 │
-├── docker-compose.yml              # Docker Compose for local and self-hosted deployment (includes postgres service)
+├── docker-compose.yml              # Production Docker Compose (Google Auth, postgres, prod URLs)
+├── docker-compose.dev.yml          # Development Docker Compose (hot-reload, volume mounts, Dockerfile.dev)
+├── docker-compose.noauth.yml       # No-auth overlay (AUTH_BYPASS, SEED_DEV_USER) — layer on top of .yml or .dev.yml
+├── docker-compose.override.yml     # Local overrides (localhost CORS + WS URLs) — NOT committed to git
+├── Makefile                        # Convenience commands: `make start app|local|local_dev`, `make stop app|local`
 ├── .env.example                    # Root env template for Docker Compose (POSTGRES_*, AUTH_SECRET, INITIAL_ADMINS)
 ├── docs/                           # Documentation
 ├── user_stories/                   # Feature specifications
@@ -273,8 +285,12 @@ Authentication uses **Auth.js v5** (`next-auth@beta`) with the Google provider.
 | `AUTH_SECRET`          | Frontend | —                       | Random secret for session encryption                         |
 | ~~`ALLOWED_EMAILS`~~   | Frontend | (removed)               | Replaced by database-driven access control (US-04)           |
 | `AUTH_TRUST_HOST`      | Frontend | —                       | Set to `"true"` for non-Vercel deployments                   |
+| `AUTH_URL`             | Frontend | —                       | Explicit callback base URL — prevents Auth.js from picking up `0.0.0.0` in Docker |
+| `AUTH_BYPASS`          | Frontend | —                       | Set to `"true"` to bypass Google OAuth for local no-auth mode |
+| `NEXT_PUBLIC_OWNER_*`  | Frontend | —                       | Imprint/legal info displayed in Footer modals (NAME, STREET, CITY, COUNTRY, EMAIL, PHONE) |
 | `ENVIRONMENT`          | Backend  | `development`           | `development` (enables reload) or `production`               |
 | `ALLOWED_ORIGINS`      | Backend  | `http://localhost:3000` | Comma-separated CORS origins                                 |
+| `SEED_DEV_USER`        | Backend  | —                       | Email to seed as admin dev user on startup (for local no-auth mode) |
 
 ---
 
@@ -375,8 +391,8 @@ HTTP Request
   - `SessionManager` (`session.py`): in-memory session state with asyncio Lock for thread safety — tracks accumulated transcript, current partial, and timestamps per session
   - `SessionState` dataclass: `session_id`, `accumulated_transcript`, `current_partial`, `created_at`, `last_activity`
 - The **chatbot service** (`service/chatbot/`) contains:
-  - `ChatbotService` (`core.py`): manages chat conversations with streaming, system prompt assembly based on enabled capabilities (Q&A, transcript context, actions), knowledge base loading from `usage_guide/usage_guide.md`, and conversation history trimming (last 20 messages)
-  - `actions.py`: `ACTION_REGISTRY` — list of available chatbot actions (change theme, switch app mode, change provider/model, toggle settings, open settings, update API key, save prompt template, save form template). Each action has an `action_id`, `description`, and typed `params` schema. Also includes `PROVIDER_MODELS` — a mapping of valid models per provider used for LLM-side and frontend-side validation.
+  - `ChatbotService` (`core.py`): manages chat conversations with streaming, system prompt assembly based on enabled capabilities (Q&A, transcript context, actions) and app context (current settings, version, changelog, user timestamps), knowledge base loading from `usage_guide/usage_guide.md`, and conversation history trimming (last 20 messages)
+  - `actions.py`: `ACTION_REGISTRY` — list of available chatbot actions (see [Available Chatbot Actions](#available-chatbot-actions) table for the full list). Each action has an `action_id`, `description`, and typed `params` schema. Also includes `PROVIDER_MODELS` — a mapping of valid models per provider used for LLM-side and frontend-side validation.
   - The chatbot router (`api/chatbot/router.py`) exposes three endpoints:
     - `POST /chatbot/chat` — streaming chat (same `StreamingResponse` pattern as `/createSummary`)
     - `GET /chatbot/knowledge` — returns knowledge base loaded status and size
@@ -410,7 +426,7 @@ Key models:
 | `models/prompt_assistant.py` | `QuestionType` (enum), `AssistantQuestion`, `AnalyzeRequest`, `AnalyzeResponse` (incl. `suggested_target_system`), `GenerateRequest/Response` |
 | `models/live_questions.py`   | `QuestionInput`, `EvaluateQuestionsRequest`, `QuestionEvaluation`, `EvaluateQuestionsResponse`                                                    |
 | `models/form_output.py`     | `FormFieldType` (enum: string, number, date, boolean, list_str, enum, multi_select), `FormFieldDefinition`, `FillFormRequest` (includes `previous_values`, `meeting_date`), `FillFormResponse`, `GenerateTemplateRequest/Response`, `GeneratedField` |
-| `models/chatbot.py`         | `ChatRole` (enum), `ChatMessage`, `ActionProposal`, `ChatRequest`, `ChatResponse` (includes `usage: TokenUsage | None`) |
+| `models/chatbot.py`         | `ChatRole` (enum), `ChatMessage`, `ActionProposal`, `AppContext` (current app state for system prompt), `ChatRequest` (includes `app_context: AppContext | None`), `ChatResponse` (includes `usage: TokenUsage | None`) |
 
 ### Configuration & Environment
 
@@ -469,7 +485,7 @@ The backend uses **async SQLAlchemy 2.x** with **asyncpg** and **Alembic** for s
 | `last_visit_at` | `TIMESTAMPTZ` | Nullable; updated on each `/users/me` call for account-storage users |
 
 **Startup behaviour** (in `main.py` lifespan):
-1. If `DATABASE_URL` is set: runs `alembic upgrade head` in a thread executor (keeps async event loop clean), then seeds any emails in `INITIAL_ADMINS` as `role='admin'`.
+1. If `DATABASE_URL` is set: runs `alembic upgrade head` in a thread executor (keeps async event loop clean), then seeds any emails in `INITIAL_ADMINS` as `role='admin'`, then calls `seed_dev_user()` which creates a dev admin from the `SEED_DEV_USER` env var (used in no-auth mode).
 2. If `DATABASE_URL` is empty: skips DB setup with a warning — existing functionality is unaffected.
 
 **Using the DB in a router**:
@@ -751,7 +767,7 @@ RootLayout (layout.tsx)
         │       ├── TranscriptBadge   ← Shows when transcript available; active (attached) or suspended (paused) state; live variant (green pulsing dot + bucketed word count) in realtime mode
         │       └── ChatInputBar     ← Text input, send button, mic button (voice input) + mic device selector dropdown
         │
-        └── Footer                     ← Imprint / Privacy Policy / Cookie Settings links (each opens a Dialog)
+        └── Footer                     ← Imprint / Privacy Policy / Cookie Settings / What's New (changelog) links (each opens a Dialog)
 ```
 
 ### Adding a New Frontend Component
@@ -815,9 +831,12 @@ Most application state lives in `page.tsx` using `useState`. Three React context
 | Chatbot Q&A toggle  | Yes (localStorage) | Yes               | `aias:v1:chatbot_qa`        |
 | Chatbot transcript  | Yes (localStorage) | Yes               | `aias:v1:chatbot_transcript`|
 | Chatbot actions     | Yes (localStorage) | Yes               | `aias:v1:chatbot_actions`   |
+| Chatbot copy format | Yes (localStorage) | Yes               | `aias:v1:chatbot_copy_format` |
+| Advanced settings   | Yes (localStorage) | Yes               | `aias:v1:advanced_settings` |
+| Re-evaluate questions | Yes (localStorage) | Yes             | `aias:v1:reevaluate_all_questions` |
 | Sync std + realtime | Yes (localStorage) | Yes               | `aias:v1:sync_standard_realtime` |
-| Default copy format | Yes (localStorage) | Yes               | `aias:v1:default_copy_format` ("formatted" default; options: formatted, plain, markdown) |
-| Default save format | Yes (localStorage) | Yes               | `aias:v1:default_save_format` ("docx" default; options: txt, md, docx, pdf, html, json) |
+| Default copy format | Yes (localStorage) | Yes               | `aias:v1:default_copy_format` |
+| Default save format | Yes (localStorage) | Yes               | `aias:v1:default_save_format` |
 | Token usage history | Yes (localStorage) | **No**            | `aias:v1:token_usage_history` (JSON array of `TokenUsageEntry`, max 10,000 entries, trimmed oldest first) |
 | Mic device ID       | Yes (localStorage) | No                | `aias:v1:mic_device_id` (shared by AudioRecorder, RealtimeControls, useChatbot) |
 | Session data (std)  | Yes (localStorage) | Yes               | `aias:v1:session:standard:*` (transcript, summary, form, output_mode, current_step) |
@@ -1020,8 +1039,11 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 | `aias:v1:custom_templates`      | JSON array of custom prompt templates (`PromptTemplate[]`) | Yes |
 | `aias:v1:form_templates`        | JSON array of form templates (`FormTemplate[]`) for structured form output | Yes |
 | `aias:v1:sync_standard_realtime` | Sync Standard + Realtime toggle (`true`/`false`) | Yes |
+| `aias:v1:advanced_settings`     | Advanced Settings toggle — when `"false"`, only essential settings shown (`"true"` default for existing users) | Yes |
+| `aias:v1:reevaluate_all_questions` | Re-evaluate answered questions on manual Questions refresh (`"true"`/`"false"`) | Yes |
 | `aias:v1:default_copy_format`   | Default copy format for Copy as button (`"formatted"` default) | Yes |
 | `aias:v1:default_save_format`   | Default save format for Save as button (`"docx"` default) | Yes |
+| `aias:v1:chatbot_copy_format`   | Default format for copying chatbot messages (`"formatted"` default; options: formatted, plain, markdown) | Yes |
 | `aias:v1:token_usage_history`   | JSON array of `TokenUsageEntry` (timestamp, feature, provider, model, input/output/total tokens) — max 10,000 entries | **Never** |
 | `aias:v1:session:standard:*`   | Standard mode session data (transcript, summary, form_template_id, form_values, output_mode, current_step, updated_at) | Yes (as `session_standard` object) |
 | `aias:v1:session:realtime:*`   | Realtime mode session data (transcript, summary, form_template_id, form_values, questions, updated_at) | Yes (as `session_realtime` object) |
@@ -1069,7 +1091,7 @@ To add a new shadcn component:
 cd frontend && npx shadcn@latest add <component-name>
 ```
 
-Currently used: `badge`, `button`, `calendar`, `card`, `checkbox`, `collapsible`, `dialog`, `dropdown-menu`, `input`, `label`, `popover`, `scroll-area`, `select`, `separator`, `sheet`, `skeleton`, `slider`, `sonner`, `switch`, `tabs`, `textarea`, `tooltip`.
+Currently used: `alert`, `alert-dialog`, `badge`, `button`, `calendar`, `card`, `checkbox`, `collapsible`, `dialog`, `dropdown-menu`, `input`, `label`, `popover`, `radio-group`, `scroll-area`, `select`, `separator`, `sheet`, `skeleton`, `slider`, `sonner`, `switch`, `tabs`, `textarea`, `tooltip`.
 
 `components/ui/audio-player.tsx` is a custom composite component (not generated by shadcn CLI) that combines `Button` and `Slider` into a dark-themed audio playback widget with play/pause, seek bar, time display, mute toggle, and volume control. It is used by `AudioRecorder` to preview recordings after they are stopped.
 
@@ -1241,15 +1263,13 @@ useRealtimeSession.startSession():
     ▼
 Backend /ws/realtime handler:
     ├── Creates SessionState via SessionManager
-    ├── Connects to AssemblyAI: wss://streaming.eu.assemblyai.com/v3/ws
-    │   └── Auth header, params: pcm_s16le, 16kHz, universal-streaming-multilingual, format_turns=true
+    ├── Connects to AssemblyAI: wss://streaming.assemblyai.com/v3/ws
+    │   └── Auth header, params: pcm_s16le, 16kHz, u3-rt-pro
     ├── Sends {type: "session_started"} to browser
     ├── Runs two concurrent asyncio tasks:
     │   ├── browser_to_aai: forwards binary audio frames
     │   └── aai_to_browser: parses PascalCase turn events (Turn/Begin/Termination)
-    │       └── format_turns=true → AAI sends two Turn events per sentence:
-    │           1. end_of_turn=true, turn_is_formatted=false → skipped
-    │           2. turn_is_formatted=true → used as final transcript
+    │       └── u3-rt-pro: every end_of_turn is always formatted (single event per turn)
     │
     ▼
 Browser receives {type: "turn", transcript, is_final}:
@@ -1389,12 +1409,13 @@ ChatbotModal opens (fixed overlay, 420px wide, max 600px tall)
     │
     ▼
 User sends text message (or voice → auto-sent on final transcript)
+    │  If message starts with "!" and actions are enabled → quick-apply mode (skips confirmation)
     │
     ▼
 useChatbot.sendMessage():
     ├── Creates user + empty assistant message in state
     ├── Builds ChatRequest: messages (last 20), provider, model, api_key,
-    │   capability flags, transcript (if attached), stream=true
+    │   capability flags, transcript (if attached), app_context (current settings/version/changelog), stream=true
     │
     ▼
 api.ts: chatbotChat(request, onChunk, signal)
@@ -1495,14 +1516,34 @@ The chatbot shares the same `aias:v1:mic_device_id` localStorage key as `AudioRe
 | `switch_app_mode` | Switch standard/realtime | `mode`: standard/realtime | Validates against allowed values |
 | `change_provider` | Change LLM provider | `provider`: enum | Validates against `config.providers` |
 | `change_model` | Change LLM model | `model`: string | Validates model exists in current provider's model list |
+| `toggle_advanced_settings` | Toggle advanced settings visibility | `enabled`: boolean | — |
+| `toggle_sync_mode` | Toggle sync standard + realtime | `enabled`: boolean | — |
 | `toggle_speaker_key_points` | Toggle auto key points | `enabled`: boolean | — |
+| `toggle_speaker_labels` | Toggle speaker label suggestions | `enabled`: boolean | — |
 | `change_speaker_count` | Set speaker range | `min`, `max`: integer | — |
+| `update_realtime_system_prompt` | Update realtime summary system prompt | `prompt`: string | — |
 | `change_realtime_interval` | Set summary interval | `minutes`: 1/2/3/5/10 | — |
 | `toggle_final_summary` | Toggle final summary | `enabled`: boolean | — |
+| `toggle_reevaluate_all_questions` | Toggle re-evaluate answered questions on manual refresh | `enabled`: boolean | — |
+| `change_default_copy_format` | Change default copy format | `format`: formatted/plain/markdown/json | — |
+| `change_default_save_format` | Change default save format | `format`: txt/md/docx/pdf/html/json | — |
+| `change_default_chatbot_copy_format` | Change chatbot message copy format | `format`: markdown/plain/formatted | — |
 | `update_api_key` | Set API key | `provider`, `key`: string | — |
 | `open_settings` | Open settings panel | (none) | — |
 | `save_prompt_template` | Save a custom prompt template | `name`: string, `content`: string | Validates name and content are non-empty |
+| `list_prompt_templates` | List all custom prompt templates (read-only, no confirmation) | (none) | — |
+| `get_prompt_template` | Show a specific prompt template (read-only, no confirmation) | `id`: string | — |
+| `update_prompt_template` | Update an existing custom prompt template | `id`, `name`, `content`: string | Validates template exists |
+| `delete_prompt_template` | Delete a custom prompt template | `id`: string | Validates template exists |
 | `save_form_template` | Save a custom form template | `name`: string, `fields`: array of field definitions | Validates name non-empty, fields array non-empty, each field has label and valid type |
+| `list_form_templates` | List all custom form templates (read-only, no confirmation) | (none) | — |
+| `get_form_template` | Show a specific form template (read-only, no confirmation) | `id`: string | — |
+| `update_form_template` | Update an existing form template | `id`, `name`: string, `fields`: array | Validates template exists |
+| `delete_form_template` | Delete a form template | `id`: string | Validates template exists |
+
+**Quick-apply**: Users can prefix a message with `!` to skip the action confirmation step and apply the action immediately (e.g., `!Switch to light mode`).
+
+**App context**: The chatbot receives an `AppContext` object with the current app state (selected provider/model, app mode, theme, app version, changelog, user timestamp, last visit timestamp, copy/save format defaults, custom prompt templates, and form templates). This enables read-only actions like `list_prompt_templates` and context-aware responses (e.g., "What has changed since my last visit?").
 
 > **Note**: Storage mode (local/account) is **not** available as a chatbot action. It requires the StorageModeDialog flow (avatar menu → Storage Mode) which involves data upload/download confirmation. The system prompt explicitly instructs the LLM to explain this to users.
 
@@ -1608,19 +1649,34 @@ API docs: http://localhost:8080/docs
 
 ### Run with Docker
 
-Docker Compose orchestrates both services. Authentication env vars (Google OAuth) must be provided separately.
+Docker Compose orchestrates both services. A `Makefile` provides convenience commands:
 
 ```bash
-# Build and start both services
-docker compose up --build
+# --- Using Makefile (recommended) ---
+make start app          # Production build with Google Auth
+make start local        # Local build, no auth (auto-login as user@example.com)
+make start local_dev    # Local dev with hot-reload, no auth
+
+make stop app           # Stop production app
+make stop local         # Stop local app (works for both local & local_dev)
+
+# --- Using docker compose directly ---
+docker compose up --build                                                    # Production (Google Auth)
+docker compose -f docker-compose.yml -f docker-compose.noauth.yml up --build -d  # Local, no auth
+docker compose -f docker-compose.dev.yml -f docker-compose.noauth.yml up -d      # Dev hot-reload, no auth
 
 # Backend:  http://localhost:8080
 # Frontend: http://localhost:3000
-
-# Build individual services
-docker compose build backend
-docker compose build frontend
 ```
+
+**Docker Compose files:**
+
+| File | Purpose |
+|---|---|
+| `docker-compose.yml` | Production: Google Auth, prod URLs (`klartextai.com`), postgres |
+| `docker-compose.dev.yml` | Development: `Dockerfile.dev` for both services, volume mounts for hot-reload, named volumes for `node_modules` and `.venv` |
+| `docker-compose.noauth.yml` | No-auth overlay: sets `AUTH_BYPASS=true` + `SEED_DEV_USER=user@example.com` — layer on top of `.yml` or `.dev.yml` |
+| `docker-compose.override.yml` | Local overrides: sets localhost CORS + WS URLs (not committed to git) |
 
 **Environment variables for Docker:**
 
@@ -1628,15 +1684,18 @@ docker compose build frontend
 |---|---|---|
 | `AUTH_GOOGLE_ID` | `frontend/.env.local` | Google OAuth client ID |
 | `AUTH_GOOGLE_SECRET` | `frontend/.env.local` | Google OAuth client secret |
-| `AUTH_SECRET` | `frontend/.env.local` | Random secret (`openssl rand -base64 32`) |
+| `AUTH_SECRET` | `frontend/.env.local` + `.env` | Random secret (`openssl rand -base64 32`) — must match in both |
 | `NEXT_PUBLIC_BACKEND_WS_URL` | Build arg in `docker-compose.yml` | WebSocket URL reachable from browser; defaults to `ws://localhost:8080` |
+| `POSTGRES_USER/PASSWORD/DB` | `.env` | PostgreSQL credentials used by docker-compose |
+| `INITIAL_ADMINS` | `.env` | Comma-separated admin emails to seed on startup |
 
 Docker file locations:
 - `backend/Dockerfile` — multi-stage (uv builder → slim runtime), Python 3.12
+- `backend/Dockerfile.dev` — development build with volume-mounted source for hot-reload
 - `frontend/Dockerfile` — multi-stage (npm build → Next.js standalone runtime), Node 20 Alpine
-- `docker-compose.yml` — root-level, sets `BACKEND_INTERNAL_URL=http://backend:8080` for internal networking
+- `frontend/Dockerfile.dev` — development build with volume-mounted source for hot-reload
 
-For authentication to work locally, you need Google OAuth credentials configured (see [GCP Setup Guide](#gcp-setup-guide-google-oauth)) and the relevant env vars in `frontend/.env.local` (see `frontend/.env.local.example`).
+For authentication to work locally, you need Google OAuth credentials configured (see [GCP Setup Guide](#gcp-setup-guide-google-oauth)) and the relevant env vars in `frontend/.env.local` (see `frontend/.env.local.example`). Alternatively, use the no-auth mode (`make start local` or `make start local_dev`) to bypass authentication entirely.
 
 ---
 

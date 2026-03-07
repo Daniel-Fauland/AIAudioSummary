@@ -79,6 +79,16 @@ ACTION_REGISTRY = [
         "params": {"enabled": {"type": "boolean"}},
     },
     {
+        "action_id": "toggle_standard_timestamps",
+        "description": "Show or hide timestamps on each utterance in the Standard mode transcript view. When visible, timestamps are also included in copy/download and LLM requests.",
+        "params": {"enabled": {"type": "boolean"}},
+    },
+    {
+        "action_id": "toggle_realtime_timestamps",
+        "description": "Show or hide timestamps on each utterance in the Realtime mode transcript view. When visible, timestamps are also included in copy/download and LLM requests.",
+        "params": {"enabled": {"type": "boolean"}},
+    },
+    {
         "action_id": "change_default_copy_format",
         "description": "Change the default format used when copying content (transcript, summary, etc.) to the clipboard",
         "params": {

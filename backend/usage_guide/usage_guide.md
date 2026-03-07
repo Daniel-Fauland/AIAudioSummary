@@ -128,7 +128,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.10.0** — click to view the changelog of recent updates
+- **v2.0.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -214,6 +214,16 @@ After transcription completes (or after skipping upload), you land on the **Tran
   - **Copy as** (split button) — copies the transcript in your chosen format. Click the main button to use your default format, or open the dropdown for all options: **Formatted** (rich text), **Plain Text**, **Markdown**. The default format can be changed in Settings (see [Section 4.12](#412-settings-panel)).
   - **Save as** (split button) — downloads the transcript as a file. Click the main button to use your default format, or open the dropdown for all options: **.txt**, **.md**, **.docx**, **.pdf**, **.html**.
   - **Expand icon** — opens the transcript in a fullscreen view.
+
+**Timestamps:**
+
+- When **Show Timestamps** is enabled (Settings → Features → Standard), each utterance displays its start and end time below the text (e.g., `00:04 - 00:13`).
+- Timestamps use the precise times provided by AssemblyAI's speaker diarization.
+- When visible, timestamps are automatically included in:
+  - **Copy / Download** — all formats (plain text, markdown, .txt, .md, .docx, .pdf, .html).
+  - **LLM requests** — summary generation, key points extraction, chatbot context, and form filling, giving the AI temporal context about the conversation.
+- Timestamps are shown only in the **read-only view** (Step 3). The editable transcript (Step 2) remains a plain text area.
+- The setting is **on by default** and can be toggled at any time — the change takes effect immediately without reloading.
 
 **Editing the transcript:**
 
@@ -425,6 +435,7 @@ If both the transcript and summary are already empty, clicking **Start** begins 
 - **Finalized text** appears in normal style; **in-progress partial text** appears in a muted italic style.
 - Auto-scrolls to the bottom as new text arrives.
 - A **trash icon** (to the left of the copy button) lets you clear the accumulated transcript. A confirmation dialog appears before clearing.
+- When **Show Timestamps** is enabled (Settings → Features → Realtime), each finalized utterance displays a wall-clock timestamp (e.g., `00:00 - 00:27`). Timestamps reflect elapsed time since the session started. When visible, they are included in copy/download and chatbot context.
 
 #### Summary Panel
 
@@ -635,6 +646,7 @@ The following sub-sections and their settings are only visible when **Advanced S
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
 | **Speaker Key Points** (toggle)            | When on, automatically extracts a short key-point summary per speaker immediately after transcription completes.            |
 | **Speaker Count Range** (Min / Max inputs) | Tells AssemblyAI how many speakers to expect in the recording. Narrowing this range can improve speaker detection accuracy. |
+| **Show Timestamps** (toggle)               | When on (default), displays start/end timestamps for each utterance in the read-only transcript view. Timestamps are also included in copy/download and LLM requests. |
 
 **Realtime** sub-section:
 
@@ -643,6 +655,7 @@ The following sub-sections and their settings are only visible when **Advanced S
 | **System Prompt** → **Edit** button   | Opens an editor to customise the AI instructions for realtime summaries.                                                                                                                |
 | **Summary Interval** dropdown         | How often a new running summary is auto-generated: 1, 2, 3, 5, or 10 minutes.                                                                                                           |
 | **Final Summary on Stop** (toggle)    | When on, stopping a realtime session triggers a full final summary.                                                                                                                     |
+| **Show Timestamps** (toggle)          | When on (default), displays wall-clock timestamps for each utterance in the realtime transcript view. Timestamps are also included in copy/download and chatbot context.                |
 | **Sync Standard + Realtime** (toggle) | When on, starting one recording mode automatically starts the other with a shared microphone, and pause/stop actions are coordinated. See [Section 4.19](#419-sync-standard--realtime). |
 
 **AI Chatbot** sub-section:
@@ -865,6 +878,8 @@ The following actions are available:
 | **Update Realtime system prompt**      | Replace the system prompt used for Realtime summary generation.                                  |
 | **Change Realtime summary interval**   | Set how often Realtime summaries are generated (1, 2, 3, 5, or 10 minutes).                      |
 | **Toggle Final Summary on Stop**       | Enable or disable automatic full summary generation when a Realtime session is stopped.          |
+| **Toggle Standard Timestamps**         | Show or hide timestamps in the Standard mode transcript view.                                    |
+| **Toggle Realtime Timestamps**         | Show or hide timestamps in the Realtime mode transcript view.                                    |
 | **Change Default Copy Format**         | Change the default format for the Copy as button (Formatted, Plain Text, Markdown, or JSON).     |
 | **Change Default Save Format**         | Change the default file format for the Save as button (.txt, .md, .docx, .pdf, .html, or .json). |
 | **Change Default Chatbot Copy Format** | Change the format used when copying chatbot messages (Formatted Text, Plain Text, or Markdown).  |

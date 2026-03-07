@@ -24,13 +24,32 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
-import type { ContentPayload } from "@/lib/types";
+import type { ContentPayload, TranscriptUtterance } from "@/lib/types";
+
+export function formatTimestamp(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+export function formatTranscriptWithTimestamps(utterances: TranscriptUtterance[]): string {
+  return utterances
+    .map((u) => `${u.speaker}: ${u.text}\n[${formatTimestamp(u.start_ms)} - ${formatTimestamp(u.end_ms)}]`)
+    .join("\n\n");
+}
 
 interface TranscriptViewProps {
   transcript: string;
   onTranscriptChange?: (transcript: string) => void;
   loading?: boolean;
   readOnly?: boolean;
+  utterances?: TranscriptUtterance[];
+  showTimestamps?: boolean;
 }
 
 export function TranscriptView({
@@ -38,19 +57,29 @@ export function TranscriptView({
   onTranscriptChange,
   loading,
   readOnly,
+  utterances,
+  showTimestamps,
 }: TranscriptViewProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
 
+  const hasTimestampedView = readOnly && !!utterances?.length && !!showTimestamps;
+
   const contentPayload = useMemo<ContentPayload | null>(() => {
     if (!transcript) return null;
+    const timestampedText = hasTimestampedView
+      ? formatTranscriptWithTimestamps(utterances!)
+      : null;
+    const markdown = hasTimestampedView
+      ? utterances!.map((u) => `${u.speaker}: ${u.text}\n*${formatTimestamp(u.start_ms)} - ${formatTimestamp(u.end_ms)}*`).join("\n\n")
+      : transcript;
     return {
       type: "transcript",
-      plainText: transcript,
-      markdown: transcript,
+      plainText: timestampedText ?? transcript,
+      markdown,
       fileNamePrefix: "transcript",
     };
-  }, [transcript]);
+  }, [transcript, hasTimestampedView, utterances]);
 
   if (loading) {
     return (
@@ -120,9 +149,24 @@ export function TranscriptView({
       <CardContent>
         {readOnly ? (
           <ScrollArea className="max-h-[600px] min-h-[300px]">
-            <div className="whitespace-pre-wrap font-mono text-sm text-foreground">
-              {transcript || "Transcript will appear here..."}
-            </div>
+            {hasTimestampedView ? (
+              <div className="space-y-3">
+                {utterances!.map((u, i) => (
+                  <div key={i} className="border-l-2 border-border pl-3 py-1">
+                    <p className="font-mono text-sm text-foreground">
+                      <span className="font-semibold">{u.speaker}:</span> {u.text}
+                    </p>
+                    <span className="text-xs text-foreground-muted">
+                      {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="whitespace-pre-wrap font-mono text-sm text-foreground">
+                {transcript || "Transcript will appear here..."}
+              </div>
+            )}
           </ScrollArea>
         ) : (
           <Textarea
@@ -168,9 +212,24 @@ export function TranscriptView({
           </DialogHeader>
           {readOnly ? (
             <ScrollArea className="flex-1">
-              <div className="whitespace-pre-wrap font-mono text-sm text-foreground p-4">
-                {transcript}
-              </div>
+              {hasTimestampedView ? (
+                <div className="space-y-3 p-4">
+                  {utterances!.map((u, i) => (
+                    <div key={i} className="border-l-2 border-border pl-3 py-1">
+                      <p className="font-mono text-sm text-foreground">
+                        <span className="font-semibold">{u.speaker}:</span> {u.text}
+                      </p>
+                      <span className="text-xs text-foreground-muted">
+                        {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="whitespace-pre-wrap font-mono text-sm text-foreground p-4">
+                  {transcript}
+                </div>
+              )}
             </ScrollArea>
           ) : (
             <Textarea

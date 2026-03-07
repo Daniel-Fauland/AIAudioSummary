@@ -53,6 +53,7 @@ interface RealtimeModeProps {
   liveQuestionsProvider: LLMProvider;
   liveQuestionsModel: string;
   onTranscriptChange?: (transcript: string) => void;
+  onUtterancesChange?: (utterances: import("@/lib/types").TranscriptUtterance[]) => void;
   onConnectionStatusChange?: (status: RealtimeConnectionStatus) => void;
   formOutputProvider: LLMProvider;
   formOutputModel: string;
@@ -69,9 +70,11 @@ interface RealtimeModeProps {
   onPersistQuestions?: (questions: LiveQuestion[]) => void;
   onPersistFormValues?: (values: Record<string, unknown>) => void;
   onPersistFormTemplateId?: (id: string | null) => void;
+  onPersistUtterances?: (utterances: import("@/lib/types").TranscriptUtterance[]) => void;
   onClearRealtimeSession?: () => void;
   onSavePreferences?: () => void;
   onSummaryUsage?: (usage: TokenUsage) => void;
+  showRealtimeTimestamps?: boolean;
 }
 
 export function RealtimeMode({
@@ -94,6 +97,7 @@ export function RealtimeMode({
   liveQuestionsProvider,
   liveQuestionsModel,
   onTranscriptChange,
+  onUtterancesChange,
   onConnectionStatusChange,
   formOutputProvider,
   formOutputModel,
@@ -110,13 +114,16 @@ export function RealtimeMode({
   onPersistQuestions,
   onPersistFormValues,
   onPersistFormTemplateId,
+  onPersistUtterances,
   onClearRealtimeSession,
   onSavePreferences,
   onSummaryUsage,
+  showRealtimeTimestamps,
 }: RealtimeModeProps) {
   const session = useRealtimeSession({
     initialTranscript: initialRealtimeSession?.transcript,
     initialSummary: initialRealtimeSession?.summary,
+    initialUtterances: initialRealtimeSession?.utterances,
     onUsage: onSummaryUsage,
   });
   const liveQuestions = useLiveQuestions({
@@ -145,6 +152,11 @@ export function RealtimeMode({
     onTranscriptChange?.(full);
   }, [session.accumulatedTranscript, session.committedPartial, session.currentPartial, onTranscriptChange]);
 
+  // Notify parent of utterances changes
+  useEffect(() => {
+    onUtterancesChange?.(session.realtimeUtterances);
+  }, [session.realtimeUtterances, onUtterancesChange]);
+
   // Notify parent of connection status changes
   useEffect(() => {
     onConnectionStatusChange?.(session.connectionStatus);
@@ -170,6 +182,10 @@ export function RealtimeMode({
   useEffect(() => {
     onPersistFormTemplateId?.(selectedFormTemplateId);
   }, [selectedFormTemplateId, onPersistFormTemplateId]);
+
+  useEffect(() => {
+    if (session.realtimeUtterances.length > 0) onPersistUtterances?.(session.realtimeUtterances);
+  }, [session.realtimeUtterances, onPersistUtterances]);
 
   // Listen for sync-initiated clear events from GlobalSyncContext
   useEffect(() => {
@@ -491,6 +507,8 @@ export function RealtimeMode({
             isSessionActive={isActive}
 
             onClear={handleClearTranscript}
+            utterances={session.realtimeUtterances}
+            showTimestamps={showRealtimeTimestamps}
           />
           <RealtimeSummaryView
             summary={session.realtimeSummary}
@@ -539,6 +557,8 @@ export function RealtimeMode({
             isSessionActive={isActive}
 
             onClear={handleClearTranscript}
+            utterances={session.realtimeUtterances}
+            showTimestamps={showRealtimeTimestamps}
           />
         ) : (
           <div className="flex flex-col gap-4">

@@ -21,6 +21,7 @@ import type {
   PromptAssistantGenerateRequest,
   PromptAssistantGenerateResponse,
   TokenUsage,
+  TranscriptUtterance,
   UpdatedTranscriptResponse,
   UserPreferences,
   UserProfile,
@@ -66,7 +67,7 @@ export async function createTranscript(
   langCode?: string,
   minSpeaker?: number,
   maxSpeaker?: number,
-): Promise<string> {
+): Promise<{ transcript: string; utterances: TranscriptUtterance[] }> {
   const formData = new FormData();
   formData.append("file", file);
   if (langCode) formData.append("lang_code", langCode);
@@ -80,7 +81,7 @@ export async function createTranscript(
   });
 
   const data = await handleResponse<CreateTranscriptResponse>(response);
-  return data.transcript;
+  return { transcript: data.transcript, utterances: data.utterances ?? [] };
 }
 
 export async function getSpeakers(transcript: string): Promise<string[]> {
