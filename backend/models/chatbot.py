@@ -41,6 +41,13 @@ class FormTemplateInfo(BaseModel):
     fields: list[FormTemplateFieldInfo]
 
 
+class KeytermsListInfo(BaseModel):
+    """Keyterms list summary for the chatbot context."""
+    id: str
+    name: str
+    terms: list[str]
+
+
 class AppContext(BaseModel):
     """Current user settings and app state, injected into the system prompt."""
     selected_provider: str | None = None
@@ -56,6 +63,7 @@ class AppContext(BaseModel):
     default_chatbot_copy_format: str | None = None
     custom_templates: list[PromptTemplateInfo] | None = None
     form_templates: list[FormTemplateInfo] | None = None
+    keyterms_lists: list[KeytermsListInfo] | None = None
 
 
 class ChatRequest(BaseModel):

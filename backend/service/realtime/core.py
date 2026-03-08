@@ -1,4 +1,5 @@
 import json
+import urllib.parse
 
 import websockets
 
@@ -9,7 +10,8 @@ AAI_STREAMING_URL = "wss://streaming.eu.assemblyai.com/v3/ws"
 
 class RealtimeTranscriptionService:
     async def connect(
-        self, api_key: str, sample_rate: int = 16000, speech_model: str = "precise"
+        self, api_key: str, sample_rate: int = 16000, speech_model: str = "precise",
+        keyterms_prompt: list[str] | None = None,
     ) -> websockets.WebSocketClientProtocol:
         if speech_model == "fast":
             aai_model = "universal-streaming-multilingual"
@@ -28,6 +30,12 @@ class RealtimeTranscriptionService:
                 f"&format_turns=true"
                 f"&speaker_labels=true"
             )
+
+        if keyterms_prompt:
+            terms = keyterms_prompt[:100]
+            encoded = urllib.parse.quote(json.dumps(terms))
+            params += f"&keyterms_prompt={encoded}"
+
         url = f"{AAI_STREAMING_URL}{params}"
 
         ws = await websockets.connect(

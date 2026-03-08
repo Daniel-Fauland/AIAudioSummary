@@ -298,6 +298,7 @@ export interface AppContext {
   default_chatbot_copy_format?: string;
   custom_templates?: { id: string; name: string; content: string }[];
   form_templates?: { id: string; name: string; fields: { label: string; type: string; description?: string; options?: string[] }[] }[];
+  keyterms_lists?: { id: string; name: string; terms: string[] }[];
 }
 
 export interface ChatRequest {
@@ -366,6 +367,8 @@ export interface UserPreferences {
   realtime_system_prompt?: string;
   custom_templates?: { id: string; name: string; content: string }[];
   form_templates?: FormTemplate[];
+  keyterms_lists?: KeytermsList[];
+  selected_keyterms_list_id?: string | null;
   chatbot_enabled?: boolean;
   chatbot_qa?: boolean;
   chatbot_transcript?: boolean;
@@ -403,6 +406,14 @@ export interface UserPreferences {
 export interface PreferencesResponse {
   storage_mode: "local" | "account";
   preferences: UserPreferences | null;
+}
+
+// === Keyterms types ===
+
+export interface KeytermsList {
+  id: string;
+  name: string;
+  terms: string[];
 }
 
 // === Form Output types ===

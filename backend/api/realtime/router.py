@@ -170,6 +170,7 @@ async def realtime_transcription(ws: WebSocket):
         session_id = init_msg.get("session_id")
         sample_rate = init_msg.get("sample_rate", 16000)
         speech_model = init_msg.get("speech_model", "precise")
+        keyterms_prompt = init_msg.get("keyterms_prompt", [])
 
         if not api_key or not session_id:
             await ws.send_json({"type": "error", "message": "api_key and session_id are required"})
@@ -181,7 +182,10 @@ async def realtime_transcription(ws: WebSocket):
 
         # Step 3: Connect to AssemblyAI
         try:
-            aai_ws = await service.connect(api_key, sample_rate, speech_model)
+            aai_ws = await service.connect(
+                api_key, sample_rate, speech_model,
+                keyterms_prompt=keyterms_prompt if keyterms_prompt else None,
+            )
         except Exception as e:
             error_msg = str(e).lower()
             if "401" in error_msg or "auth" in error_msg:
@@ -258,6 +262,16 @@ async def _run_relay(
                     if data.get("type") == "stop":
                         stop_event.set()
                         return
+                    elif data.get("type") == "update_keyterms":
+                        keyterms = data.get("keyterms_prompt", [])[:100]
+                        try:
+                            await aai_ws.send(json.dumps({
+                                "type": "UpdateConfiguration",
+                                "keyterms_prompt": keyterms,
+                            }))
+                            logger.info(f"Updated keyterms for session {session_id}: {len(keyterms)} terms")
+                        except Exception as e:
+                            logger.warning(f"Failed to update keyterms: {e}")
         except WebSocketDisconnect:
             stop_event.set()
         except Exception as e:

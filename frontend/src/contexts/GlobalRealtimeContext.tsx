@@ -30,8 +30,9 @@ export interface GlobalRealtimeContextValue {
   speakerMappingsRef: React.RefObject<Record<string, string>>;
 
   // Functions
-  connect: (assemblyAiKey: string, deviceId?: string, recordMode?: "mic" | "meeting", sharedDisplayStream?: MediaStream, speechModel?: RealtimeSpeechModel) => Promise<void>;
+  connect: (assemblyAiKey: string, deviceId?: string, recordMode?: "mic" | "meeting", sharedDisplayStream?: MediaStream, speechModel?: RealtimeSpeechModel, keyterms?: string[]) => Promise<void>;
   disconnect: (triggerCallback?: boolean) => Promise<void>;
+  updateKeyterms: (terms: string[]) => void;
   pause: () => void;
   resume: () => void;
   clearTranscript: () => void;
@@ -197,7 +198,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const connect = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic", sharedDisplayStream?: MediaStream, speechModel?: RealtimeSpeechModel) => {
+  const connect = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic", sharedDisplayStream?: MediaStream, speechModel?: RealtimeSpeechModel, keyterms?: string[]) => {
     setConnectionStatus("connecting");
     setIsSessionEnded(false);
 
@@ -285,12 +286,16 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        ws.send(JSON.stringify({
+        const initMsg: Record<string, unknown> = {
           api_key: assemblyAiKey,
           session_id: newSessionId,
           sample_rate: 16000,
           speech_model: speechModel || "precise",
-        }));
+        };
+        if (keyterms && keyterms.length > 0) {
+          initMsg.keyterms_prompt = keyterms.slice(0, 100);
+        }
+        ws.send(JSON.stringify(initMsg));
       };
 
       ws.onmessage = handleWsMessage;
@@ -345,6 +350,15 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     }
     isPausedRef.current = false;
     setIsPaused(false);
+  }, []);
+
+  const updateKeyterms = useCallback((terms: string[]) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "update_keyterms",
+        keyterms_prompt: terms.slice(0, 100),
+      }));
+    }
   }, []);
 
   const disconnect = useCallback(async (triggerCallback: boolean = true) => {
@@ -439,6 +453,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     speakerMappingsRef,
     connect,
     disconnect,
+    updateKeyterms,
     pause,
     resume,
     clearTranscript,

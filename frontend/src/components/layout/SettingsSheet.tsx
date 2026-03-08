@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { ChevronDown, Info, Pencil } from "lucide-react";
+import { ChevronDown, Info, Pencil, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -27,7 +28,8 @@ import { AzureConfigForm } from "@/components/settings/AzureConfigForm";
 import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
 import { FeatureModelOverrides } from "@/components/settings/FeatureModelOverrides";
 import { ChatbotSettings } from "@/components/settings/ChatbotSettings";
-import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, RealtimeSpeechModel, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat, ChatbotCopyFormat } from "@/lib/types";
+import { KeytermsListSelector } from "@/components/settings/KeytermsListSelector";
+import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, RealtimeSpeechModel, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat, ChatbotCopyFormat, KeytermsList } from "@/lib/types";
 import { COPY_FORMAT_LABELS, SAVE_FORMAT_LABELS, CHATBOT_COPY_FORMAT_LABELS } from "@/lib/content-formats";
 
 interface SettingsSheetProps {
@@ -85,6 +87,13 @@ interface SettingsSheetProps {
   onShowRealtimeTimestampsChange: (enabled: boolean) => void;
   realtimeSpeechModel: RealtimeSpeechModel;
   onRealtimeSpeechModelChange: (model: RealtimeSpeechModel) => void;
+  keytermsLists: KeytermsList[];
+  selectedKeytermsListId: string | null;
+  onKeytermsListChange: (id: string | null) => void;
+  onSaveKeytermsList: (list: KeytermsList) => void;
+  onUpdateKeytermsList: (list: KeytermsList) => void;
+  onDeleteKeytermsList: (id: string) => void;
+  onResetSettings: () => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -168,6 +177,13 @@ export function SettingsSheet({
   onShowRealtimeTimestampsChange,
   realtimeSpeechModel,
   onRealtimeSpeechModelChange,
+  keytermsLists,
+  selectedKeytermsListId,
+  onKeytermsListChange,
+  onSaveKeytermsList,
+  onUpdateKeytermsList,
+  onDeleteKeytermsList,
+  onResetSettings,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -230,6 +246,9 @@ export function SettingsSheet({
       window.removeEventListener("blur", handleBlur);
     };
   }, [open]);
+
+  // Reset confirmation
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   // System prompt editor state
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
@@ -496,6 +515,15 @@ export function SettingsSheet({
                             </SelectContent>
                           </Select>
                         </div>
+
+                        <KeytermsListSelector
+                          lists={keytermsLists}
+                          selectedListId={selectedKeytermsListId}
+                          onSelectList={onKeytermsListChange}
+                          onSaveList={onSaveKeytermsList}
+                          onUpdateList={onUpdateKeytermsList}
+                          onDeleteList={onDeleteKeytermsList}
+                        />
                       </>
                     )}
                   </div>
@@ -762,6 +790,19 @@ export function SettingsSheet({
                 </div>
               </CollapsibleContent>
             </Collapsible>
+            <Separator />
+
+            <div className="pt-2 pb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                onClick={() => setResetConfirmOpen(true)}
+              >
+                <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                Reset All Settings to Defaults
+              </Button>
+            </div>
           </div>
           </ScrollArea>
         </SheetContent>
@@ -818,6 +859,33 @@ export function SettingsSheet({
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Reset confirmation dialog */}
+      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <DialogContent className="sm:max-w-[400px] bg-card">
+          <DialogHeader>
+            <DialogTitle>Reset Settings</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to reset all settings to their default values? API keys will not be affected.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setResetConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                onResetSettings();
+                setResetConfirmOpen(false);
+                toast.success("Settings have been reset to defaults.");
+              }}
+            >
+              Reset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

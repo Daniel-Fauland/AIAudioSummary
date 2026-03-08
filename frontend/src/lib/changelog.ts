@@ -22,12 +22,22 @@ export const changelog: ChangelogEntry[] = [
       {
         type: "added",
         description:
-          "Speech Model toggle in Settings > Features > Realtime — choose between Fast (word-by-word streaming, no speaker labels) and Precise (turn-based streaming with speaker diarization). Consecutive utterances from the same speaker are automatically merged in Precise mode.",
+          "Speech Model toggle in Settings > Features > Realtime — choose between Fast (word-by-word streaming, no timestamps, no speaker labels) and Precise (turn-based streaming with speaker diarization & timestamps). Consecutive utterances from the same speaker are automatically merged in Precise mode.",
       },
       {
         type: "added",
         description:
           "Speaker Mapping for Realtime mode — map generic speaker labels (Speaker A, Speaker B) to real names via a new dialog accessible from the transcript header. Mappings apply to existing and future utterances. Includes key point extraction and auto-suggested names (configurable in Settings).",
+      },
+      {
+        type: "added",
+        description:
+          "Keyterms Prompting — create named lists of domain-specific terms (e.g., company names, technical jargon) to improve transcription accuracy. Manage lists in Settings > Features > General (requires Advanced Settings). Works with both Standard and Realtime modes, and keyterms lists can be switched mid-session in Realtime mode.",
+      },
+      {
+        type: "added",
+        description:
+          "Reset All Settings to Defaults — a new button at the bottom of the Settings panel lets you revert all settings to their factory defaults with a single click. A confirmation dialog is shown before resetting. API keys are not affected.",
       },
     ],
   },

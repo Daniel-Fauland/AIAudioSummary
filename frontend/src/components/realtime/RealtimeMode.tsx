@@ -80,6 +80,7 @@ interface RealtimeModeProps {
   onSummaryUsage?: (usage: TokenUsage) => void;
   showRealtimeTimestamps?: boolean;
   realtimeSpeechModel?: RealtimeSpeechModel;
+  keyterms?: string[];
   autoKeyPointsEnabled?: boolean;
   speakerLabelsEnabled?: boolean;
   keyPointProvider?: LLMProvider;
@@ -129,6 +130,7 @@ export function RealtimeMode({
   onSummaryUsage,
   showRealtimeTimestamps,
   realtimeSpeechModel = "precise",
+  keyterms,
   autoKeyPointsEnabled = false,
   speakerLabelsEnabled = false,
   keyPointProvider,
@@ -346,8 +348,8 @@ export function RealtimeMode({
   ]);
 
   const proceedWithStart = useCallback(() => {
-    session.startSession(getKey("assemblyai"), micDeviceId, recordMode, realtimeSpeechModel);
-  }, [session, getKey, micDeviceId, recordMode, realtimeSpeechModel]);
+    session.startSession(getKey("assemblyai"), micDeviceId, recordMode, realtimeSpeechModel, keyterms);
+  }, [session, getKey, micDeviceId, recordMode, realtimeSpeechModel, keyterms]);
 
   const handleStart = useCallback(() => {
     if (!hasKey("assemblyai")) {

@@ -38,6 +38,16 @@ class UsersService:
             raise HTTPException(status_code=409, detail="Email already exists")
         return user
 
+    async def update_user(self, user_id: int, name: str | None, db: AsyncSession) -> User:
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        user.name = name
+        await db.commit()
+        await db.refresh(user)
+        return user
+
     async def delete_user(self, user_id: int, db: AsyncSession) -> None:
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()

@@ -242,4 +242,53 @@ ACTION_REGISTRY = [
             "id": {"type": "string", "description": "The template ID (from app_context)"},
         },
     },
+    # --- Keyterms list management ---
+    {
+        "action_id": "save_keyterms_list",
+        "description": "Save a new keyterms list for transcription prompting. Use this when the user asks to create a list of domain-specific terms that should be recognized correctly during transcription.",
+        "params": {
+            "name": {"type": "string", "description": "The list name (e.g., 'Project Alpha', 'Medical Terms')"},
+            "terms": {"type": "array", "items": {"type": "string"}, "description": "Array of keyterms/phrases to boost during transcription"},
+        },
+    },
+    {
+        "action_id": "list_keyterms_lists",
+        "description": "List all keyterms lists. Read-only action. Data is available in app_context.keyterms_lists.",
+        "params": {},
+    },
+    {
+        "action_id": "get_keyterms_list",
+        "description": "Show details of a specific keyterms list. Read-only action. Data is available in app_context.keyterms_lists.",
+        "params": {
+            "id": {"type": "string", "description": "The list ID (from app_context)"},
+        },
+    },
+    {
+        "action_id": "update_keyterms_list",
+        "description": "Update an existing keyterms list. You MUST use the exact list ID from the app_context keyterms_lists.",
+        "params": {
+            "id": {"type": "string", "description": "The list ID (from app_context)"},
+            "name": {"type": "string", "description": "The updated list name"},
+            "terms": {"type": "array", "items": {"type": "string"}, "description": "The updated array of keyterms"},
+        },
+    },
+    {
+        "action_id": "delete_keyterms_list",
+        "description": "Delete an existing keyterms list. You MUST use the exact list ID from the app_context keyterms_lists.",
+        "params": {
+            "id": {"type": "string", "description": "The list ID (from app_context)"},
+        },
+    },
+    {
+        "action_id": "select_keyterms_list",
+        "description": "Select a keyterms list for use in transcription, or deselect all by passing an empty string.",
+        "params": {
+            "id": {"type": "string", "description": "The list ID to select, or empty string to deselect"},
+        },
+    },
+    {
+        "action_id": "reset_all_settings",
+        "description": "Reset all settings to their factory defaults. This resets provider, model, all toggles, intervals, formats, system prompt, feature overrides, and keyterms selection. API keys are NOT affected.",
+        "params": {},
+    },
 ]

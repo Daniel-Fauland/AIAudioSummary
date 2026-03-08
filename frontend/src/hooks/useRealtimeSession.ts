@@ -95,8 +95,8 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
   }, [globalRealtime.connectionStatus, summary]);
 
   // Wrapped start/stop to include summary logic
-  const startSession = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic", speechModel?: RealtimeSpeechModel) => {
-    await globalRealtime.connect(assemblyAiKey, deviceId, recordMode, undefined, speechModel);
+  const startSession = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic", speechModel?: RealtimeSpeechModel, keyterms?: string[]) => {
+    await globalRealtime.connect(assemblyAiKey, deviceId, recordMode, undefined, speechModel, keyterms);
   }, [globalRealtime]);
 
   const stopSession = useCallback(async (triggerFinalSummary: boolean = true) => {
@@ -161,5 +161,6 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
     setRealtimeUtterances: globalRealtime.setRealtimeUtterances,
     setAccumulatedTranscript: globalRealtime.setAccumulatedTranscript,
     speakerMappingsRef: globalRealtime.speakerMappingsRef,
+    updateKeyterms: globalRealtime.updateKeyterms,
   };
 }

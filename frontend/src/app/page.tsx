@@ -33,11 +33,13 @@ import { useConfig } from "@/hooks/useConfig";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { useCustomTemplates } from "@/hooks/useCustomTemplates";
 import { useFormTemplates } from "@/hooks/useFormTemplates";
+import { useKeytermsLists } from "@/hooks/useKeytermsLists";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useSessionPersistence } from "@/hooks/useSessionPersistence";
 import { useChatbot } from "@/hooks/useChatbot";
 import { useTokenUsage } from "@/hooks/useTokenUsage";
 import { useGlobalRecording } from "@/contexts/GlobalRecordingContext";
+import { useGlobalRealtime } from "@/contexts/GlobalRealtimeContext";
 import { useGlobalSync } from "@/contexts/GlobalSyncContext";
 import { createTranscript, createSummary, extractKeyPoints, fillForm } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -124,6 +126,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const { getKey, setKey, hasKey, getAzureConfig, getLangdockConfig, setLangdockConfig } = useApiKeys();
   const { theme, setTheme } = useTheme();
   const globalRecording = useGlobalRecording();
+  const globalRealtime = useGlobalRealtime();
   const globalSync = useGlobalSync();
   const { usageHistory, recordUsage, clearHistory: clearUsageHistory } = useTokenUsage();
   const {
@@ -171,6 +174,57 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     rawDeleteFormTemplate(id);
     savePreferences();
   }, [rawDeleteFormTemplate, savePreferences]);
+
+  // Keyterms lists
+  const {
+    lists: keytermsLists,
+    saveList: rawSaveKeytermsList,
+    updateList: rawUpdateKeytermsList,
+    deleteList: rawDeleteKeytermsList,
+  } = useKeytermsLists();
+
+  const SELECTED_KEYTERMS_LIST_KEY = "aias:v1:selected_keyterms_list_id";
+
+  const [selectedKeytermsListId, setSelectedKeytermsListId] = useState<string | null>(
+    () => {
+      if (serverPreferences?.selected_keyterms_list_id !== undefined) {
+        return serverPreferences.selected_keyterms_list_id ?? null;
+      }
+      return safeGet(SELECTED_KEYTERMS_LIST_KEY, "") || null;
+    },
+  );
+
+  const selectedKeyterms: string[] = useMemo(() => {
+    if (!selectedKeytermsListId) return [];
+    const list = keytermsLists.find((l) => l.id === selectedKeytermsListId);
+    return list?.terms ?? [];
+  }, [selectedKeytermsListId, keytermsLists]);
+
+  const handleKeytermsListChange = useCallback((id: string | null) => {
+    setSelectedKeytermsListId(id);
+    safeSet(SELECTED_KEYTERMS_LIST_KEY, id ?? "");
+    savePreferences();
+    // Mid-session update for realtime mode
+    if (globalRealtime.connectionStatus === "connected") {
+      const list = id ? keytermsLists.find((l) => l.id === id) : null;
+      globalRealtime.updateKeyterms(list?.terms ?? []);
+    }
+  }, [savePreferences, globalRealtime, keytermsLists]);
+
+  const saveKeytermsList = useCallback((list: import("@/lib/types").KeytermsList) => {
+    rawSaveKeytermsList(list);
+    savePreferences();
+  }, [rawSaveKeytermsList, savePreferences]);
+
+  const updateKeytermsList = useCallback((list: import("@/lib/types").KeytermsList) => {
+    rawUpdateKeytermsList(list);
+    savePreferences();
+  }, [rawUpdateKeytermsList, savePreferences]);
+
+  const deleteKeytermsList = useCallback((id: string) => {
+    rawDeleteKeytermsList(id);
+    savePreferences();
+  }, [rawDeleteKeytermsList, savePreferences]);
 
   // Session persistence
   const sessionPersistence = useSessionPersistence();
@@ -687,6 +741,77 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
   }, [savePreferences]);
 
+  const handleResetSettings = useCallback(() => {
+    // Provider / model
+    const defaultProvider: LLMProvider = "openai";
+    const defaultModel = "gpt-5.2";
+    setSelectedProvider(defaultProvider);
+    setSelectedModel(defaultModel);
+    safeSet(PROVIDER_KEY, defaultProvider);
+    safeSet(`${MODEL_KEY_PREFIX}${defaultProvider}`, defaultModel);
+
+    // Feature toggles
+    setAutoKeyPointsEnabled(true);
+    safeSet(AUTO_KEY_POINTS_KEY, "true");
+    setSpeakerLabelsEnabled(true);
+    safeSet(SPEAKER_LABELS_KEY, "true");
+    setMinSpeakers(1);
+    safeSet(MIN_SPEAKERS_KEY, "1");
+    setMaxSpeakers(10);
+    safeSet(MAX_SPEAKERS_KEY, "10");
+
+    // Realtime settings
+    setRealtimeSummaryInterval(2 as SummaryInterval);
+    safeSet(REALTIME_INTERVAL_KEY, "2");
+    setRealtimeFinalSummaryEnabled(false);
+    safeSet(REALTIME_FINAL_SUMMARY_KEY, "false");
+    setRealtimeReevaluateAll(false);
+    safeSet(REALTIME_REEVALUATE_ALL_KEY, "false");
+    setRealtimeSystemPrompt(DEFAULT_REALTIME_SYSTEM_PROMPT);
+    safeSet(REALTIME_SYSTEM_PROMPT_KEY, DEFAULT_REALTIME_SYSTEM_PROMPT);
+    setRealtimeSpeechModel("precise");
+    safeSet(REALTIME_SPEECH_MODEL_KEY, "precise");
+
+    // Feature overrides
+    setFeatureOverrides({});
+    safeSet(FEATURE_OVERRIDES_KEY, "{}");
+
+    // Chatbot
+    setChatbotEnabled(true);
+    safeSet(CHATBOT_ENABLED_KEY, "true");
+    setChatbotQAEnabled(true);
+    safeSet(CHATBOT_QA_KEY, "true");
+    setChatbotTranscriptEnabled(true);
+    safeSet(CHATBOT_TRANSCRIPT_KEY, "true");
+    setChatbotActionsEnabled(true);
+    safeSet(CHATBOT_ACTIONS_KEY, "true");
+
+    // General
+    setSyncStandardRealtime(false);
+    safeSet(SYNC_STANDARD_REALTIME_KEY, "false");
+    globalSync.setSyncEnabled(false);
+    setAdvancedSettings(false);
+    safeSet(ADVANCED_SETTINGS_KEY, "false");
+    setShowStandardTimestamps(true);
+    safeSet(SHOW_STANDARD_TIMESTAMPS_KEY, "true");
+    setShowRealtimeTimestamps(true);
+    safeSet(SHOW_REALTIME_TIMESTAMPS_KEY, "true");
+
+    // Formats
+    setDefaultCopyFormat("formatted" as import("@/lib/types").CopyFormat);
+    safeSet(DEFAULT_COPY_FORMAT_KEY, "formatted");
+    setDefaultSaveFormat("txt" as import("@/lib/types").SaveFormat);
+    safeSet(DEFAULT_SAVE_FORMAT_KEY, "txt");
+    setDefaultChatbotCopyFormat("markdown" as import("@/lib/types").ChatbotCopyFormat);
+    safeSet(DEFAULT_CHATBOT_COPY_FORMAT_KEY, "markdown");
+
+    // Keyterms
+    setSelectedKeytermsListId(null);
+    safeSet("aias:v1:selected_keyterms_list_id", "");
+
+    savePreferences();
+  }, [savePreferences, globalSync]);
+
   // Default copy/save format state
   const [defaultCopyFormat, setDefaultCopyFormat] = useState<import("@/lib/types").CopyFormat>(
     () => (serverPreferences?.default_copy_format as import("@/lib/types").CopyFormat) || safeGet(DEFAULT_COPY_FORMAT_KEY, "formatted") as import("@/lib/types").CopyFormat,
@@ -905,7 +1030,57 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       deleteFormTemplate(id as string);
       toast.success(`Form template "${template.name}" deleted`);
     },
-  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates]);
+    // --- Keyterms list actions ---
+    save_keyterms_list: async ({ name, terms }) => {
+      if (!name || typeof name !== "string") throw new Error("List name is required");
+      if (!Array.isArray(terms) || terms.length === 0) throw new Error("At least one term is required");
+      const list: import("@/lib/types").KeytermsList = {
+        id: `keyterms:${Date.now()}`,
+        name,
+        terms: terms.map((t: unknown) => String(t).trim()).filter(Boolean),
+      };
+      saveKeytermsList(list);
+      toast.success(`Keyterms list "${name}" saved`);
+    },
+    list_keyterms_lists: async () => {
+      if (keytermsLists.length === 0) throw new Error("No keyterms lists found");
+    },
+    get_keyterms_list: async ({ id }) => {
+      if (!id || typeof id !== "string") throw new Error("List ID is required");
+      if (!keytermsLists.find(l => l.id === id)) throw new Error(`Keyterms list with ID "${id}" not found`);
+    },
+    update_keyterms_list: async ({ id, name, terms }) => {
+      if (!id || typeof id !== "string") throw new Error("List ID is required");
+      if (!keytermsLists.find(l => l.id === id)) throw new Error(`Keyterms list with ID "${id}" not found`);
+      if (!name || typeof name !== "string") throw new Error("List name is required");
+      if (!Array.isArray(terms) || terms.length === 0) throw new Error("At least one term is required");
+      const list: import("@/lib/types").KeytermsList = {
+        id: id as string,
+        name: name as string,
+        terms: (terms as unknown[]).map((t) => String(t).trim()).filter(Boolean),
+      };
+      updateKeytermsList(list);
+      toast.success(`Keyterms list "${name}" updated`);
+    },
+    delete_keyterms_list: async ({ id }) => {
+      if (!id || typeof id !== "string") throw new Error("List ID is required");
+      const list = keytermsLists.find(l => l.id === id);
+      if (!list) throw new Error(`Keyterms list with ID "${id}" not found`);
+      deleteKeytermsList(id as string);
+      if (selectedKeytermsListId === id) handleKeytermsListChange(null);
+      toast.success(`Keyterms list "${list.name}" deleted`);
+    },
+    select_keyterms_list: async ({ id }) => {
+      if (typeof id !== "string") throw new Error("List ID is required (empty string to deselect)");
+      if (id && !keytermsLists.find(l => l.id === id)) throw new Error(`Keyterms list with ID "${id}" not found`);
+      handleKeytermsListChange(id || null);
+      toast.success(id ? `Keyterms list selected` : "Keyterms list deselected");
+    },
+    reset_all_settings: async () => {
+      handleResetSettings();
+      toast.success("All settings have been reset to defaults.");
+    },
+  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates, saveKeytermsList, updateKeytermsList, deleteKeytermsList, keytermsLists, selectedKeytermsListId, handleKeytermsListChange, handleResetSettings]);
 
   const getAssemblyAiKey = useCallback((): string | null => {
     const key = getKey("assemblyai");
@@ -948,8 +1123,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       default_chatbot_copy_format: defaultChatbotCopyFormat,
       custom_templates: customTemplates.length > 0 ? customTemplates.map(t => ({ id: t.id, name: t.name, content: t.content })) : undefined,
       form_templates: formTemplates.length > 0 ? formTemplates.map(t => ({ id: t.id, name: t.name, fields: t.fields.map(f => ({ label: f.label, type: f.type, description: f.description, options: f.options })) })) : undefined,
+      keyterms_lists: keytermsLists.length > 0 ? keytermsLists.map(l => ({ id: l.id, name: l.name, terms: l.terms })) : undefined,
     };
-  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp, defaultCopyFormat, defaultSaveFormat, defaultChatbotCopyFormat, customTemplates, formTemplates]);
+  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp, defaultCopyFormat, defaultSaveFormat, defaultChatbotCopyFormat, customTemplates, formTemplates, keytermsLists]);
 
   const onChatbotMessagesChange = useCallback((msgs: import("@/lib/types").ChatMessageType[]) => {
     if (msgs.length === 0) {
@@ -1153,7 +1329,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       setIsTranscribing(true);
 
       try {
-        const result = await createTranscript(file, assemblyAiKey, undefined, minSpeakers, maxSpeakers);
+        const result = await createTranscript(file, assemblyAiKey, undefined, minSpeakers, maxSpeakers, selectedKeyterms.length > 0 ? selectedKeyterms : undefined);
         setTranscript(result.transcript);
         setUtterances(result.utterances);
         sessionPersistence.saveStandardTranscript(result.transcript);
@@ -1169,7 +1345,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         setIsTranscribing(false);
       }
     },
-    [getKey, minSpeakers, maxSpeakers, sessionPersistence.clearStandardSession, savePreferences],
+    [getKey, minSpeakers, maxSpeakers, selectedKeyterms, sessionPersistence.clearStandardSession, savePreferences],
   );
 
   // Skip upload: go directly to step 2 with empty transcript
@@ -1521,6 +1697,13 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onShowRealtimeTimestampsChange={handleShowRealtimeTimestampsChange}
         realtimeSpeechModel={realtimeSpeechModel}
         onRealtimeSpeechModelChange={handleRealtimeSpeechModelChange}
+        keytermsLists={keytermsLists}
+        selectedKeytermsListId={selectedKeytermsListId}
+        onKeytermsListChange={handleKeytermsListChange}
+        onSaveKeytermsList={saveKeytermsList}
+        onUpdateKeytermsList={updateKeytermsList}
+        onDeleteKeytermsList={deleteKeytermsList}
+        onResetSettings={handleResetSettings}
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
@@ -1603,6 +1786,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             onSummaryUsage={handleRealtimeSummaryUsage}
             showRealtimeTimestamps={showRealtimeTimestamps}
             realtimeSpeechModel={realtimeSpeechModel}
+            keyterms={selectedKeyterms.length > 0 ? selectedKeyterms : undefined}
             autoKeyPointsEnabled={autoKeyPointsEnabled}
             speakerLabelsEnabled={speakerLabelsEnabled}
             keyPointProvider={resolveModelConfig("key_point_extraction").provider}
