@@ -75,7 +75,9 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
       return;
     }
     if (isSummaryUpdatingRef.current) return;
-    if (!forceFullRecompute && effectiveTranscript.length === lastSummaryTranscriptLenRef.current) {
+    const newText = effectiveTranscript.slice(lastSummaryTranscriptLenRef.current);
+    const newWordCount = newText.trim().split(/\s+/).filter(Boolean).length;
+    if (!forceFullRecompute && newWordCount < 5) {
       setSummaryCountdown(summaryIntervalRef.current * 60);
       return;
     }

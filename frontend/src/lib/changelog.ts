@@ -10,6 +10,63 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "2.0.0",
+    date: "2026-03-08",
+    title: "Added timestamps, speaker mapping, keyterms prompting & UI polish",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Timestamps are now displayed for each utterance in the transcript view — Standard mode uses precise timestamps from AssemblyAI, Realtime mode uses wall-clock elapsed time. Toggle visibility in Settings > Features under Standard and Realtime sections.",
+      },
+      {
+        type: "added",
+        description:
+          "Speech Model toggle in Settings > Features > Realtime — choose between Fast (word-by-word streaming, no timestamps, no speaker labels) and Precise (turn-based streaming with speaker diarization & timestamps). Consecutive utterances from the same speaker are automatically merged in Precise mode.",
+      },
+      {
+        type: "added",
+        description:
+          "Speaker Mapping for Realtime mode — map generic speaker labels (Speaker A, Speaker B) to real names via a new dialog accessible from the transcript header. Mappings apply to existing and future utterances. Includes key point extraction and auto-suggested names (configurable in Settings).",
+      },
+      {
+        type: "added",
+        description:
+          "Keyterms Prompting — create named lists of domain-specific terms (e.g., company names, technical jargon) to improve transcription accuracy. Manage lists in Settings > Features > General (requires Advanced Settings). Works with both Standard and Realtime modes, and keyterms lists can be switched mid-session in Realtime mode.",
+      },
+      {
+        type: "added",
+        description:
+          "Reset All Settings to Defaults — a new button at the bottom of the Settings panel lets you revert all settings to their factory defaults with a single click. A confirmation dialog is shown before resetting. API keys are not affected.",
+      },
+      {
+        type: "added",
+        description:
+          'Unfilled fields popover — hover (desktop) or tap (mobile) the "X/Z filled" badge on any form output to see which fields are still unfilled. Works in both Standard and Realtime mode.',
+      },
+      {
+        type: "changed",
+        description:
+          "Realtime incremental summaries now skip if fewer than 5 new words have been added to the transcript since the last update, avoiding unnecessary API calls during silence or pauses.",
+      },
+      {
+        type: "fixed",
+        description:
+          "Standard mode form template layout — the transcript card now matches the form card height and scrolls internally instead of stretching the page. Button alignment between transcript and form cards is now consistent.",
+      },
+      {
+        type: "fixed",
+        description:
+          "Summary auto-scroll during streaming — scrolling up now pauses auto-scroll so you can read earlier content while the summary is still generating. Scrolling back to the bottom re-enables it.",
+      },
+      {
+        type: "fixed",
+        description:
+          "Fullscreen transcript view — content no longer overflows the dialog and is now properly scrollable. Fixed in both Standard and Realtime mode. Copy/Save buttons are now also available in fullscreen.",
+      },
+    ],
+  },
+  {
     version: "1.10.0",
     date: "2026-03-04",
     title: "Independent refresh for Questions & Form Output in Realtime mode",

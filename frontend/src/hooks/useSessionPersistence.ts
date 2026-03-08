@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import type { ChatMessageType, LiveQuestion } from "@/lib/types";
+import type { ChatMessageType, LiveQuestion, TranscriptUtterance } from "@/lib/types";
 
 // ─── Storage keys ────────────────────────────────────────────────────────────
 
@@ -15,6 +15,7 @@ const KEYS = {
     formValues: `${PREFIX}:standard:form_values`,
     outputMode: `${PREFIX}:standard:output_mode`,
     currentStep: `${PREFIX}:standard:current_step`,
+    utterances: `${PREFIX}:standard:utterances`,
     updatedAt: `${PREFIX}:standard:updated_at`,
   },
   realtime: {
@@ -23,6 +24,7 @@ const KEYS = {
     formTemplateId: `${PREFIX}:realtime:form_template_id`,
     formValues: `${PREFIX}:realtime:form_values`,
     questions: `${PREFIX}:realtime:questions`,
+    utterances: `${PREFIX}:realtime:utterances`,
     updatedAt: `${PREFIX}:realtime:updated_at`,
   },
   chatbot: {
@@ -63,6 +65,7 @@ export interface StandardSessionData {
   formValues: Record<string, unknown>;
   outputMode: "summary" | "form";
   currentStep: 1 | 2 | 3 | null;
+  utterances: TranscriptUtterance[];
   updatedAt: number | null;
 }
 
@@ -72,6 +75,7 @@ export interface RealtimeSessionData {
   formTemplateId: string | null;
   formValues: Record<string, unknown>;
   questions: LiveQuestion[];
+  utterances: TranscriptUtterance[];
   updatedAt: number | null;
 }
 
@@ -106,7 +110,13 @@ export function useSessionPersistence() {
       if (raw) formValues = JSON.parse(raw);
     } catch {}
 
-    return { transcript, summary, formTemplateId, formValues, outputMode, currentStep, updatedAt };
+    let utterances: TranscriptUtterance[] = [];
+    try {
+      const raw = safeGet(KEYS.standard.utterances);
+      if (raw) utterances = JSON.parse(raw);
+    } catch {}
+
+    return { transcript, summary, formTemplateId, formValues, outputMode, currentStep, utterances, updatedAt };
   }, []);
 
   const saveStandardTranscript = useCallback((value: string) => {
@@ -138,6 +148,10 @@ export function useSessionPersistence() {
     safeSet(KEYS.standard.currentStep, String(step));
   }, []);
 
+  const saveStandardUtterances = useCallback((utterances: TranscriptUtterance[]) => {
+    safeSet(KEYS.standard.utterances, JSON.stringify(utterances));
+  }, []);
+
   const clearStandardSession = useCallback(() => {
     for (const key of Object.values(KEYS.standard)) {
       safeRemove(key);
@@ -165,7 +179,13 @@ export function useSessionPersistence() {
       if (raw) questions = JSON.parse(raw);
     } catch {}
 
-    return { transcript, summary, formTemplateId, formValues, questions, updatedAt };
+    let utterances: TranscriptUtterance[] = [];
+    try {
+      const raw = safeGet(KEYS.realtime.utterances);
+      if (raw) utterances = JSON.parse(raw);
+    } catch {}
+
+    return { transcript, summary, formTemplateId, formValues, questions, utterances, updatedAt };
   }, []);
 
   const saveRealtimeTranscript = useCallback((value: string) => {
@@ -191,6 +211,10 @@ export function useSessionPersistence() {
 
   const saveRealtimeQuestions = useCallback((questions: LiveQuestion[]) => {
     safeSet(KEYS.realtime.questions, JSON.stringify(questions));
+  }, []);
+
+  const saveRealtimeUtterances = useCallback((utterances: TranscriptUtterance[]) => {
+    safeSet(KEYS.realtime.utterances, JSON.stringify(utterances));
   }, []);
 
   const clearRealtimeSession = useCallback(() => {
@@ -254,6 +278,7 @@ export function useSessionPersistence() {
     saveStandardFormValues,
     saveStandardOutputMode,
     saveStandardCurrentStep,
+    saveStandardUtterances,
     clearStandardSession,
     // Realtime
     loadRealtimeSession,
@@ -262,6 +287,7 @@ export function useSessionPersistence() {
     saveRealtimeFormTemplateId,
     saveRealtimeFormValues,
     saveRealtimeQuestions,
+    saveRealtimeUtterances,
     clearRealtimeSession,
     // Chatbot
     loadChatbotSession,

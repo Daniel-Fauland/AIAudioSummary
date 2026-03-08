@@ -13,6 +13,7 @@ import { getUsers } from "@/lib/api";
 import type { UserProfile } from "@/lib/types";
 import { AddUserDialog } from "@/components/admin/AddUserDialog";
 import { DeleteUserDialog } from "@/components/admin/DeleteUserDialog";
+import { EditUserDialog } from "@/components/admin/EditUserDialog";
 import { Logo } from "@/components/ui/Logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { UserMenu } from "@/components/auth/UserMenu";
@@ -66,6 +67,7 @@ export default function AdminPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null);
+  const [editTarget, setEditTarget] = useState<UserProfile | null>(null);
 
   // Set page title
   useEffect(() => {
@@ -110,6 +112,10 @@ export default function AdminPage() {
 
   function handleUserAdded(user: UserProfile) {
     setUsers((prev) => [...prev, user]);
+  }
+
+  function handleUserUpdated(updated: UserProfile) {
+    setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
   }
 
   function handleUserDeleted(id: number) {
@@ -227,8 +233,14 @@ export default function AdminPage() {
                   users.map((user) => (
                     <tr key={user.id} className="border-b border-border last:border-0">
                       <td className="py-3 pr-4 text-foreground">{user.email}</td>
-                      <td className="hidden py-3 pr-4 text-foreground-secondary md:table-cell">
-                        {user.name ?? "—"}
+                      <td className="hidden py-3 pr-4 md:table-cell">
+                        <button
+                          type="button"
+                          onClick={() => setEditTarget(user)}
+                          className="text-foreground-secondary hover:text-foreground hover:underline transition-colors cursor-pointer text-left"
+                        >
+                          {user.name ?? "—"}
+                        </button>
                       </td>
                       <td className="py-3 pr-4">
                         <RoleBadge role={user.role} />
@@ -270,6 +282,11 @@ export default function AdminPage() {
         open={addDialogOpen}
         onClose={() => setAddDialogOpen(false)}
         onUserAdded={handleUserAdded}
+      />
+      <EditUserDialog
+        user={editTarget}
+        onClose={() => setEditTarget(null)}
+        onUserUpdated={handleUserUpdated}
       />
       <DeleteUserDialog
         user={deleteTarget}

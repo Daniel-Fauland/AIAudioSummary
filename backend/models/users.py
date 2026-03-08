@@ -20,6 +20,10 @@ class CreateUserRequest(BaseModel):
     name: str | None = None
 
 
+class UpdateUserRequest(BaseModel):
+    name: str | None = None
+
+
 class PreferencesResponse(BaseModel):
     storage_mode: str
     preferences: dict | None

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { Anchor, Maximize2, Trash2 } from "lucide-react";
+import { Anchor, Maximize2, Trash2, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,7 +18,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
-import type { ContentPayload } from "@/lib/types";
+import { formatTimestamp, formatTranscriptWithTimestamps } from "@/components/workflow/TranscriptView";
+import type { ContentPayload, TranscriptUtterance } from "@/lib/types";
 
 interface RealtimeTranscriptViewProps {
   accumulatedTranscript: string;
@@ -26,6 +27,10 @@ interface RealtimeTranscriptViewProps {
   committedPartial: string;
   isSessionActive: boolean;
   onClear?: () => void;
+  utterances?: TranscriptUtterance[];
+  showTimestamps?: boolean;
+  onOpenSpeakerMapper?: () => void;
+  showSpeakerMapperButton?: boolean;
 }
 
 export function RealtimeTranscriptView({
@@ -34,6 +39,10 @@ export function RealtimeTranscriptView({
   committedPartial,
   isSessionActive,
   onClear,
+  utterances,
+  showTimestamps,
+  onOpenSpeakerMapper,
+  showSpeakerMapperButton,
 }: RealtimeTranscriptViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -72,21 +81,62 @@ export function RealtimeTranscriptView({
 
   const hasContent = accumulatedTranscript || committedPartial || currentPartial;
 
+  // Merge consecutive utterances from the same speaker into single entries
+  const mergedUtterances = useMemo(() => {
+    if (!utterances?.length) return [];
+    const merged: TranscriptUtterance[] = [];
+    for (const u of utterances) {
+      const last = merged[merged.length - 1];
+      if (last && last.speaker && last.speaker === u.speaker) {
+        last.text = last.text + " " + u.text;
+        last.end_ms = u.end_ms;
+      } else {
+        merged.push({ ...u });
+      }
+    }
+    return merged;
+  }, [utterances]);
+
+  // Use timestamped view only when there are speaker labels (precise mode).
+  // In fast mode (no speakers), progressive finals cause flickering in the block view.
+  const hasSpeakerLabels = !!utterances?.some((u) => !!u.speaker);
+  const hasTimestampedView = !!utterances?.length && !!showTimestamps && hasSpeakerLabels;
+
   const contentPayload = useMemo<ContentPayload | null>(() => {
     if (!accumulatedTranscript) return null;
+    const timestampedText = hasTimestampedView
+      ? formatTranscriptWithTimestamps(mergedUtterances)
+      : null;
+    const markdown = hasTimestampedView
+      ? mergedUtterances.map((u) => `${u.text}\n*${formatTimestamp(u.start_ms)} - ${formatTimestamp(u.end_ms)}*`).join("\n\n")
+      : accumulatedTranscript;
     return {
       type: "transcript",
-      plainText: accumulatedTranscript,
-      markdown: accumulatedTranscript,
+      plainText: timestampedText ?? accumulatedTranscript,
+      markdown,
       fileNamePrefix: "transcript",
     };
-  }, [accumulatedTranscript]);
+  }, [accumulatedTranscript, hasTimestampedView, mergedUtterances]);
 
   return (
     <Card className="border-border flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Live Transcript</CardTitle>
         <div className="flex items-center gap-1">
+          {showSpeakerMapperButton && onOpenSpeakerMapper && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onOpenSpeakerMapper}
+                >
+                  <Users className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Speaker Mapping</TooltipContent>
+            </Tooltip>
+          )}
           {accumulatedTranscript && onClear && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -123,18 +173,67 @@ export function RealtimeTranscriptView({
           <div className="p-4 font-mono text-sm leading-relaxed">
             {hasContent ? (
               <>
-                <span className="text-foreground">
-                  {accumulatedTranscript}
-                </span>
-                {committedPartial && (
-                  <span className="text-foreground">
-                    {committedPartial}
-                  </span>
-                )}
-                {currentPartial && (
-                  <span className="text-foreground-muted">
-                    {currentPartial}
-                  </span>
+                {hasTimestampedView ? (
+                  <div className="space-y-3">
+                    {mergedUtterances.map((u, i) => (
+                      <div key={i} className="border-l-2 border-border pl-3 py-1">
+                        <p className="text-sm text-foreground">
+                          {u.speaker && <span className="font-semibold">{u.speaker}: </span>}
+                          {u.text}
+                        </p>
+                        <span className="text-xs text-foreground-muted">
+                          {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
+                        </span>
+                      </div>
+                    ))}
+                    {(currentPartial || committedPartial) && (
+                      <div className="border-l-2 border-border/50 pl-3 py-1 opacity-60">
+                        <p className="text-sm text-foreground-muted">
+                          {currentPartial || committedPartial}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-foreground">
+                      {accumulatedTranscript}
+                    </span>
+                    {committedPartial && (
+                      <span className="text-foreground">
+                        {" "}{committedPartial}
+                      </span>
+                    )}
+                    {(() => {
+                      if (!currentPartial) return null;
+                      // In fast mode, the partial is a progressive turn whose beginning
+                      // may already be committed into accumulatedTranscript.
+                      // Find the longest prefix of currentPartial that matches a suffix
+                      // of accumulatedTranscript, then show only the remainder.
+                      let novel = currentPartial;
+                      if (accumulatedTranscript && currentPartial.length > 0) {
+                        // Only check up to currentPartial length at the tail of accumulated
+                        const tailLen = Math.min(accumulatedTranscript.length, currentPartial.length);
+                        const tail = accumulatedTranscript.slice(-tailLen);
+                        // Try matching progressively longer suffixes of tail against prefixes of partial
+                        let best = 0;
+                        for (let i = tail.length - 1; i >= 0; i--) {
+                          const suffix = tail.slice(i);
+                          if (currentPartial.startsWith(suffix)) {
+                            best = suffix.length;
+                            break;
+                          }
+                        }
+                        if (best > 0) novel = currentPartial.slice(best);
+                      }
+                      if (!novel.trim()) return null;
+                      return (
+                        <span className="text-foreground-muted">
+                          {novel.startsWith(" ") ? "" : " "}{novel}
+                        </span>
+                      );
+                    })()}
+                  </>
                 )}
               </>
             ) : (
@@ -174,15 +273,40 @@ export function RealtimeTranscriptView({
           <DialogHeader>
             <DialogTitle>Live Transcript</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1">
-            <div className="font-mono text-sm text-foreground leading-relaxed p-4">
-              {accumulatedTranscript}
-              {committedPartial && ` ${committedPartial}`}
-              {currentPartial && (
-                <span className="text-foreground-muted"> {currentPartial}</span>
+          <div className="flex flex-1 min-h-0 flex-col rounded-md bg-card">
+            <ScrollArea className="flex-1 min-h-0">
+              {hasTimestampedView ? (
+                <div className="space-y-3 p-4">
+                  {utterances!.map((u, i) => (
+                    <div key={i} className="border-l-2 border-border pl-3 py-1">
+                      <p className="font-mono text-sm text-foreground">{u.text}</p>
+                      <span className="text-xs text-foreground-muted">
+                        {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
+                      </span>
+                    </div>
+                  ))}
+                  {(committedPartial || currentPartial) && (
+                    <div className="font-mono text-sm text-foreground leading-relaxed">
+                      {committedPartial && <span>{committedPartial}</span>}
+                      {currentPartial && <span className="text-foreground-muted"> {currentPartial}</span>}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="font-mono text-sm text-foreground leading-relaxed p-4">
+                  {accumulatedTranscript}
+                  {committedPartial && ` ${committedPartial}`}
+                  {currentPartial && (
+                    <span className="text-foreground-muted"> {currentPartial}</span>
+                  )}
+                </div>
               )}
+            </ScrollArea>
+            <div className="grid grid-cols-2 gap-2 p-4 pt-2">
+              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
             </div>
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
 

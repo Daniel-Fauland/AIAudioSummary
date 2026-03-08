@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,14 +11,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { RealtimeControls } from "./RealtimeControls";
 import { RealtimeTranscriptView } from "./RealtimeTranscriptView";
 import { RealtimeSummaryView } from "./RealtimeSummaryView";
+import { RealtimeSpeakerMapper } from "./RealtimeSpeakerMapper";
 import { LiveQuestions } from "@/components/live-transcript/LiveQuestions";
 import { RealtimeFormOutput } from "@/components/form-output/RealtimeFormOutput";
 import { useLiveQuestions } from "@/components/live-transcript/useLiveQuestions";
 import { useFormOutput } from "@/components/form-output/useFormOutput";
 import { useRealtimeSession } from "@/hooks/useRealtimeSession";
+import { extractKeyPoints } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import type {
   AzureConfig,
   LangdockConfig,
@@ -27,6 +31,7 @@ import type {
   LiveQuestion,
   LLMProvider,
   RealtimeConnectionStatus,
+  RealtimeSpeechModel,
   SummaryInterval,
   TokenUsage,
 } from "@/lib/types";
@@ -53,6 +58,7 @@ interface RealtimeModeProps {
   liveQuestionsProvider: LLMProvider;
   liveQuestionsModel: string;
   onTranscriptChange?: (transcript: string) => void;
+  onUtterancesChange?: (utterances: import("@/lib/types").TranscriptUtterance[]) => void;
   onConnectionStatusChange?: (status: RealtimeConnectionStatus) => void;
   formOutputProvider: LLMProvider;
   formOutputModel: string;
@@ -69,9 +75,17 @@ interface RealtimeModeProps {
   onPersistQuestions?: (questions: LiveQuestion[]) => void;
   onPersistFormValues?: (values: Record<string, unknown>) => void;
   onPersistFormTemplateId?: (id: string | null) => void;
+  onPersistUtterances?: (utterances: import("@/lib/types").TranscriptUtterance[]) => void;
   onClearRealtimeSession?: () => void;
   onSavePreferences?: () => void;
   onSummaryUsage?: (usage: TokenUsage) => void;
+  showRealtimeTimestamps?: boolean;
+  realtimeSpeechModel?: RealtimeSpeechModel;
+  keyterms?: string[];
+  autoKeyPointsEnabled?: boolean;
+  speakerLabelsEnabled?: boolean;
+  keyPointProvider?: LLMProvider;
+  keyPointModel?: string;
 }
 
 export function RealtimeMode({
@@ -94,6 +108,7 @@ export function RealtimeMode({
   liveQuestionsProvider,
   liveQuestionsModel,
   onTranscriptChange,
+  onUtterancesChange,
   onConnectionStatusChange,
   formOutputProvider,
   formOutputModel,
@@ -110,13 +125,22 @@ export function RealtimeMode({
   onPersistQuestions,
   onPersistFormValues,
   onPersistFormTemplateId,
+  onPersistUtterances,
   onClearRealtimeSession,
   onSavePreferences,
   onSummaryUsage,
+  showRealtimeTimestamps,
+  realtimeSpeechModel = "precise",
+  keyterms,
+  autoKeyPointsEnabled = false,
+  speakerLabelsEnabled = false,
+  keyPointProvider,
+  keyPointModel,
 }: RealtimeModeProps) {
   const session = useRealtimeSession({
     initialTranscript: initialRealtimeSession?.transcript,
     initialSummary: initialRealtimeSession?.summary,
+    initialUtterances: initialRealtimeSession?.utterances,
     onUsage: onSummaryUsage,
   });
   const liveQuestions = useLiveQuestions({
@@ -125,6 +149,26 @@ export function RealtimeMode({
   const formOutput = useFormOutput({
     initialValues: initialRealtimeSession?.formValues,
   });
+
+  // Speaker mapping state
+  const [speakerMapperOpen, setSpeakerMapperOpen] = useState(false);
+  const [speakerMappings, setSpeakerMappings] = useState<Record<string, string>>({});
+  const [realtimeKeyPoints, setRealtimeKeyPoints] = useState<Record<string, string>>({});
+  const [isExtractingRealtimeKeyPoints, setIsExtractingRealtimeKeyPoints] = useState(false);
+  const [realtimeSuggestedNames, setRealtimeSuggestedNames] = useState<Record<string, string>>({});
+
+  // Build speaker list: original mapping keys + any new unmapped speakers from utterances
+  // Excludes renamed names (values of speakerMappings) to avoid duplicates like "Daniel" alongside "Speaker A"
+  const detectedSpeakers = useMemo(() => {
+    const mappedValues = new Set(Object.values(speakerMappings));
+    const fromUtterances = [...new Set(session.realtimeUtterances.map((u) => u.speaker).filter(Boolean))]
+      .filter((s) => !mappedValues.has(s));
+    // Ensure original mapping keys are always present (even if all their utterances are renamed)
+    const originalKeys = Object.keys(speakerMappings);
+    const combined = new Set([...originalKeys, ...fromUtterances]);
+    return [...combined];
+  }, [session.realtimeUtterances, speakerMappings]);
+  const showSpeakerMapperButton = realtimeSpeechModel === "precise" && detectedSpeakers.length > 0;
 
   const [mobileTab, setMobileTab] = useState<"transcript" | "summary">("transcript");
   const [bottomTab, setBottomTab] = useState<"questions" | "form">("questions");
@@ -144,6 +188,11 @@ export function RealtimeMode({
       .join(" ");
     onTranscriptChange?.(full);
   }, [session.accumulatedTranscript, session.committedPartial, session.currentPartial, onTranscriptChange]);
+
+  // Notify parent of utterances changes
+  useEffect(() => {
+    onUtterancesChange?.(session.realtimeUtterances);
+  }, [session.realtimeUtterances, onUtterancesChange]);
 
   // Notify parent of connection status changes
   useEffect(() => {
@@ -170,6 +219,10 @@ export function RealtimeMode({
   useEffect(() => {
     onPersistFormTemplateId?.(selectedFormTemplateId);
   }, [selectedFormTemplateId, onPersistFormTemplateId]);
+
+  useEffect(() => {
+    if (session.realtimeUtterances.length > 0) onPersistUtterances?.(session.realtimeUtterances);
+  }, [session.realtimeUtterances, onPersistUtterances]);
 
   // Listen for sync-initiated clear events from GlobalSyncContext
   useEffect(() => {
@@ -296,8 +349,8 @@ export function RealtimeMode({
   ]);
 
   const proceedWithStart = useCallback(() => {
-    session.startSession(getKey("assemblyai"), micDeviceId, recordMode);
-  }, [session, getKey, micDeviceId, recordMode]);
+    session.startSession(getKey("assemblyai"), micDeviceId, recordMode, realtimeSpeechModel, keyterms);
+  }, [session, getKey, micDeviceId, recordMode, realtimeSpeechModel, keyterms]);
 
   const handleStart = useCallback(() => {
     if (!hasKey("assemblyai")) {
@@ -328,6 +381,10 @@ export function RealtimeMode({
     setStartConfirmOpen(false);
     session.clearTranscript();
     session.clearSummary();
+    setSpeakerMappings({});
+    setRealtimeKeyPoints({});
+    setRealtimeSuggestedNames({});
+    session.speakerMappingsRef.current = {};
     onPersistTranscript?.("");
     onPersistSummary?.("");
     proceedWithStart();
@@ -337,6 +394,10 @@ export function RealtimeMode({
     setStartConfirmOpen(false);
     session.clearTranscript();
     session.clearSummary();
+    setSpeakerMappings({});
+    setRealtimeKeyPoints({});
+    setRealtimeSuggestedNames({});
+    session.speakerMappingsRef.current = {};
     liveQuestions.clearAll();
     liveQuestions.resetEvaluationTracking();
     formOutput.resetForm();
@@ -347,6 +408,9 @@ export function RealtimeMode({
 
   const handleResetSession = useCallback(() => {
     session.resetSession();
+    setSpeakerMappings({});
+    setRealtimeKeyPoints({});
+    setRealtimeSuggestedNames({});
     liveQuestions.resetEvaluationTracking();
     formOutput.resetForm();
     onClearRealtimeSession?.();
@@ -390,6 +454,90 @@ export function RealtimeMode({
       langdockConfig: formOutputProvider === "langdock" ? langdockConfig : undefined,
     }, true);
   }, [session.accumulatedTranscript, formTemplates, selectedFormTemplateId, formOutput, formOutputProvider, formOutputModel, azureConfig, langdockConfig, getKey]);
+
+  // Speaker mapping handlers
+  const handleExtractRealtimeKeyPoints = useCallback(
+    async (speakers: string[], unmappedOnly: boolean) => {
+      if (!keyPointProvider || !keyPointModel) return;
+      const llmKey = getKey(keyPointProvider);
+      if (!llmKey) {
+        toast.error(`Please add your ${keyPointProvider} API key in Settings.`);
+        return;
+      }
+
+      // Build transcript text from utterances
+      const transcriptText = session.realtimeUtterances
+        .map((u) => (u.speaker ? `${u.speaker}: ${u.text}` : u.text))
+        .join("\n");
+      if (!transcriptText) return;
+
+      const targetSpeakers = unmappedOnly
+        ? speakers.filter((s) => !speakerMappings[s])
+        : speakers;
+      if (targetSpeakers.length === 0) return;
+
+      setIsExtractingRealtimeKeyPoints(true);
+      try {
+        const result = await extractKeyPoints({
+          provider: keyPointProvider,
+          api_key: llmKey,
+          model: keyPointModel,
+          azure_config: keyPointProvider === "azure_openai" ? azureConfig : null,
+          langdock_config: keyPointProvider === "langdock" ? langdockConfig : undefined,
+          transcript: transcriptText,
+          speakers: targetSpeakers,
+          identify_speakers: speakerLabelsEnabled,
+        });
+        setRealtimeKeyPoints((prev) => ({ ...prev, ...result.key_points }));
+        if (result.speaker_labels) {
+          setRealtimeSuggestedNames((prev) => ({ ...prev, ...result.speaker_labels }));
+        }
+      } catch (e) {
+        toast.error(getErrorMessage(e, "keyPoints"));
+      } finally {
+        setIsExtractingRealtimeKeyPoints(false);
+      }
+    },
+    [keyPointProvider, keyPointModel, getKey, session.realtimeUtterances, speakerMappings, azureConfig, langdockConfig, speakerLabelsEnabled],
+  );
+
+  const handleApplyRealtimeMappings = useCallback(
+    (mappings: Record<string, string>) => {
+      // Merge with existing
+      setSpeakerMappings((prev) => ({ ...prev, ...mappings }));
+
+      // Update existing utterances
+      session.setRealtimeUtterances((prev) =>
+        prev.map((u) => ({
+          ...u,
+          speaker: mappings[u.speaker] ?? u.speaker,
+        })),
+      );
+
+      // Rebuild accumulated transcript from updated utterances
+      session.setAccumulatedTranscript((prev) => {
+        // We need to rebuild from utterances with updated speaker names
+        // But since setRealtimeUtterances is async, we do it based on current data
+        return prev; // transcript text doesn't include speaker names, so no change needed
+      });
+
+      // Remap key points dictionary keys
+      setRealtimeKeyPoints((prev) => {
+        const remapped: Record<string, string> = {};
+        for (const [key, value] of Object.entries(prev)) {
+          remapped[mappings[key] ?? key] = value;
+        }
+        return remapped;
+      });
+
+      // Update the speaker mappings ref for future incoming utterances
+      const allMappings = { ...session.speakerMappingsRef.current, ...mappings };
+      session.speakerMappingsRef.current = allMappings;
+
+      toast.success("Speaker names updated.");
+    },
+    [session],
+  );
 
   const liveQuestionsCard = (
     <LiveQuestions
@@ -489,8 +637,11 @@ export function RealtimeMode({
             currentPartial={session.currentPartial}
             committedPartial={session.committedPartial}
             isSessionActive={isActive}
-
             onClear={handleClearTranscript}
+            utterances={session.realtimeUtterances}
+            showTimestamps={showRealtimeTimestamps}
+            showSpeakerMapperButton={showSpeakerMapperButton}
+            onOpenSpeakerMapper={() => setSpeakerMapperOpen(true)}
           />
           <RealtimeSummaryView
             summary={session.realtimeSummary}
@@ -537,8 +688,11 @@ export function RealtimeMode({
             currentPartial={session.currentPartial}
             committedPartial={session.committedPartial}
             isSessionActive={isActive}
-
             onClear={handleClearTranscript}
+            utterances={session.realtimeUtterances}
+            showTimestamps={showRealtimeTimestamps}
+            showSpeakerMapperButton={showSpeakerMapperButton}
+            onOpenSpeakerMapper={() => setSpeakerMapperOpen(true)}
           />
         ) : (
           <div className="flex flex-col gap-4">
@@ -565,6 +719,21 @@ export function RealtimeMode({
         </div>
       )}
 
+      {/* Speaker Mapping dialog */}
+      <RealtimeSpeakerMapper
+        open={speakerMapperOpen}
+        onOpenChange={setSpeakerMapperOpen}
+        speakers={detectedSpeakers}
+        onApplyMappings={handleApplyRealtimeMappings}
+        keyPoints={realtimeKeyPoints}
+        isExtractingKeyPoints={isExtractingRealtimeKeyPoints}
+        onExtractKeyPoints={handleExtractRealtimeKeyPoints}
+        suggestedNames={realtimeSuggestedNames}
+        autoKeyPointsEnabled={autoKeyPointsEnabled}
+        speakerLabelsEnabled={speakerLabelsEnabled}
+        existingMappings={speakerMappings}
+      />
+
       {/* Start session confirmation dialog */}
       <Dialog open={startConfirmOpen} onOpenChange={(open) => { if (!open) setStartConfirmOpen(false); }}>
         <DialogContent className="max-w-md bg-card">
@@ -576,9 +745,24 @@ export function RealtimeMode({
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 pt-2">
-            <Button variant="secondary" onClick={handleStartContinue}>
-              Continue with Existing
-            </Button>
+            {realtimeSpeechModel === "precise" ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Button variant="secondary" disabled className="pointer-events-none w-full">
+                      Continue with Existing
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Continuing an existing transcript is not supported in Precise mode
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button variant="secondary" onClick={handleStartContinue}>
+                Continue with Existing
+              </Button>
+            )}
             <Button variant="secondary" onClick={handleStartClearTranscriptSummary}>
               Clear Transcript &amp; Summary
             </Button>

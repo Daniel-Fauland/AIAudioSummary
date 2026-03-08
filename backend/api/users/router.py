@@ -7,7 +7,7 @@ from config import config
 from db.engine import get_db
 from db.models import User
 from dependencies.auth import get_current_user, require_admin
-from models.users import CreateUserRequest, UserResponse, PreferencesRequest, PreferencesResponse
+from models.users import CreateUserRequest, UpdateUserRequest, UserResponse, PreferencesRequest, PreferencesResponse
 from service.users.core import UsersService
 
 users_router = APIRouter(prefix="/users")
@@ -55,6 +55,16 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
 ):
     return await _service.create_user(body.email, body.name, db)
+
+
+@users_router.patch("/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: int,
+    body: UpdateUserRequest,
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    return await _service.update_user(user_id, body.name, db)
 
 
 @users_router.delete("/{user_id}", status_code=204)

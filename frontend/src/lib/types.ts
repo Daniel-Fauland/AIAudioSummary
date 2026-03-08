@@ -2,6 +2,8 @@
 
 export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai" | "langdock";
 
+export type RealtimeSpeechModel = "fast" | "precise";
+
 // === Token Usage types ===
 
 export interface TokenUsage {
@@ -49,8 +51,16 @@ export interface ConfigResponse {
 
 // === Transcript types ===
 
+export interface TranscriptUtterance {
+  speaker: string;
+  text: string;
+  start_ms: number;
+  end_ms: number;
+}
+
 export interface CreateTranscriptResponse {
   transcript: string;
+  utterances: TranscriptUtterance[];
 }
 
 // === Summary types ===
@@ -196,7 +206,7 @@ export type SummaryInterval = 1 | 2 | 3 | 5 | 10;
 export type RealtimeWsMessage =
   | { type: "session_started"; session_id: string }
   | { type: "session_ready" }
-  | { type: "turn"; transcript: string; is_final: boolean }
+  | { type: "turn"; transcript: string; is_final: boolean; start_ms?: number; end_ms?: number; speaker_label?: string }
   | { type: "error"; message: string }
   | { type: "reconnecting"; attempt: number }
   | { type: "session_ended" };
@@ -288,6 +298,7 @@ export interface AppContext {
   default_chatbot_copy_format?: string;
   custom_templates?: { id: string; name: string; content: string }[];
   form_templates?: { id: string; name: string; fields: { label: string; type: string; description?: string; options?: string[] }[] }[];
+  keyterms_lists?: { id: string; name: string; terms: string[] }[];
 }
 
 export interface ChatRequest {
@@ -352,9 +363,12 @@ export interface UserPreferences {
   max_speakers?: number;
   realtime_final_summary?: boolean;
   realtime_reevaluate_all?: boolean;
+  realtime_speech_model?: RealtimeSpeechModel;
   realtime_system_prompt?: string;
   custom_templates?: { id: string; name: string; content: string }[];
   form_templates?: FormTemplate[];
+  keyterms_lists?: KeytermsList[];
+  selected_keyterms_list_id?: string | null;
   chatbot_enabled?: boolean;
   chatbot_qa?: boolean;
   chatbot_transcript?: boolean;
@@ -392,6 +406,14 @@ export interface UserPreferences {
 export interface PreferencesResponse {
   storage_mode: "local" | "account";
   preferences: UserPreferences | null;
+}
+
+// === Keyterms types ===
+
+export interface KeytermsList {
+  id: string;
+  name: string;
+  terms: string[];
 }
 
 // === Form Output types ===

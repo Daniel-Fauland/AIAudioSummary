@@ -1,7 +1,8 @@
+import json
 import os
 from fastapi import APIRouter, UploadFile, File, Form, Header, HTTPException
 from service.assembly_ai.core import AssemblyAIService
-from models.assemblyai import CreateTranscriptResponse
+from models.assemblyai import CreateTranscriptResponse, TranscriptUtterance
 
 assembly_ai_router = APIRouter()
 service = AssemblyAIService()
@@ -13,7 +14,8 @@ async def create_transcript(
     x_assemblyai_key: str = Header(..., description="The AssemblyAI API key"),
     lang_code: str | None = Form(None, description="Language code (e.g., 'en', 'de'). If not provided, language will be automatically detected", example=None),
     min_speaker: int = Form(1, description="Minimum number of speakers expected", ge=1),
-    max_speaker: int = Form(10, description="Maximum number of speakers expected", le=20)
+    max_speaker: int = Form(10, description="Maximum number of speakers expected", le=20),
+    keyterms_prompt: str | None = Form(None, description="JSON array of keyterms for transcription prompting")
 ):
     """Create a transcript of an uploaded audio file using AssemblyAI.
 
@@ -37,16 +39,28 @@ async def create_transcript(
         # Save uploaded file to temporary location
         temp_file_path = await service.save_uploaded_file_to_temp(file)
 
+        # Parse keyterms if provided
+        parsed_keyterms = None
+        if keyterms_prompt:
+            try:
+                parsed_keyterms = json.loads(keyterms_prompt)
+            except json.JSONDecodeError:
+                pass
+
         # Get transcript using the temporary file path
-        transcript = await service.get_transcript(
+        transcript_text, utterances_data = await service.get_transcript(
             path_to_file=temp_file_path,
             api_key=x_assemblyai_key,
             lang_code=lang_code,
             min_speaker=min_speaker,
-            max_speaker=max_speaker
+            max_speaker=max_speaker,
+            keyterms_prompt=parsed_keyterms,
         )
 
-        return CreateTranscriptResponse(transcript=transcript)
+        return CreateTranscriptResponse(
+            transcript=transcript_text,
+            utterances=[TranscriptUtterance(**u) for u in utterances_data],
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing audio file: {str(e)}")

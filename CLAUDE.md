@@ -1,6 +1,5 @@
 # CLAUDE.md
 
-- This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 - When I say something like "push to git" use git add -A by default to push everything unless explicitly specified differently.
 - Make sure you always know the codebase if a user asks you a code or feature related question. In this case read [architecture.md](./docs/architecture.md) file.
 - If you need to develop any frontend related code make sure you have read the [UX_SPECIFICATION.md](./user_stories/UX_SPECIFICATION.md) file
@@ -9,6 +8,11 @@
 ## Skills
 
 You have a skill various skills available: "backend_dev", "frontend_dev" & "implement_feature". Whenever the user is asking you to implement feature starting with the phrase "Implement Feature:" Make sure to use the skill "implement_feature". This skill will under the hood use "backend_dev" and/or "frontend_dev" based on the feature to implement.
+
+## External Agent Skills
+
+When working with shadcn/ui components, follow the rules and patterns in `~/.agents/skills/shadcn/SKILL.md`.
+When the user asks to find or discover installable skills, follow `~/.agents/skills/find-skills/SKILL.md`.
 
 ## Known Issues
 

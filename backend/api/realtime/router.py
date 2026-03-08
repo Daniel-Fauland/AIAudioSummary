@@ -169,6 +169,8 @@ async def realtime_transcription(ws: WebSocket):
         api_key = init_msg.get("api_key")
         session_id = init_msg.get("session_id")
         sample_rate = init_msg.get("sample_rate", 16000)
+        speech_model = init_msg.get("speech_model", "precise")
+        keyterms_prompt = init_msg.get("keyterms_prompt", [])
 
         if not api_key or not session_id:
             await ws.send_json({"type": "error", "message": "api_key and session_id are required"})
@@ -180,7 +182,10 @@ async def realtime_transcription(ws: WebSocket):
 
         # Step 3: Connect to AssemblyAI
         try:
-            aai_ws = await service.connect(api_key, sample_rate)
+            aai_ws = await service.connect(
+                api_key, sample_rate, speech_model,
+                keyterms_prompt=keyterms_prompt if keyterms_prompt else None,
+            )
         except Exception as e:
             error_msg = str(e).lower()
             if "401" in error_msg or "auth" in error_msg:
@@ -196,7 +201,7 @@ async def realtime_transcription(ws: WebSocket):
         logger.info(f"Realtime session started: {session_id}")
 
         # Step 5: Run concurrent relay tasks
-        await _run_relay(ws, aai_ws, session_id, api_key, sample_rate)
+        await _run_relay(ws, aai_ws, session_id, api_key, sample_rate, speech_model)
 
     except WebSocketDisconnect:
         logger.info(f"Browser disconnected for session {session_id}")
@@ -228,6 +233,7 @@ async def _run_relay(
     session_id: str,
     api_key: str,
     sample_rate: int,
+    speech_model: str = "precise",
 ):
     stop_event = asyncio.Event()
 
@@ -256,6 +262,16 @@ async def _run_relay(
                     if data.get("type") == "stop":
                         stop_event.set()
                         return
+                    elif data.get("type") == "update_keyterms":
+                        keyterms = data.get("keyterms_prompt", [])[:100]
+                        try:
+                            await aai_ws.send(json.dumps({
+                                "type": "UpdateConfiguration",
+                                "keyterms_prompt": keyterms,
+                            }))
+                            logger.info(f"Updated keyterms for session {session_id}: {len(keyterms)} terms")
+                        except Exception as e:
+                            logger.warning(f"Failed to update keyterms: {e}")
         except WebSocketDisconnect:
             stop_event.set()
         except Exception as e:
@@ -271,15 +287,29 @@ async def _run_relay(
         nonlocal aai_ws
         pending_final: str | None = None
         pending_task: asyncio.Task | None = None
+        # Timestamp tracking
+        current_turn_start: int = 0  # start_ms for the current turn
+        last_sent_end_ms: int = 0    # end_ms of the last send_final call
+        last_final_text: str = ""    # text of last sent final (to detect progressive vs new)
+
+        current_speaker: str = ""      # speaker label for the current turn
+        last_known_speaker: str = ""   # last non-UNKNOWN speaker for fallback
 
         async def send_final(text: str):
             """Send a finalized turn to browser and session_manager."""
+            nonlocal last_sent_end_ms, last_final_text
             await session_manager.append_final_text(session_id, text + " ")
             await session_manager.update_partial(session_id, "")
+            end_ms = await session_manager.elapsed_ms(session_id)
+            last_sent_end_ms = end_ms
+            last_final_text = text
             await ws.send_json({
                 "type": "turn",
                 "transcript": text,
                 "is_final": True,
+                "start_ms": current_turn_start,
+                "end_ms": end_ms,
+                "speaker_label": current_speaker,
             })
 
         async def delayed_flush():
@@ -316,7 +346,7 @@ async def _run_relay(
                     # Attempt reconnect
                     logger.warning(f"AAI connection lost: {e}")
                     reconnected = await _attempt_reconnect(
-                        ws, api_key, sample_rate, session_id
+                        ws, api_key, sample_rate, session_id, speech_model
                     )
                     if reconnected:
                         aai_ws = reconnected
@@ -336,25 +366,56 @@ async def _run_relay(
                     transcript = event.get("transcript", "")
                     is_eos = event.get("end_of_turn", False)
                     is_formatted = event.get("turn_is_formatted", False)
+                    speaker = event.get("speaker_label", "")
+
+                    logger.debug(
+                        f"AAI Turn: formatted={is_formatted}, eos={is_eos}, "
+                        f"speaker={speaker}, text={transcript[:60]!r}"
+                    )
 
                     # Skip unformatted end-of-turn (duplicate of formatted one)
                     if is_eos and not is_formatted:
                         continue
 
+                    # Resolve speaker label (only for precise mode)
+                    if speech_model == "fast":
+                        resolved_speaker = ""
+                    elif speaker and speaker != "UNKNOWN":
+                        resolved_speaker = f"Speaker {speaker}"
+                        last_known_speaker = resolved_speaker
+                    elif speaker == "UNKNOWN" and last_known_speaker:
+                        resolved_speaker = last_known_speaker
+                    else:
+                        resolved_speaker = f"Speaker {speaker}" if speaker else ""
+
                     if is_formatted and transcript:
                         # Progressive final — buffer and reset debounce timer
                         if pending_task and not pending_task.done():
                             pending_task.cancel()
+                        # Detect new turn: if text doesn't extend previous, advance start
+                        if last_final_text and not transcript.startswith(last_final_text):
+                            current_turn_start = last_sent_end_ms
                         pending_final = transcript
+                        current_speaker = resolved_speaker
+
+                        # Immediately send as partial so the user sees live text
+                        await session_manager.update_partial(session_id, transcript)
+                        await ws.send_json({
+                            "type": "turn",
+                            "transcript": transcript,
+                            "is_final": False,
+                            "speaker_label": resolved_speaker,
+                        })
                         pending_task = asyncio.create_task(delayed_flush())
                     elif not is_eos and transcript:
-                        # Partial — flush any pending final first, then send
+                        # Unformatted partial — send as live preview
                         await flush_now()
                         await session_manager.update_partial(session_id, transcript)
                         await ws.send_json({
                             "type": "turn",
                             "transcript": transcript,
                             "is_final": False,
+                            "speaker_label": resolved_speaker,
                         })
                 else:
                     await _handle_aai_event(ws, event, session_id)
@@ -419,6 +480,7 @@ async def _attempt_reconnect(
     api_key: str,
     sample_rate: int,
     session_id: str,
+    speech_model: str = "precise",
 ):
     """Attempt to reconnect to AAI with exponential backoff."""
     for attempt in range(1, MAX_RECONNECT_ATTEMPTS + 1):
@@ -434,7 +496,7 @@ async def _attempt_reconnect(
         await asyncio.sleep(delay)
 
         try:
-            new_ws = await service.connect(api_key, sample_rate)
+            new_ws = await service.connect(api_key, sample_rate, speech_model)
             logger.info(f"Reconnected to AAI for session {session_id}")
             return new_ws
         except Exception as e:

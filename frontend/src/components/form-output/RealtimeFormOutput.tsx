@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { FormTemplateEditor } from "./FormTemplateEditor";
 import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
 import { buildFormPayload } from "@/lib/content-formats";
@@ -238,6 +239,10 @@ export function RealtimeFormOutput({
   const filledCount = selectedTemplate
     ? selectedTemplate.fields.filter((f) => values[f.id] != null).length
     : 0;
+  const unfilledFields = selectedTemplate
+    ? selectedTemplate.fields.filter((f) => values[f.id] == null)
+    : [];
+  const [badgePopoverOpen, setBadgePopoverOpen] = useState(false);
 
   return (
     <>
@@ -266,9 +271,28 @@ export function RealtimeFormOutput({
                 </Tooltip>
               )}
               {selectedTemplate && (
-                <Badge variant="secondary" className="text-xs font-normal">
-                  {filledCount}/{selectedTemplate.fields.length} filled
-                </Badge>
+                <Popover open={badgePopoverOpen} onOpenChange={setBadgePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Badge
+                      variant="secondary"
+                      className="text-xs font-normal cursor-pointer"
+                      onMouseEnter={() => { if (window.matchMedia("(hover: hover)").matches) setBadgePopoverOpen(true); }}
+                      onMouseLeave={() => { if (window.matchMedia("(hover: hover)").matches) setBadgePopoverOpen(false); }}
+                    >
+                      {filledCount}/{selectedTemplate.fields.length} filled
+                    </Badge>
+                  </PopoverTrigger>
+                  {unfilledFields.length > 0 && (
+                    <PopoverContent className="w-auto max-w-64 p-3" side="bottom" align="end">
+                      <p className="text-xs font-medium mb-1.5">Unfilled fields</p>
+                      <ul className="space-y-0.5">
+                        {unfilledFields.map((f) => (
+                          <li key={f.id} className="text-xs text-foreground-secondary">&bull; {f.label}</li>
+                        ))}
+                      </ul>
+                    </PopoverContent>
+                  )}
+                </Popover>
               )}
             </div>
           </div>

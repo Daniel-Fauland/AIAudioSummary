@@ -30,6 +30,7 @@
    - [4.18 AI Assistant (Chatbot)](#418-ai-assistant-chatbot)
    - [4.19 Sync Standard + Realtime](#419-sync-standard--realtime)
    - [4.20 AI Usage Tracking](#420-ai-usage-tracking)
+   - [4.21 Keyterms Prompting](#421-keyterms-prompting)
 5. [Common Workflows](#5-common-workflows)
    - [5.1 Transcribing and Summarising a Recording](#51-transcribing-and-summarising-a-recording)
    - [5.2 Recording Live Audio and Getting a Summary](#52-recording-live-audio-and-getting-a-summary)
@@ -128,7 +129,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v1.10.0** — click to view the changelog of recent updates
+- **v2.0.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -214,6 +215,16 @@ After transcription completes (or after skipping upload), you land on the **Tran
   - **Copy as** (split button) — copies the transcript in your chosen format. Click the main button to use your default format, or open the dropdown for all options: **Formatted** (rich text), **Plain Text**, **Markdown**. The default format can be changed in Settings (see [Section 4.12](#412-settings-panel)).
   - **Save as** (split button) — downloads the transcript as a file. Click the main button to use your default format, or open the dropdown for all options: **.txt**, **.md**, **.docx**, **.pdf**, **.html**.
   - **Expand icon** — opens the transcript in a fullscreen view.
+
+**Timestamps:**
+
+- When **Show Timestamps** is enabled (Settings → Features → Standard), each utterance displays its start and end time below the text (e.g., `00:04 - 00:13`).
+- Timestamps use the precise times provided by AssemblyAI's speaker diarization.
+- When visible, timestamps are automatically included in:
+  - **Copy / Download** — all formats (plain text, markdown, .txt, .md, .docx, .pdf, .html).
+  - **LLM requests** — summary generation, key points extraction, chatbot context, and form filling, giving the AI temporal context about the conversation.
+- Timestamps are shown only in the **read-only view** (Step 3). The editable transcript (Step 2) remains a plain text area.
+- The setting is **on by default** and can be toggled at any time — the change takes effect immediately without reloading.
 
 **Editing the transcript:**
 
@@ -389,6 +400,19 @@ Realtime mode provides live transcription of your microphone and generates a run
 
 **Switch to Realtime mode** by clicking **Realtime** in the mode toggle bar at the top.
 
+#### Speech Model
+
+Realtime mode supports two speech models, configurable in **Settings → Features → Realtime → Speech Model**:
+
+| Model       | Behaviour                                                                                                                                                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fast**    | Word-by-word streaming transcription. Text appears incrementally as you speak. No speaker labels — all text appears as a single stream.                                                                                         |
+| **Precise** | Turn-based streaming with speaker diarization. Text appears in complete turns and each turn is labelled with a speaker (e.g., Speaker A). Consecutive turns from the same speaker are automatically merged into a single block. |
+
+The default is **Precise**. You can change the model between sessions — the setting takes effect the next time you start a session.
+
+> **Note:** When using Precise mode, the **Continue with Existing** option in the start session confirmation dialog is disabled because the turn-based model does not support appending to a previous session's context.
+
 #### Controls Bar
 
 A horizontal controls bar appears at the top of the Realtime view:
@@ -409,22 +433,47 @@ A horizontal controls bar appears at the top of the Realtime view:
 
 When you click **Start** or **Continue Session** and there is existing transcript or summary content, a dialog appears with four options:
 
-| Option                         | What it does                                                                                                                         |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Continue with Existing**     | Keeps all current data (transcript, summary, questions, form output) and starts the session.                                         |
-| **Clear Transcript & Summary** | Clears only the transcript and summary. Questions & Topics and Form Output are preserved. Then starts the session.                   |
-| **Clear All**                  | Clears transcript, summary, Questions & Topics, form output values, and deselects any Form Output template. Then starts the session. |
-| **Cancel**                     | Closes the dialog without starting.                                                                                                  |
+| Option                         | What it does                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Continue with Existing**     | Keeps all current data (transcript, summary, questions, form output) and starts the session. Disabled in Precise mode.                                 |
+| **Clear Transcript & Summary** | Clears the transcript, summary, and any speaker mappings. Questions & Topics and Form Output are preserved. Then starts the session.                   |
+| **Clear All**                  | Clears transcript, summary, speaker mappings, Questions & Topics, form output values, and deselects any Form Output template. Then starts the session. |
+| **Cancel**                     | Closes the dialog without starting.                                                                                                                    |
 
 If both the transcript and summary are already empty, clicking **Start** begins the session immediately without showing this dialog.
 
 #### Live Transcript Panel
 
 - Located on the left (or first tab on mobile).
-- Shows the conversation as it happens, word by word.
-- **Finalized text** appears in normal style; **in-progress partial text** appears in a muted italic style.
+- In **Fast** mode, text appears word by word as a single stream. In **Precise** mode, text appears in labelled turns (e.g., **Speaker A:** …). Consecutive turns from the same speaker are merged into a single block.
+- **Finalized text** appears in normal style; **in-progress partial text** appears in a muted style.
 - Auto-scrolls to the bottom as new text arrives.
-- A **trash icon** (to the left of the copy button) lets you clear the accumulated transcript. A confirmation dialog appears before clearing.
+- A **speaker mapping icon** (👥) appears in the header when using Precise mode and at least one speaker has been detected. Click it to open the Speaker Mapping dialog (see below).
+- A **trash icon** lets you clear the accumulated transcript. A confirmation dialog appears before clearing.
+- When **Show Timestamps** is enabled (Settings → Features → Realtime), each finalized utterance displays a wall-clock timestamp (e.g., `00:00 - 00:27`). Timestamps reflect elapsed time since the session started. When visible, they are included in copy/download and chatbot context.
+
+#### Speaker Mapping (Realtime)
+
+When using **Precise** mode, speakers are labelled with generic names (Speaker A, Speaker B, etc.). You can map these to real names:
+
+1. Click the **speaker mapping icon** (👥) in the Live Transcript panel header.
+2. A dialog opens showing all detected speakers. Enter a replacement name for each speaker you want to rename.
+3. Click **Apply Names** to apply the mappings.
+
+**How mappings work:**
+
+- All existing utterances in the transcript are immediately updated with the new names.
+- All future incoming utterances from the same speaker are automatically mapped in real time.
+- You can re-open the dialog at any time (during or after the session) to edit or add mappings.
+- Mappings are cleared when you clear the transcript, clear all session data, or start a new session.
+
+**Key Points & Suggested Names:**
+
+- Click **Generate Key Points** in the dialog to have the AI extract a brief summary of what each speaker has said so far. This helps you identify who is who.
+- If **Auto Speaker Labels** is enabled in Settings, the AI will also suggest real names based on transcript content (e.g., if someone says "Thanks, Daniel", it may suggest "Daniel" for that speaker). Suggested names are pre-filled into the input fields.
+- These features are controlled by two toggles in **Settings → Features → Realtime** (visible only in Precise mode):
+  - **Auto Speaker Key Points** — automatically extract key points for unmapped speakers when the dialog opens.
+  - **Auto Speaker Labels** — suggest real names from transcript content when extracting key points.
 
 #### Summary Panel
 
@@ -520,7 +569,7 @@ Instead of adding fields manually, you can let the AI design a template for you:
 3. Optionally set the **Meeting Date** using the date picker below the template selector. When set, the AI uses this date as context when filling date-related fields in the form. This works the same way as the Meeting Date in Prompt Settings for summary generation — the same date picker is shared between both modes.
 4. Click **Fill Form** — the AI analyses the transcript and extracts values for each field.
 5. The app moves to Step 3, showing the transcript on the left and the filled form on the right.
-6. Review the extracted values. You can **edit any field** manually.
+6. Review the extracted values. You can **edit any field** manually. A badge in the card header shows how many fields are filled (e.g., "7/10 filled"). **Hover** (desktop) or **tap** (mobile) the badge to see a popover listing the names of all unfilled fields.
 7. Click **Re-fill** to regenerate values from the transcript, or use the **Copy as** / **Save as** split buttons to copy or download the form in your preferred format. Copy formats: Formatted, Plain Text, Markdown, JSON. Save formats: .txt, .md, .docx, .pdf, .html, .json.
 
 > The AI only fills a field if the information is clearly stated in the transcript. Fields without matching content are left empty. When a Meeting Date is provided, the AI may use it to fill date fields if no specific date is mentioned in the transcript.
@@ -530,7 +579,7 @@ Instead of adding fields manually, you can let the AI design a template for you:
 1. In Realtime mode, switch to the **Form Output** tab below the transcript and summary panels.
 2. Select or create a form template.
 3. As speech is transcribed, the AI **automatically fills the form in real time** — no need to click a button.
-4. A badge shows how many fields are filled (e.g., "3/5 filled").
+4. A badge shows how many fields are filled (e.g., "3/5 filled"). **Hover** (desktop) or **tap** (mobile) the badge to see a popover listing the names of all unfilled fields.
 5. You can manually edit any field value at any time.
 6. Toggle **Mark as Complete** to lock the form and prevent further auto-updates. Manual edits are still allowed when locked. Unlock to resume auto-filling.
 7. To deselect a template entirely, choose **"No template"** from the dropdown. This clears the form and stops auto-filling.
@@ -619,22 +668,30 @@ You can always override the format for a single copy or save by clicking the dro
 
 ---
 
+#### Reset All Settings
+
+At the very bottom of the Settings panel there is a **Reset All Settings to Defaults** button. Clicking it opens a confirmation dialog. If you confirm, every setting (provider, model, toggles, intervals, formats, system prompt, feature overrides, keyterms selection, etc.) is reverted to its factory default. **API keys are not affected** — they remain exactly as they were.
+
+---
+
 #### Features
 
 **General** sub-section:
 
-| Setting                        | What it does                                                                                                                                                                                |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Advanced Settings** (toggle) | When off (default for new users), only essential settings are visible: API Keys, AI Model, and this toggle. When on, all settings described below become available. This is always visible. |
+| Setting                           | What it does                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Advanced Settings** (toggle)    | When off (default for new users), only essential settings are visible: API Keys, AI Model, and this toggle. When on, all settings described below become available. This is always visible.                                                                                                                                                                    |
+| **Keyterms Prompting** (selector) | Select a named keyterms list to help the transcription engine recognize domain-specific terms (e.g., company names, technical jargon). Use the **+** button to create a new list, the **pencil** to edit, or the **trash** to delete. Choose **None** to disable. See [Section 4.21](#421-keyterms-prompting). Only visible when Advanced Settings is enabled. |
 
 The following sub-sections and their settings are only visible when **Advanced Settings** is enabled:
 
 **Standard** sub-section:
 
-| Setting                                    | What it does                                                                                                                |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| **Speaker Key Points** (toggle)            | When on, automatically extracts a short key-point summary per speaker immediately after transcription completes.            |
-| **Speaker Count Range** (Min / Max inputs) | Tells AssemblyAI how many speakers to expect in the recording. Narrowing this range can improve speaker detection accuracy. |
+| Setting                                    | What it does                                                                                                                                                          |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Speaker Key Points** (toggle)            | When on, automatically extracts a short key-point summary per speaker immediately after transcription completes.                                                      |
+| **Speaker Count Range** (Min / Max inputs) | Tells AssemblyAI how many speakers to expect in the recording. Narrowing this range can improve speaker detection accuracy.                                           |
+| **Show Timestamps** (toggle)               | When on (default), displays start/end timestamps for each utterance in the read-only transcript view. Timestamps are also included in copy/download and LLM requests. |
 
 **Realtime** sub-section:
 
@@ -643,6 +700,7 @@ The following sub-sections and their settings are only visible when **Advanced S
 | **System Prompt** → **Edit** button   | Opens an editor to customise the AI instructions for realtime summaries.                                                                                                                |
 | **Summary Interval** dropdown         | How often a new running summary is auto-generated: 1, 2, 3, 5, or 10 minutes.                                                                                                           |
 | **Final Summary on Stop** (toggle)    | When on, stopping a realtime session triggers a full final summary.                                                                                                                     |
+| **Show Timestamps** (toggle)          | When on (default), displays wall-clock timestamps for each utterance in the realtime transcript view. Timestamps are also included in copy/download and chatbot context.                |
 | **Sync Standard + Realtime** (toggle) | When on, starting one recording mode automatically starts the other with a shared microphone, and pause/stop actions are coordinated. See [Section 4.19](#419-sync-standard--realtime). |
 
 **AI Chatbot** sub-section:
@@ -865,6 +923,8 @@ The following actions are available:
 | **Update Realtime system prompt**      | Replace the system prompt used for Realtime summary generation.                                  |
 | **Change Realtime summary interval**   | Set how often Realtime summaries are generated (1, 2, 3, 5, or 10 minutes).                      |
 | **Toggle Final Summary on Stop**       | Enable or disable automatic full summary generation when a Realtime session is stopped.          |
+| **Toggle Standard Timestamps**         | Show or hide timestamps in the Standard mode transcript view.                                    |
+| **Toggle Realtime Timestamps**         | Show or hide timestamps in the Realtime mode transcript view.                                    |
 | **Change Default Copy Format**         | Change the default format for the Copy as button (Formatted, Plain Text, Markdown, or JSON).     |
 | **Change Default Save Format**         | Change the default file format for the Save as button (.txt, .md, .docx, .pdf, .html, or .json). |
 | **Change Default Chatbot Copy Format** | Change the format used when copying chatbot messages (Formatted Text, Plain Text, or Markdown).  |
@@ -960,6 +1020,58 @@ Open it via **user avatar → AI Usage**. It displays a chart and statistics abo
 | **Clear history** button  | Permanently deletes all stored usage records after a confirmation prompt.                       |
 
 Token history is stored in your browser's localStorage (up to 10,000 entries) and is not synced to the server or included in the Export / Import Settings config string.
+
+---
+
+### 4.21 Keyterms Prompting
+
+Keyterms Prompting lets you provide a list of domain-specific terms, names, or phrases that the transcription engine should recognize correctly. Without keyterms, the transcriber might misinterpret uncommon words.
+
+#### How it works
+
+You create named **keyterms lists** — each list has a custom name (e.g., "Project Alpha", "Medical Terms") and contains one or more terms. The selected list is sent to AssemblyAI alongside the audio, which boosts the recognition of those specific terms during transcription.
+
+Keyterms lists are shared between Standard and Realtime modes — the same list applies to whichever mode you use.
+
+#### Managing keyterms lists
+
+Keyterms lists are managed in **Settings > Features > General** (requires **Advanced Settings** to be enabled).
+
+| Control                         | What it does                                                                                                          |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **Keyterms Prompting** dropdown | Select a saved list, or choose **None** to disable keyterms.                                                          |
+| **+** button                    | Create a new keyterms list. Opens the editor dialog.                                                                  |
+| **Pencil** button               | Edit the currently selected list.                                                                                     |
+| **Trash** button                | Delete the currently selected list.                                                                                   |
+| **Term count badge**            | Shows how many terms are in the selected list. Displays a warning if the list exceeds 100 terms (the realtime limit). |
+
+#### Creating or editing a list
+
+The editor dialog contains:
+
+- **List Name** — a descriptive name for the list (e.g., "Client Meeting Terms").
+- **Terms** — a text area where you enter one term per line. Terms can be single words or short phrases (up to 6 words for Standard mode, up to 50 characters for Realtime mode).
+- **Term count indicator** — shows the current count with colour-coded warnings:
+  - Normal (grey): within limits.
+  - Warning (yellow): more than 100 terms — Realtime mode will only use the first 100.
+  - Error (red): more than 1,000 terms — exceeds the Standard mode limit.
+
+#### Limits
+
+| Mode                        | Max terms | Max term length        |
+| --------------------------- | --------- | ---------------------- |
+| **Standard** (pre-recorded) | 1,000     | 6 words per term       |
+| **Realtime** (streaming)    | 100       | 50 characters per term |
+
+If a list exceeds the Realtime limit (100 terms), only the first 100 terms are sent during Realtime sessions. The full list is always used for Standard transcription.
+
+#### Mid-session updates (Realtime)
+
+You can change the selected keyterms list while a Realtime session is active. The new list takes effect immediately for all subsequent audio — you do not need to stop and restart the session. This is useful when a conversation shifts topics and you want to switch to a different set of domain terms.
+
+#### Chatbot integration
+
+The AI Assistant (chatbot) can also manage keyterms lists on your behalf. You can ask it to create, update, delete, or select a keyterms list using natural language (e.g., "Create a keyterms list called Medical Terms with hypertension, tachycardia, and bradycardia").
 
 ---
 

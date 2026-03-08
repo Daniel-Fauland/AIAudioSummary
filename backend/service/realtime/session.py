@@ -1,4 +1,5 @@
 import asyncio
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -10,6 +11,11 @@ class SessionState:
     current_partial: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    start_monotonic: float = field(default_factory=time.monotonic)
+
+    def elapsed_ms(self) -> int:
+        """Wall-clock milliseconds since session start."""
+        return int((time.monotonic() - self.start_monotonic) * 1000)
 
 
 class SessionManager:
@@ -42,6 +48,13 @@ class SessionManager:
                 return
             session.current_partial = text
             session.last_activity = datetime.now(timezone.utc)
+
+    async def elapsed_ms(self, session_id: str) -> int:
+        async with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return 0
+            return session.elapsed_ms()
 
     async def remove_session(self, session_id: str) -> None:
         async with self._lock:

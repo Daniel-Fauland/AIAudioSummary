@@ -42,7 +42,8 @@ class AssemblyAIService:
     async def get_transcript(self, path_to_file: str, api_key: str,
                              lang_code: str = None,
                              min_speaker: int = 1,
-                             max_speaker: int = 10):
+                             max_speaker: int = 10,
+                             keyterms_prompt: list[str] | None = None):
         if not lang_code:
             language_detection = True
             language_code = None
@@ -50,12 +51,17 @@ class AssemblyAIService:
             language_detection = False
             language_code = lang_code
 
-        config = aai.TranscriptionConfig(
+        config_kwargs = dict(
             speech_models=["universal-3-pro", "universal-2"],
             language_detection=language_detection,
             language_code=language_code,
             speaker_labels=True,
-            speaker_options={"min_speakers_expected": min_speaker, "max_speakers_expected": max_speaker})
+            speaker_options={"min_speakers_expected": min_speaker, "max_speakers_expected": max_speaker},
+        )
+        if keyterms_prompt:
+            config_kwargs["keyterms_prompt"] = keyterms_prompt
+
+        config = aai.TranscriptionConfig(**config_kwargs)
 
         # Run the synchronous transcribe() call in a thread pool to avoid
         # blocking the event loop. The lock ensures api_key + transcribe()
@@ -73,6 +79,13 @@ class AssemblyAIService:
             raise RuntimeError()
 
         transcript_text = ""
+        utterances_data = []
         for utterance in transcript.utterances:
             transcript_text += f"Speaker {utterance.speaker}: {utterance.text}\n"
-        return transcript_text
+            utterances_data.append({
+                "speaker": f"Speaker {utterance.speaker}",
+                "text": utterance.text,
+                "start_ms": utterance.start,
+                "end_ms": utterance.end,
+            })
+        return transcript_text, utterances_data

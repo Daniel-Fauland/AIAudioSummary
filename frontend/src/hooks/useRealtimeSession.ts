@@ -7,8 +7,10 @@ import type {
   LLMProvider,
   AzureConfig,
   LangdockConfig,
+  RealtimeSpeechModel,
   SummaryInterval,
   TokenUsage,
+  TranscriptUtterance,
 } from "@/lib/types";
 
 export interface LlmConfig {
@@ -27,14 +29,15 @@ export interface LlmConfig {
 export interface UseRealtimeSessionOptions {
   initialTranscript?: string;
   initialSummary?: string;
+  initialUtterances?: TranscriptUtterance[];
   onUsage?: (usage: TokenUsage) => void;
 }
 
 export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
-  const { initialTranscript, initialSummary, onUsage } = options ?? {};
+  const { initialTranscript, initialSummary, initialUtterances, onUsage } = options ?? {};
   const globalRealtime = useGlobalRealtime();
 
-  // Initialize transcript from persisted session (only once)
+  // Initialize transcript and utterances from persisted session (only once)
   const initDoneRef = useRef(false);
   useEffect(() => {
     if (initDoneRef.current) return;
@@ -42,7 +45,10 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
     if (initialTranscript && !globalRealtime.accumulatedTranscript) {
       globalRealtime.setAccumulatedTranscript(initialTranscript);
     }
-  }, [initialTranscript, globalRealtime]);
+    if (initialUtterances?.length && globalRealtime.realtimeUtterances.length === 0) {
+      globalRealtime.setRealtimeUtterances(initialUtterances);
+    }
+  }, [initialTranscript, initialUtterances, globalRealtime]);
 
   // Handle partial commit from summary hook
   // Use individual setters (stable React state setters) to avoid recreating
@@ -89,8 +95,8 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
   }, [globalRealtime.connectionStatus, summary]);
 
   // Wrapped start/stop to include summary logic
-  const startSession = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic") => {
-    await globalRealtime.connect(assemblyAiKey, deviceId, recordMode);
+  const startSession = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic", speechModel?: RealtimeSpeechModel, keyterms?: string[]) => {
+    await globalRealtime.connect(assemblyAiKey, deviceId, recordMode, undefined, speechModel, keyterms);
   }, [globalRealtime]);
 
   const stopSession = useCallback(async (triggerFinalSummary: boolean = true) => {
@@ -130,6 +136,7 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
     isPaused: globalRealtime.isPaused,
     elapsedTime: globalRealtime.elapsedTime,
     isSessionEnded: globalRealtime.isSessionEnded,
+    realtimeUtterances: globalRealtime.realtimeUtterances,
 
     // State from summary hook
     realtimeSummary: summary.realtimeSummary,
@@ -151,5 +158,9 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
     triggerManualSummary: summary.triggerManualSummary,
     clearTranscript,
     clearSummary: summary.clearSummary,
+    setRealtimeUtterances: globalRealtime.setRealtimeUtterances,
+    setAccumulatedTranscript: globalRealtime.setAccumulatedTranscript,
+    speakerMappingsRef: globalRealtime.speakerMappingsRef,
+    updateKeyterms: globalRealtime.updateKeyterms,
   };
 }

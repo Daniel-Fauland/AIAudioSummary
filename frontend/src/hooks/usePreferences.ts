@@ -172,6 +172,13 @@ function collectPreferences(): UserPreferences {
     if (raw) formTemplates = JSON.parse(raw);
   } catch {}
 
+  let keytermsLists: import("@/lib/types").KeytermsList[] | undefined;
+  try {
+    const raw = safeLocalGet("aias:v1:keyterms_lists");
+    if (raw) keytermsLists = JSON.parse(raw);
+  } catch {}
+  const selectedKeytermsListId = safeLocalGet("aias:v1:selected_keyterms_list_id") || undefined;
+
   const autoKeyPoints = safeLocalGet("aias:v1:auto_key_points");
   const speakerLabels = safeLocalGet("aias:v1:speaker_labels");
   const minSpeakers = parseInt(safeLocalGet("aias:v1:min_speakers"));
@@ -216,9 +223,12 @@ function collectPreferences(): UserPreferences {
     max_speakers: maxSpeakers || undefined,
     realtime_final_summary: realtimeFinalSummary ? realtimeFinalSummary !== "false" : undefined,
     realtime_reevaluate_all: realtimeReevaluateAll ? realtimeReevaluateAll === "true" : undefined,
+    realtime_speech_model: (safeLocalGet("aias:v1:realtime_speech_model") as import("@/lib/types").RealtimeSpeechModel) || undefined,
     realtime_system_prompt: realtimeSystemPrompt || undefined,
     custom_templates: customTemplates,
     form_templates: formTemplates,
+    keyterms_lists: keytermsLists,
+    selected_keyterms_list_id: selectedKeytermsListId || undefined,
     sync_standard_realtime: syncStandardRealtime ? syncStandardRealtime === "true" : undefined,
     advanced_settings: advancedSettings ? advancedSettings === "true" : undefined,
     default_copy_format: (defaultCopyFormat as import("@/lib/types").CopyFormat) || undefined,
@@ -252,9 +262,12 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.max_speakers) safeLocalSet("aias:v1:max_speakers", String(prefs.max_speakers));
   if (prefs.realtime_final_summary !== undefined) safeLocalSet("aias:v1:realtime_final_summary", prefs.realtime_final_summary ? "true" : "false");
   if (prefs.realtime_reevaluate_all !== undefined) safeLocalSet("aias:v1:realtime_reevaluate_all", prefs.realtime_reevaluate_all ? "true" : "false");
+  if (prefs.realtime_speech_model) safeLocalSet("aias:v1:realtime_speech_model", prefs.realtime_speech_model);
   if (prefs.realtime_system_prompt) safeLocalSet("aias:v1:realtime_system_prompt", prefs.realtime_system_prompt);
   if (prefs.custom_templates) safeLocalSet("aias:v1:custom_templates", JSON.stringify(prefs.custom_templates));
   if (prefs.form_templates) safeLocalSet("aias:v1:form_templates", JSON.stringify(prefs.form_templates));
+  if (prefs.keyterms_lists) safeLocalSet("aias:v1:keyterms_lists", JSON.stringify(prefs.keyterms_lists));
+  if (prefs.selected_keyterms_list_id !== undefined) safeLocalSet("aias:v1:selected_keyterms_list_id", prefs.selected_keyterms_list_id ?? "");
   if (prefs.sync_standard_realtime !== undefined) safeLocalSet("aias:v1:sync_standard_realtime", prefs.sync_standard_realtime ? "true" : "false");
   if (prefs.advanced_settings !== undefined) safeLocalSet("aias:v1:advanced_settings", prefs.advanced_settings ? "true" : "false");
   if (prefs.default_copy_format) safeLocalSet("aias:v1:default_copy_format", prefs.default_copy_format);
