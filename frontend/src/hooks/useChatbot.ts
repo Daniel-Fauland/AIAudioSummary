@@ -84,6 +84,8 @@ const READ_ONLY_ACTIONS = new Set([
   "get_prompt_template",
   "list_form_templates",
   "get_form_template",
+  "list_keyterms_lists",
+  "get_keyterms_list",
 ]);
 
 const ACTION_BLOCK_REGEX = /```action\s*\n([\s\S]*?)\n```/;

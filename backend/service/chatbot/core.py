@@ -90,6 +90,16 @@ class ChatbotService:
                         f"  - ID: `{t.id}` | Name: {t.name} | Fields: [{field_desc}]")
                 context_lines.append(
                     "- Custom form templates:\n" + "\n".join(tpl_lines))
+            if ctx.keyterms_lists:
+                kt_lines = []
+                for kt in ctx.keyterms_lists:
+                    terms_preview = ", ".join(kt.terms[:5])
+                    if len(kt.terms) > 5:
+                        terms_preview += f", … (+{len(kt.terms) - 5} more)"
+                    kt_lines.append(
+                        f"  - ID: `{kt.id}` | Name: {kt.name} | Terms: [{terms_preview}]")
+                context_lines.append(
+                    "- Keyterms lists:\n" + "\n".join(kt_lines))
             if context_lines:
                 parts.append(
                     "\n\n## Current User Settings\n"
