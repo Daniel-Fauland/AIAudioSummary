@@ -12,7 +12,7 @@ export const changelog: ChangelogEntry[] = [
   {
     version: "2.0.0",
     date: "2026-03-08",
-    title: "Transcript timestamps for Standard & Realtime mode",
+    title: "Added timestamps, speaker mapping, keyterms prompting & UI polish",
     changes: [
       {
         type: "added",
