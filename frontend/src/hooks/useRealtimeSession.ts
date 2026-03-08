@@ -7,6 +7,7 @@ import type {
   LLMProvider,
   AzureConfig,
   LangdockConfig,
+  RealtimeSpeechModel,
   SummaryInterval,
   TokenUsage,
   TranscriptUtterance,
@@ -94,8 +95,8 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
   }, [globalRealtime.connectionStatus, summary]);
 
   // Wrapped start/stop to include summary logic
-  const startSession = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic") => {
-    await globalRealtime.connect(assemblyAiKey, deviceId, recordMode);
+  const startSession = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic", speechModel?: RealtimeSpeechModel) => {
+    await globalRealtime.connect(assemblyAiKey, deviceId, recordMode, undefined, speechModel);
   }, [globalRealtime]);
 
   const stopSession = useCallback(async (triggerFinalSummary: boolean = true) => {
@@ -157,5 +158,8 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
     triggerManualSummary: summary.triggerManualSummary,
     clearTranscript,
     clearSummary: summary.clearSummary,
+    setRealtimeUtterances: globalRealtime.setRealtimeUtterances,
+    setAccumulatedTranscript: globalRealtime.setAccumulatedTranscript,
+    speakerMappingsRef: globalRealtime.speakerMappingsRef,
   };
 }

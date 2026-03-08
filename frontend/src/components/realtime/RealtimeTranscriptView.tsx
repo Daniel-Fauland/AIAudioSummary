@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { Anchor, Maximize2, Trash2 } from "lucide-react";
+import { Anchor, Maximize2, Trash2, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -29,6 +29,8 @@ interface RealtimeTranscriptViewProps {
   onClear?: () => void;
   utterances?: TranscriptUtterance[];
   showTimestamps?: boolean;
+  onOpenSpeakerMapper?: () => void;
+  showSpeakerMapperButton?: boolean;
 }
 
 export function RealtimeTranscriptView({
@@ -39,6 +41,8 @@ export function RealtimeTranscriptView({
   onClear,
   utterances,
   showTimestamps,
+  onOpenSpeakerMapper,
+  showSpeakerMapperButton,
 }: RealtimeTranscriptViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -77,15 +81,31 @@ export function RealtimeTranscriptView({
 
   const hasContent = accumulatedTranscript || committedPartial || currentPartial;
 
+  // Merge consecutive utterances from the same speaker into single entries
+  const mergedUtterances = useMemo(() => {
+    if (!utterances?.length) return [];
+    const merged: TranscriptUtterance[] = [];
+    for (const u of utterances) {
+      const last = merged[merged.length - 1];
+      if (last && last.speaker && last.speaker === u.speaker) {
+        last.text = last.text + " " + u.text;
+        last.end_ms = u.end_ms;
+      } else {
+        merged.push({ ...u });
+      }
+    }
+    return merged;
+  }, [utterances]);
+
   const hasTimestampedView = !!utterances?.length && !!showTimestamps;
 
   const contentPayload = useMemo<ContentPayload | null>(() => {
     if (!accumulatedTranscript) return null;
     const timestampedText = hasTimestampedView
-      ? formatTranscriptWithTimestamps(utterances!)
+      ? formatTranscriptWithTimestamps(mergedUtterances)
       : null;
     const markdown = hasTimestampedView
-      ? utterances!.map((u) => `${u.text}\n*${formatTimestamp(u.start_ms)} - ${formatTimestamp(u.end_ms)}*`).join("\n\n")
+      ? mergedUtterances.map((u) => `${u.text}\n*${formatTimestamp(u.start_ms)} - ${formatTimestamp(u.end_ms)}*`).join("\n\n")
       : accumulatedTranscript;
     return {
       type: "transcript",
@@ -93,13 +113,27 @@ export function RealtimeTranscriptView({
       markdown,
       fileNamePrefix: "transcript",
     };
-  }, [accumulatedTranscript, hasTimestampedView, utterances]);
+  }, [accumulatedTranscript, hasTimestampedView, mergedUtterances]);
 
   return (
     <Card className="border-border flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Live Transcript</CardTitle>
         <div className="flex items-center gap-1">
+          {showSpeakerMapperButton && onOpenSpeakerMapper && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onOpenSpeakerMapper}
+                >
+                  <Users className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Speaker Mapping</TooltipContent>
+            </Tooltip>
+          )}
           {accumulatedTranscript && onClear && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -138,7 +172,7 @@ export function RealtimeTranscriptView({
               <>
                 {hasTimestampedView ? (
                   <div className="space-y-3">
-                    {utterances!.map((u, i) => (
+                    {mergedUtterances.map((u, i) => (
                       <div key={i} className="border-l-2 border-border pl-3 py-1">
                         <p className="text-sm text-foreground">
                           {u.speaker && <span className="font-semibold">{u.speaker}: </span>}

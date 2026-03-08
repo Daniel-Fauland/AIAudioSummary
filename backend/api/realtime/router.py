@@ -169,6 +169,7 @@ async def realtime_transcription(ws: WebSocket):
         api_key = init_msg.get("api_key")
         session_id = init_msg.get("session_id")
         sample_rate = init_msg.get("sample_rate", 16000)
+        speech_model = init_msg.get("speech_model", "precise")
 
         if not api_key or not session_id:
             await ws.send_json({"type": "error", "message": "api_key and session_id are required"})
@@ -180,7 +181,7 @@ async def realtime_transcription(ws: WebSocket):
 
         # Step 3: Connect to AssemblyAI
         try:
-            aai_ws = await service.connect(api_key, sample_rate)
+            aai_ws = await service.connect(api_key, sample_rate, speech_model)
         except Exception as e:
             error_msg = str(e).lower()
             if "401" in error_msg or "auth" in error_msg:
@@ -196,7 +197,7 @@ async def realtime_transcription(ws: WebSocket):
         logger.info(f"Realtime session started: {session_id}")
 
         # Step 5: Run concurrent relay tasks
-        await _run_relay(ws, aai_ws, session_id, api_key, sample_rate)
+        await _run_relay(ws, aai_ws, session_id, api_key, sample_rate, speech_model)
 
     except WebSocketDisconnect:
         logger.info(f"Browser disconnected for session {session_id}")
@@ -228,6 +229,7 @@ async def _run_relay(
     session_id: str,
     api_key: str,
     sample_rate: int,
+    speech_model: str = "precise",
 ):
     stop_event = asyncio.Event()
 
@@ -330,7 +332,7 @@ async def _run_relay(
                     # Attempt reconnect
                     logger.warning(f"AAI connection lost: {e}")
                     reconnected = await _attempt_reconnect(
-                        ws, api_key, sample_rate, session_id
+                        ws, api_key, sample_rate, session_id, speech_model
                     )
                     if reconnected:
                         aai_ws = reconnected
@@ -361,8 +363,10 @@ async def _run_relay(
                     if is_eos and not is_formatted:
                         continue
 
-                    # Resolve speaker label
-                    if speaker and speaker != "UNKNOWN":
+                    # Resolve speaker label (only for precise mode)
+                    if speech_model == "fast":
+                        resolved_speaker = ""
+                    elif speaker and speaker != "UNKNOWN":
                         resolved_speaker = f"Speaker {speaker}"
                         last_known_speaker = resolved_speaker
                     elif speaker == "UNKNOWN" and last_known_speaker:
@@ -462,6 +466,7 @@ async def _attempt_reconnect(
     api_key: str,
     sample_rate: int,
     session_id: str,
+    speech_model: str = "precise",
 ):
     """Attempt to reconnect to AAI with exponential backoff."""
     for attempt in range(1, MAX_RECONNECT_ATTEMPTS + 1):
@@ -477,7 +482,7 @@ async def _attempt_reconnect(
         await asyncio.sleep(delay)
 
         try:
-            new_ws = await service.connect(api_key, sample_rate)
+            new_ws = await service.connect(api_key, sample_rate, speech_model)
             logger.info(f"Reconnected to AAI for session {session_id}")
             return new_ws
         except Exception as e:

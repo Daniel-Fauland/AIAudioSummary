@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import type { RealtimeConnectionStatus, RealtimeWsMessage, TranscriptUtterance } from "@/lib/types";
+import type { RealtimeConnectionStatus, RealtimeSpeechModel, RealtimeWsMessage, TranscriptUtterance } from "@/lib/types";
 
 const WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL || "ws://localhost:8080";
 
@@ -26,8 +26,11 @@ export interface GlobalRealtimeContextValue {
   isSessionEnded: boolean;
   realtimeUtterances: TranscriptUtterance[];
 
+  // Speaker mapping ref for live remapping
+  speakerMappingsRef: React.RefObject<Record<string, string>>;
+
   // Functions
-  connect: (assemblyAiKey: string, deviceId?: string, recordMode?: "mic" | "meeting", sharedDisplayStream?: MediaStream) => Promise<void>;
+  connect: (assemblyAiKey: string, deviceId?: string, recordMode?: "mic" | "meeting", sharedDisplayStream?: MediaStream, speechModel?: RealtimeSpeechModel) => Promise<void>;
   disconnect: (triggerCallback?: boolean) => Promise<void>;
   pause: () => void;
   resume: () => void;
@@ -79,6 +82,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
   const isPausedRef = useRef(false);
   const lastFinalRef = useRef("");
   const onSessionEndRef = useRef<(() => void) | null>(null);
+  const speakerMappingsRef = useRef<Record<string, string>>({});
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -87,6 +91,9 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     currentPartialRef.current = currentPartial;
   }, [currentPartial]);
+  useEffect(() => {
+    realtimeUtterancesRef.current = realtimeUtterances;
+  }, [realtimeUtterances]);
 
   // Cleanup helpers
   const cleanupAudio = useCallback(() => {
@@ -127,7 +134,9 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
         setConnectionStatus("connected");
         break;
 
-      case "turn":
+      case "turn": {
+        const rawSpeaker = msg.speaker_label || "";
+        const resolvedSpeaker = speakerMappingsRef.current[rawSpeaker] || rawSpeaker;
         if (msg.is_final) {
           const hasTimestamps = msg.start_ms !== undefined && msg.end_ms !== undefined;
           setAccumulatedTranscript((prev) => {
@@ -141,7 +150,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
                 const updated = [...realtimeUtterancesRef.current];
                 if (updated.length > 0) {
                   updated[updated.length - 1] = {
-                    speaker: msg.speaker_label || "",
+                    speaker: resolvedSpeaker,
                     text: msg.transcript,
                     start_ms: msg.start_ms!,
                     end_ms: msg.end_ms!,
@@ -156,7 +165,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
             lastFinalRef.current = msg.transcript;
             if (hasTimestamps) {
               const updated = [...realtimeUtterancesRef.current, {
-                speaker: msg.speaker_label || "",
+                speaker: resolvedSpeaker,
                 text: msg.transcript,
                 start_ms: msg.start_ms!,
                 end_ms: msg.end_ms!,
@@ -172,6 +181,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
           setCurrentPartial(msg.transcript);
         }
         break;
+      }
 
       case "error":
         setConnectionStatus("error");
@@ -187,7 +197,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const connect = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic", sharedDisplayStream?: MediaStream) => {
+  const connect = useCallback(async (assemblyAiKey: string, deviceId?: string, recordMode: "mic" | "meeting" = "mic", sharedDisplayStream?: MediaStream, speechModel?: RealtimeSpeechModel) => {
     setConnectionStatus("connecting");
     setIsSessionEnded(false);
 
@@ -279,6 +289,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
           api_key: assemblyAiKey,
           session_id: newSessionId,
           sample_rate: 16000,
+          speech_model: speechModel || "precise",
         }));
       };
 
@@ -376,6 +387,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     currentPartialRef.current = "";
     lastFinalRef.current = "";
     realtimeUtterancesRef.current = [];
+    speakerMappingsRef.current = {};
   }, []);
 
   const resetSession = useCallback(() => {
@@ -399,6 +411,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     currentPartialRef.current = "";
     lastFinalRef.current = "";
     realtimeUtterancesRef.current = [];
+    speakerMappingsRef.current = {};
   }, [clearTimer, cleanupAudio]);
 
   // Cleanup on unmount
@@ -423,6 +436,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
     elapsedTime,
     isSessionEnded,
     realtimeUtterances,
+    speakerMappingsRef,
     connect,
     disconnect,
     pause,

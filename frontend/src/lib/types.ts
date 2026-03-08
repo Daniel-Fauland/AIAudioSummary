@@ -2,6 +2,8 @@
 
 export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai" | "langdock";
 
+export type RealtimeSpeechModel = "fast" | "precise";
+
 // === Token Usage types ===
 
 export interface TokenUsage {
@@ -360,6 +362,7 @@ export interface UserPreferences {
   max_speakers?: number;
   realtime_final_summary?: boolean;
   realtime_reevaluate_all?: boolean;
+  realtime_speech_model?: RealtimeSpeechModel;
   realtime_system_prompt?: string;
   custom_templates?: { id: string; name: string; content: string }[];
   form_templates?: FormTemplate[];

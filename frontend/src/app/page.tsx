@@ -73,6 +73,7 @@ const DEFAULT_CHATBOT_COPY_FORMAT_KEY = "aias:v1:default_chatbot_copy_format";
 const ADVANCED_SETTINGS_KEY = "aias:v1:advanced_settings";
 const SHOW_STANDARD_TIMESTAMPS_KEY = "aias:v1:show_standard_timestamps";
 const SHOW_REALTIME_TIMESTAMPS_KEY = "aias:v1:show_realtime_timestamps";
+const REALTIME_SPEECH_MODEL_KEY = "aias:v1:realtime_speech_model";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -389,6 +390,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [showRealtimeTimestamps, setShowRealtimeTimestamps] = useState(
     () => safeGet(SHOW_REALTIME_TIMESTAMPS_KEY, "true") !== "false",
   );
+  const [realtimeSpeechModel, setRealtimeSpeechModel] = useState<import("@/lib/types").RealtimeSpeechModel>(
+    () => (serverPreferences?.realtime_speech_model || safeGet(REALTIME_SPEECH_MODEL_KEY, "precise")) as import("@/lib/types").RealtimeSpeechModel,
+  );
 
   // Form output state — initialize from persisted session
   const [outputMode, setOutputMode] = useState<"summary" | "form">(initialStandardSession.outputMode);
@@ -674,6 +678,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const handleShowRealtimeTimestampsChange = useCallback((enabled: boolean) => {
     setShowRealtimeTimestamps(enabled);
     safeSet(SHOW_REALTIME_TIMESTAMPS_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleRealtimeSpeechModelChange = useCallback((model: import("@/lib/types").RealtimeSpeechModel) => {
+    setRealtimeSpeechModel(model);
+    safeSet(REALTIME_SPEECH_MODEL_KEY, model);
     savePreferences();
   }, [savePreferences]);
 
@@ -1504,6 +1514,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onShowStandardTimestampsChange={handleShowStandardTimestampsChange}
         showRealtimeTimestamps={showRealtimeTimestamps}
         onShowRealtimeTimestampsChange={handleShowRealtimeTimestampsChange}
+        realtimeSpeechModel={realtimeSpeechModel}
+        onRealtimeSpeechModelChange={handleRealtimeSpeechModelChange}
       />
 
       <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
@@ -1585,6 +1597,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             onSavePreferences={savePreferences}
             onSummaryUsage={handleRealtimeSummaryUsage}
             showRealtimeTimestamps={showRealtimeTimestamps}
+            realtimeSpeechModel={realtimeSpeechModel}
+            autoKeyPointsEnabled={autoKeyPointsEnabled}
+            speakerLabelsEnabled={speakerLabelsEnabled}
+            keyPointProvider={resolveModelConfig("key_point_extraction").provider}
+            keyPointModel={resolveModelConfig("key_point_extraction").model}
           />
         </div>
 

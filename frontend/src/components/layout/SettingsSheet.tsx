@@ -27,7 +27,7 @@ import { AzureConfigForm } from "@/components/settings/AzureConfigForm";
 import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
 import { FeatureModelOverrides } from "@/components/settings/FeatureModelOverrides";
 import { ChatbotSettings } from "@/components/settings/ChatbotSettings";
-import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat, ChatbotCopyFormat } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, RealtimeSpeechModel, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat, ChatbotCopyFormat } from "@/lib/types";
 import { COPY_FORMAT_LABELS, SAVE_FORMAT_LABELS, CHATBOT_COPY_FORMAT_LABELS } from "@/lib/content-formats";
 
 interface SettingsSheetProps {
@@ -83,6 +83,8 @@ interface SettingsSheetProps {
   onShowStandardTimestampsChange: (enabled: boolean) => void;
   showRealtimeTimestamps: boolean;
   onShowRealtimeTimestampsChange: (enabled: boolean) => void;
+  realtimeSpeechModel: RealtimeSpeechModel;
+  onRealtimeSpeechModelChange: (model: RealtimeSpeechModel) => void;
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -164,6 +166,8 @@ export function SettingsSheet({
   onShowStandardTimestampsChange,
   showRealtimeTimestamps,
   onShowRealtimeTimestampsChange,
+  realtimeSpeechModel,
+  onRealtimeSpeechModelChange,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -607,6 +611,67 @@ export function SettingsSheet({
                         <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">
                           Realtime
                         </p>
+
+                        {/* Speech Model */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">Speech Model</Label>
+                          <p className="text-xs text-foreground-muted">
+                            Choose between word-by-word streaming or turn-based with speaker diarization
+                          </p>
+                          <Select
+                            value={realtimeSpeechModel}
+                            onValueChange={(v) => onRealtimeSpeechModelChange(v as RealtimeSpeechModel)}
+                          >
+                            <SelectTrigger className="h-8 w-full text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="fast">Fast — Word-by-word streaming, no speaker labels</SelectItem>
+                              <SelectItem value="precise">Precise — Turn-based with speaker diarization</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {realtimeSpeechModel === "precise" && (
+                            <p className="text-xs text-foreground-muted">
+                              Speaker labels are only available in Precise mode.
+                            </p>
+                          )}
+                        </div>
+
+                        {realtimeSpeechModel === "precise" && (
+                          <>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="space-y-0.5">
+                                <Label htmlFor="realtime-auto-key-points" className="text-sm">
+                                  Auto Speaker Key Points
+                                </Label>
+                                <p className="text-xs text-foreground-muted">
+                                  Auto-extract key point summaries per speaker when opening the Speaker Mapping dialog
+                                </p>
+                              </div>
+                              <Switch
+                                id="realtime-auto-key-points"
+                                checked={autoKeyPointsEnabled}
+                                onCheckedChange={onAutoKeyPointsChange}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="space-y-0.5">
+                                <Label htmlFor="realtime-speaker-labels" className="text-sm">
+                                  Auto Speaker Labels
+                                </Label>
+                                <p className="text-xs text-foreground-muted">
+                                  Suggest real speaker names from transcript content when extracting key points
+                                </p>
+                              </div>
+                              <Switch
+                                id="realtime-speaker-labels"
+                                checked={speakerLabelsEnabled}
+                                onCheckedChange={onSpeakerLabelsChange}
+                              />
+                            </div>
+                          </>
+                        )}
 
                         {/* System Prompt */}
                         <div className="space-y-2">

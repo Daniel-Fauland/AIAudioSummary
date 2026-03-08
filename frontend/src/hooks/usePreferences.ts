@@ -216,6 +216,7 @@ function collectPreferences(): UserPreferences {
     max_speakers: maxSpeakers || undefined,
     realtime_final_summary: realtimeFinalSummary ? realtimeFinalSummary !== "false" : undefined,
     realtime_reevaluate_all: realtimeReevaluateAll ? realtimeReevaluateAll === "true" : undefined,
+    realtime_speech_model: (safeLocalGet("aias:v1:realtime_speech_model") as import("@/lib/types").RealtimeSpeechModel) || undefined,
     realtime_system_prompt: realtimeSystemPrompt || undefined,
     custom_templates: customTemplates,
     form_templates: formTemplates,
@@ -252,6 +253,7 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.max_speakers) safeLocalSet("aias:v1:max_speakers", String(prefs.max_speakers));
   if (prefs.realtime_final_summary !== undefined) safeLocalSet("aias:v1:realtime_final_summary", prefs.realtime_final_summary ? "true" : "false");
   if (prefs.realtime_reevaluate_all !== undefined) safeLocalSet("aias:v1:realtime_reevaluate_all", prefs.realtime_reevaluate_all ? "true" : "false");
+  if (prefs.realtime_speech_model) safeLocalSet("aias:v1:realtime_speech_model", prefs.realtime_speech_model);
   if (prefs.realtime_system_prompt) safeLocalSet("aias:v1:realtime_system_prompt", prefs.realtime_system_prompt);
   if (prefs.custom_templates) safeLocalSet("aias:v1:custom_templates", JSON.stringify(prefs.custom_templates));
   if (prefs.form_templates) safeLocalSet("aias:v1:form_templates", JSON.stringify(prefs.form_templates));
