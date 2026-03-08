@@ -97,7 +97,10 @@ export function RealtimeTranscriptView({
     return merged;
   }, [utterances]);
 
-  const hasTimestampedView = !!utterances?.length && !!showTimestamps;
+  // Use timestamped view only when there are speaker labels (precise mode).
+  // In fast mode (no speakers), progressive finals cause flickering in the block view.
+  const hasSpeakerLabels = !!utterances?.some((u) => !!u.speaker);
+  const hasTimestampedView = !!utterances?.length && !!showTimestamps && hasSpeakerLabels;
 
   const contentPayload = useMemo<ContentPayload | null>(() => {
     if (!accumulatedTranscript) return null;
@@ -198,14 +201,38 @@ export function RealtimeTranscriptView({
                     </span>
                     {committedPartial && (
                       <span className="text-foreground">
-                        {committedPartial}
+                        {" "}{committedPartial}
                       </span>
                     )}
-                    {currentPartial && (
-                      <span className="text-foreground-muted">
-                        {currentPartial}
-                      </span>
-                    )}
+                    {(() => {
+                      if (!currentPartial) return null;
+                      // In fast mode, the partial is a progressive turn whose beginning
+                      // may already be committed into accumulatedTranscript.
+                      // Find the longest prefix of currentPartial that matches a suffix
+                      // of accumulatedTranscript, then show only the remainder.
+                      let novel = currentPartial;
+                      if (accumulatedTranscript && currentPartial.length > 0) {
+                        // Only check up to currentPartial length at the tail of accumulated
+                        const tailLen = Math.min(accumulatedTranscript.length, currentPartial.length);
+                        const tail = accumulatedTranscript.slice(-tailLen);
+                        // Try matching progressively longer suffixes of tail against prefixes of partial
+                        let best = 0;
+                        for (let i = tail.length - 1; i >= 0; i--) {
+                          const suffix = tail.slice(i);
+                          if (currentPartial.startsWith(suffix)) {
+                            best = suffix.length;
+                            break;
+                          }
+                        }
+                        if (best > 0) novel = currentPartial.slice(best);
+                      }
+                      if (!novel.trim()) return null;
+                      return (
+                        <span className="text-foreground-muted">
+                          {novel.startsWith(" ") ? "" : " "}{novel}
+                        </span>
+                      );
+                    })()}
                   </>
                 )}
               </>
