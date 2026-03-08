@@ -789,6 +789,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     toggle_realtime_timestamps: async ({ enabled }) => {
       handleShowRealtimeTimestampsChange(enabled as boolean);
     },
+    change_realtime_speech_model: async ({ model }) => {
+      const validModels: import("@/lib/types").RealtimeSpeechModel[] = ["fast", "precise"];
+      if (!validModels.includes(model as import("@/lib/types").RealtimeSpeechModel)) throw new Error(`Invalid speech model: ${model}. Valid models: ${validModels.join(", ")}`);
+      handleRealtimeSpeechModelChange(model as import("@/lib/types").RealtimeSpeechModel);
+    },
     change_default_copy_format: async ({ format }) => {
       const validFormats: import("@/lib/types").CopyFormat[] = ["formatted", "plain", "markdown", "json"];
       if (!validFormats.includes(format as import("@/lib/types").CopyFormat)) throw new Error(`Invalid copy format: ${format}. Valid formats: ${validFormats.join(", ")}`);

@@ -11,13 +11,23 @@ export interface ChangelogEntry {
 export const changelog: ChangelogEntry[] = [
   {
     version: "2.0.0",
-    date: "2026-03-07",
+    date: "2026-03-08",
     title: "Transcript timestamps for Standard & Realtime mode",
     changes: [
       {
         type: "added",
         description:
           "Timestamps are now displayed for each utterance in the transcript view — Standard mode uses precise timestamps from AssemblyAI, Realtime mode uses wall-clock elapsed time. Toggle visibility in Settings > Features under Standard and Realtime sections.",
+      },
+      {
+        type: "added",
+        description:
+          "Speech Model toggle in Settings > Features > Realtime — choose between Fast (word-by-word streaming, no speaker labels) and Precise (turn-based streaming with speaker diarization). Consecutive utterances from the same speaker are automatically merged in Precise mode.",
+      },
+      {
+        type: "added",
+        description:
+          "Speaker Mapping for Realtime mode — map generic speaker labels (Speaker A, Speaker B) to real names via a new dialog accessible from the transcript header. Mappings apply to existing and future utterances. Includes key point extraction and auto-suggested names (configurable in Settings).",
       },
     ],
   },

@@ -399,6 +399,19 @@ Realtime mode provides live transcription of your microphone and generates a run
 
 **Switch to Realtime mode** by clicking **Realtime** in the mode toggle bar at the top.
 
+#### Speech Model
+
+Realtime mode supports two speech models, configurable in **Settings → Features → Realtime → Speech Model**:
+
+| Model       | Behaviour                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Fast**    | Word-by-word streaming transcription. Text appears incrementally as you speak. No speaker labels — all text appears as a single stream.    |
+| **Precise** | Turn-based streaming with speaker diarization. Text appears in complete turns and each turn is labelled with a speaker (e.g., Speaker A). Consecutive turns from the same speaker are automatically merged into a single block. |
+
+The default is **Precise**. You can change the model between sessions — the setting takes effect the next time you start a session.
+
+> **Note:** When using Precise mode, the **Continue with Existing** option in the start session confirmation dialog is disabled because the turn-based model does not support appending to a previous session's context.
+
 #### Controls Bar
 
 A horizontal controls bar appears at the top of the Realtime view:
@@ -421,9 +434,9 @@ When you click **Start** or **Continue Session** and there is existing transcrip
 
 | Option                         | What it does                                                                                                                         |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Continue with Existing**     | Keeps all current data (transcript, summary, questions, form output) and starts the session.                                         |
-| **Clear Transcript & Summary** | Clears only the transcript and summary. Questions & Topics and Form Output are preserved. Then starts the session.                   |
-| **Clear All**                  | Clears transcript, summary, Questions & Topics, form output values, and deselects any Form Output template. Then starts the session. |
+| **Continue with Existing**     | Keeps all current data (transcript, summary, questions, form output) and starts the session. Disabled in Precise mode.               |
+| **Clear Transcript & Summary** | Clears the transcript, summary, and any speaker mappings. Questions & Topics and Form Output are preserved. Then starts the session.  |
+| **Clear All**                  | Clears transcript, summary, speaker mappings, Questions & Topics, form output values, and deselects any Form Output template. Then starts the session. |
 | **Cancel**                     | Closes the dialog without starting.                                                                                                  |
 
 If both the transcript and summary are already empty, clicking **Start** begins the session immediately without showing this dialog.
@@ -431,11 +444,33 @@ If both the transcript and summary are already empty, clicking **Start** begins 
 #### Live Transcript Panel
 
 - Located on the left (or first tab on mobile).
-- Shows the conversation as it happens, word by word.
-- **Finalized text** appears in normal style; **in-progress partial text** appears in a muted italic style.
+- In **Fast** mode, text appears word by word as a single stream. In **Precise** mode, text appears in labelled turns (e.g., **Speaker A:** …). Consecutive turns from the same speaker are merged into a single block.
+- **Finalized text** appears in normal style; **in-progress partial text** appears in a muted style.
 - Auto-scrolls to the bottom as new text arrives.
-- A **trash icon** (to the left of the copy button) lets you clear the accumulated transcript. A confirmation dialog appears before clearing.
+- A **speaker mapping icon** (👥) appears in the header when using Precise mode and at least one speaker has been detected. Click it to open the Speaker Mapping dialog (see below).
+- A **trash icon** lets you clear the accumulated transcript. A confirmation dialog appears before clearing.
 - When **Show Timestamps** is enabled (Settings → Features → Realtime), each finalized utterance displays a wall-clock timestamp (e.g., `00:00 - 00:27`). Timestamps reflect elapsed time since the session started. When visible, they are included in copy/download and chatbot context.
+
+#### Speaker Mapping (Realtime)
+
+When using **Precise** mode, speakers are labelled with generic names (Speaker A, Speaker B, etc.). You can map these to real names:
+
+1. Click the **speaker mapping icon** (👥) in the Live Transcript panel header.
+2. A dialog opens showing all detected speakers. Enter a replacement name for each speaker you want to rename.
+3. Click **Apply Names** to apply the mappings.
+
+**How mappings work:**
+- All existing utterances in the transcript are immediately updated with the new names.
+- All future incoming utterances from the same speaker are automatically mapped in real time.
+- You can re-open the dialog at any time (during or after the session) to edit or add mappings.
+- Mappings are cleared when you clear the transcript, clear all session data, or start a new session.
+
+**Key Points & Suggested Names:**
+- Click **Generate Key Points** in the dialog to have the AI extract a brief summary of what each speaker has said so far. This helps you identify who is who.
+- If **Auto Speaker Labels** is enabled in Settings, the AI will also suggest real names based on transcript content (e.g., if someone says "Thanks, Daniel", it may suggest "Daniel" for that speaker). Suggested names are pre-filled into the input fields.
+- These features are controlled by two toggles in **Settings → Features → Realtime** (visible only in Precise mode):
+  - **Auto Speaker Key Points** — automatically extract key points for unmapped speakers when the dialog opens.
+  - **Auto Speaker Labels** — suggest real names from transcript content when extracting key points.
 
 #### Summary Panel
 

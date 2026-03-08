@@ -89,6 +89,11 @@ ACTION_REGISTRY = [
         "params": {"enabled": {"type": "boolean"}},
     },
     {
+        "action_id": "change_realtime_speech_model",
+        "description": "Change the realtime speech model. 'fast' provides word-by-word streaming without speaker labels. 'precise' provides turn-based streaming with speaker diarization (speaker labels). Takes effect on the next session start.",
+        "params": {"model": {"type": "string", "enum": ["fast", "precise"]}},
+    },
+    {
         "action_id": "change_default_copy_format",
         "description": "Change the default format used when copying content (transcript, summary, etc.) to the clipboard",
         "params": {
