@@ -273,34 +273,40 @@ export function RealtimeTranscriptView({
           <DialogHeader>
             <DialogTitle>Live Transcript</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1">
-            {hasTimestampedView ? (
-              <div className="space-y-3 p-4">
-                {utterances!.map((u, i) => (
-                  <div key={i} className="border-l-2 border-border pl-3 py-1">
-                    <p className="font-mono text-sm text-foreground">{u.text}</p>
-                    <span className="text-xs text-foreground-muted">
-                      {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
-                    </span>
-                  </div>
-                ))}
-                {(committedPartial || currentPartial) && (
-                  <div className="font-mono text-sm text-foreground leading-relaxed">
-                    {committedPartial && <span>{committedPartial}</span>}
-                    {currentPartial && <span className="text-foreground-muted"> {currentPartial}</span>}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="font-mono text-sm text-foreground leading-relaxed p-4">
-                {accumulatedTranscript}
-                {committedPartial && ` ${committedPartial}`}
-                {currentPartial && (
-                  <span className="text-foreground-muted"> {currentPartial}</span>
-                )}
-              </div>
-            )}
-          </ScrollArea>
+          <div className="flex flex-1 min-h-0 flex-col rounded-md bg-card">
+            <ScrollArea className="flex-1 min-h-0">
+              {hasTimestampedView ? (
+                <div className="space-y-3 p-4">
+                  {utterances!.map((u, i) => (
+                    <div key={i} className="border-l-2 border-border pl-3 py-1">
+                      <p className="font-mono text-sm text-foreground">{u.text}</p>
+                      <span className="text-xs text-foreground-muted">
+                        {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
+                      </span>
+                    </div>
+                  ))}
+                  {(committedPartial || currentPartial) && (
+                    <div className="font-mono text-sm text-foreground leading-relaxed">
+                      {committedPartial && <span>{committedPartial}</span>}
+                      {currentPartial && <span className="text-foreground-muted"> {currentPartial}</span>}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="font-mono text-sm text-foreground leading-relaxed p-4">
+                  {accumulatedTranscript}
+                  {committedPartial && ` ${committedPartial}`}
+                  {currentPartial && (
+                    <span className="text-foreground-muted"> {currentPartial}</span>
+                  )}
+                </div>
+              )}
+            </ScrollArea>
+            <div className="grid grid-cols-2 gap-2 p-4 pt-2">
+              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

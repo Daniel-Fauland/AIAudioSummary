@@ -42,10 +42,33 @@ export function SummaryView({
   const [fullscreen, setFullscreen] = useState(false);
   const [badgeHovered, setBadgeHovered] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const userScrolledRef = useRef(false);
 
-  // Auto-scroll during streaming
+  // Track user scroll to disengage auto-scroll
   useEffect(() => {
-    if (loading && scrollRef.current) {
+    const el = scrollRef.current;
+    if (!el) return;
+    const vp = el.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
+    if (!vp) return;
+
+    const handleScroll = () => {
+      if (!loading) return;
+      const atBottom = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 30;
+      userScrolledRef.current = !atBottom;
+    };
+
+    vp.addEventListener("scroll", handleScroll);
+    return () => vp.removeEventListener("scroll", handleScroll);
+  }, [loading]);
+
+  // Reset anchor when generation starts
+  useEffect(() => {
+    if (loading) userScrolledRef.current = false;
+  }, [loading]);
+
+  // Auto-scroll during streaming (only if user hasn't scrolled away)
+  useEffect(() => {
+    if (loading && scrollRef.current && !userScrolledRef.current) {
       const vp = scrollRef.current.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
       if (vp) vp.scrollTop = vp.scrollHeight;
     }
@@ -66,7 +89,7 @@ export function SummaryView({
   }, [summary, loading]);
 
   return (
-    <Card className="border-border">
+    <Card className="border-border flex flex-col h-full">
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <CardTitle className="text-lg">Summary</CardTitle>
@@ -132,8 +155,6 @@ export function SummaryView({
 
         {!loading ? (
           <div className="grid grid-cols-2 gap-2">
-            <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-            <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
             <Button variant="secondary" className="justify-start" onClick={onRegenerate}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Regenerate
@@ -142,6 +163,8 @@ export function SummaryView({
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Transcript
             </Button>
+            <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+            <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
           </div>
         ) : null}
       </CardContent>
@@ -158,8 +181,6 @@ export function SummaryView({
               </div>
             </ScrollArea>
             <div className="grid grid-cols-2 gap-2 p-4 pt-2">
-              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
               <Button variant="secondary" className="justify-start" onClick={onRegenerate}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Regenerate
@@ -168,6 +189,8 @@ export function SummaryView({
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Transcript
               </Button>
+              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
             </div>
           </div>
         </DialogContent>

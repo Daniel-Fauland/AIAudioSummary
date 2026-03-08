@@ -109,8 +109,8 @@ export function TranscriptView({
   }
 
   return (
-    <Card className="border-border">
-      <CardHeader className="flex flex-row items-center justify-between">
+    <Card className="border-border h-full min-h-0 overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between shrink-0">
         <CardTitle className="text-lg">Transcript</CardTitle>
         <div className="flex items-center gap-2">
           {transcript && !readOnly ? (
@@ -146,9 +146,9 @@ export function TranscriptView({
           ) : null}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {readOnly ? (
-          <ScrollArea className="max-h-[600px] min-h-[300px]">
+          <ScrollArea className="flex-1 min-h-0">
             {hasTimestampedView ? (
               <div className="space-y-3">
                 {utterances!.map((u, i) => (
@@ -177,7 +177,7 @@ export function TranscriptView({
           />
         )}
         {transcript && readOnly ? (
-          <div className="grid grid-cols-2 gap-2 mt-4">
+          <div className="grid grid-cols-2 gap-2 mt-4 shrink-0">
             <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
             <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
           </div>
@@ -210,35 +210,41 @@ export function TranscriptView({
           <DialogHeader>
             <DialogTitle>Transcript</DialogTitle>
           </DialogHeader>
-          {readOnly ? (
-            <ScrollArea className="flex-1">
-              {hasTimestampedView ? (
-                <div className="space-y-3 p-4">
-                  {utterances!.map((u, i) => (
-                    <div key={i} className="border-l-2 border-border pl-3 py-1">
-                      <p className="font-mono text-sm text-foreground">
-                        <span className="font-semibold">{u.speaker}:</span> {u.text}
-                      </p>
-                      <span className="text-xs text-foreground-muted">
-                        {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="whitespace-pre-wrap font-mono text-sm text-foreground p-4">
-                  {transcript}
-                </div>
-              )}
-            </ScrollArea>
-          ) : (
-            <Textarea
-              value={transcript}
-              onChange={(e) => onTranscriptChange?.(e.target.value)}
-              className="flex-1 resize-none bg-card-elevated font-mono text-sm text-foreground"
-              placeholder="Transcript will appear here..."
-            />
-          )}
+          <div className="flex flex-1 min-h-0 flex-col rounded-md bg-card">
+            {readOnly ? (
+              <ScrollArea className="flex-1 min-h-0">
+                {hasTimestampedView ? (
+                  <div className="space-y-3 p-4">
+                    {utterances!.map((u, i) => (
+                      <div key={i} className="border-l-2 border-border pl-3 py-1">
+                        <p className="font-mono text-sm text-foreground">
+                          <span className="font-semibold">{u.speaker}:</span> {u.text}
+                        </p>
+                        <span className="text-xs text-foreground-muted">
+                          {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap font-mono text-sm text-foreground p-4">
+                    {transcript}
+                  </div>
+                )}
+              </ScrollArea>
+            ) : (
+              <Textarea
+                value={transcript}
+                onChange={(e) => onTranscriptChange?.(e.target.value)}
+                className="flex-1 resize-none bg-card-elevated font-mono text-sm text-foreground"
+                placeholder="Transcript will appear here..."
+              />
+            )}
+            <div className="grid grid-cols-2 gap-2 p-4 pt-2">
+              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </Card>

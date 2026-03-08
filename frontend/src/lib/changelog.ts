@@ -39,6 +39,31 @@ export const changelog: ChangelogEntry[] = [
         description:
           "Reset All Settings to Defaults — a new button at the bottom of the Settings panel lets you revert all settings to their factory defaults with a single click. A confirmation dialog is shown before resetting. API keys are not affected.",
       },
+      {
+        type: "added",
+        description:
+          'Unfilled fields popover — hover (desktop) or tap (mobile) the "X/Z filled" badge on any form output to see which fields are still unfilled. Works in both Standard and Realtime mode.',
+      },
+      {
+        type: "changed",
+        description:
+          "Realtime incremental summaries now skip if fewer than 5 new words have been added to the transcript since the last update, avoiding unnecessary API calls during silence or pauses.",
+      },
+      {
+        type: "fixed",
+        description:
+          "Standard mode form template layout — the transcript card now matches the form card height and scrolls internally instead of stretching the page. Button alignment between transcript and form cards is now consistent.",
+      },
+      {
+        type: "fixed",
+        description:
+          "Summary auto-scroll during streaming — scrolling up now pauses auto-scroll so you can read earlier content while the summary is still generating. Scrolling back to the bottom re-enables it.",
+      },
+      {
+        type: "fixed",
+        description:
+          "Fullscreen transcript view — content no longer overflows the dialog and is now properly scrollable. Fixed in both Standard and Realtime mode. Copy/Save buttons are now also available in fullscreen.",
+      },
     ],
   },
   {

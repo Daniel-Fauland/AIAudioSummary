@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { RealtimeControls } from "./RealtimeControls";
 import { RealtimeTranscriptView } from "./RealtimeTranscriptView";
 import { RealtimeSummaryView } from "./RealtimeSummaryView";
@@ -744,9 +745,24 @@ export function RealtimeMode({
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 pt-2">
-            <Button variant="secondary" onClick={handleStartContinue} disabled={realtimeSpeechModel === "precise"}>
-              Continue with Existing
-            </Button>
+            {realtimeSpeechModel === "precise" ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Button variant="secondary" disabled className="pointer-events-none w-full">
+                      Continue with Existing
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Continuing an existing transcript is not supported in Precise mode
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button variant="secondary" onClick={handleStartContinue}>
+                Continue with Existing
+              </Button>
+            )}
             <Button variant="secondary" onClick={handleStartClearTranscriptSummary}>
               Clear Transcript &amp; Summary
             </Button>

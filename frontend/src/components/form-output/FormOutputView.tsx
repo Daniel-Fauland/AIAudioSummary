@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { RefreshCw, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { FormFieldDefinition, FormFieldType, ContentPayload } from "@/lib/types";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
 import { buildFormPayload } from "@/lib/content-formats";
 
@@ -229,6 +230,8 @@ export function FormOutputView({
   }, [fields, values, templateName]);
 
   const filledCount = fields.filter((f) => values[f.id] != null).length;
+  const unfilledFields = fields.filter((f) => values[f.id] == null);
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
   return (
     <Card className="border-border bg-card">
@@ -239,9 +242,28 @@ export function FormOutputView({
             {isFilling && (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground-muted" />
             )}
-            <Badge variant="secondary" className="text-xs font-normal">
-              {filledCount}/{fields.length} filled
-            </Badge>
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Badge
+                  variant="secondary"
+                  className="text-xs font-normal cursor-pointer"
+                  onMouseEnter={() => { if (window.matchMedia("(hover: hover)").matches) setPopoverOpen(true); }}
+                  onMouseLeave={() => { if (window.matchMedia("(hover: hover)").matches) setPopoverOpen(false); }}
+                >
+                  {filledCount}/{fields.length} filled
+                </Badge>
+              </PopoverTrigger>
+              {unfilledFields.length > 0 && (
+                <PopoverContent className="w-auto max-w-64 p-3" side="bottom" align="end">
+                  <p className="text-xs font-medium mb-1.5">Unfilled fields</p>
+                  <ul className="space-y-0.5">
+                    {unfilledFields.map((f) => (
+                      <li key={f.id} className="text-xs text-foreground-secondary">&bull; {f.label}</li>
+                    ))}
+                  </ul>
+                </PopoverContent>
+              )}
+            </Popover>
           </div>
         </div>
       </CardHeader>
@@ -255,24 +277,23 @@ export function FormOutputView({
           />
         ))}
 
-        <div className="flex flex-wrap gap-2 pt-2">
-          <Button variant="outline" size="sm" onClick={onBack}>
-            <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+        <div className="grid grid-cols-2 gap-2 pt-2">
+          <Button variant="secondary" size="default" className="justify-start" onClick={onBack}>
+            <ArrowLeft className="mr-1.5 h-4 w-4" />
             Back
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="secondary"
+            size="default"
+            className="justify-start"
             onClick={onRefill}
             disabled={refillDisabled || isFilling}
           >
-            <RefreshCw className="mr-1 h-3.5 w-3.5" />
+            <RefreshCw className="mr-1.5 h-4 w-4" />
             Re-fill
           </Button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
-          <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
+          <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
+          <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
         </div>
       </CardContent>
     </Card>

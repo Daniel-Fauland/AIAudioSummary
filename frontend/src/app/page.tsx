@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { StepIndicator } from "@/components/layout/StepIndicator";
+import { SideBySideLayout } from "@/components/layout/SideBySideLayout";
 import { SettingsSheet } from "@/components/layout/SettingsSheet";
 import { FileUpload } from "@/components/workflow/FileUpload";
 import { AudioRecorder } from "@/components/workflow/AudioRecorder";
@@ -2000,31 +2001,35 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           {/* Step 3: Summary or Form Output (side-by-side with transcript) */}
           {currentStep === 3 ? (
             <>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <TranscriptView transcript={transcript} onTranscriptChange={setTranscript} readOnly utterances={utterances} showTimestamps={showStandardTimestamps} />
-                {outputMode === "summary" ? (
-                  <SummaryView
-                    summary={summary}
-                    loading={isGenerating}
-                    onStop={handleStopGenerating}
-                    onRegenerate={handleRegenerate}
-                    onBack={handleBackToTranscript}
-                    tokenUsage={summaryUsage}
-                    contextWindow={getContextWindow(config, resolveModelConfig("summary_generation").provider, resolveModelConfig("summary_generation").model)}
-                  />
-                ) : (
-                  <FormOutputView
-                    templateName={formTemplates.find((t) => t.id === selectedFormTemplateId)?.name ?? "Form Output"}
-                    fields={formTemplates.find((t) => t.id === selectedFormTemplateId)?.fields ?? []}
-                    values={formValues}
-                    isFilling={isFillingForm}
-                    onManualEdit={handleFormManualEdit}
-                    onRefill={handleFormRefill}
-                    onBack={handleBackToTranscript}
-                    refillDisabled={!transcript || !hasFormOutputKey || !resolvedFormOutputConfig.model}
-                  />
-                )}
-              </div>
+              <SideBySideLayout
+                left={
+                  <TranscriptView transcript={transcript} onTranscriptChange={setTranscript} readOnly utterances={utterances} showTimestamps={showStandardTimestamps} />
+                }
+                right={
+                  outputMode === "summary" ? (
+                    <SummaryView
+                      summary={summary}
+                      loading={isGenerating}
+                      onStop={handleStopGenerating}
+                      onRegenerate={handleRegenerate}
+                      onBack={handleBackToTranscript}
+                      tokenUsage={summaryUsage}
+                      contextWindow={getContextWindow(config, resolveModelConfig("summary_generation").provider, resolveModelConfig("summary_generation").model)}
+                    />
+                  ) : (
+                    <FormOutputView
+                      templateName={formTemplates.find((t) => t.id === selectedFormTemplateId)?.name ?? "Form Output"}
+                      fields={formTemplates.find((t) => t.id === selectedFormTemplateId)?.fields ?? []}
+                      values={formValues}
+                      isFilling={isFillingForm}
+                      onManualEdit={handleFormManualEdit}
+                      onRefill={handleFormRefill}
+                      onBack={handleBackToTranscript}
+                      refillDisabled={!transcript || !hasFormOutputKey || !resolvedFormOutputConfig.model}
+                    />
+                  )
+                }
+              />
               {!isGenerating && !isFillingForm ? (
                 <div className="flex gap-2">
                   <Button variant="ghost" onClick={handleStartOver}>

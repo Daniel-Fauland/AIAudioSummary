@@ -569,7 +569,7 @@ Instead of adding fields manually, you can let the AI design a template for you:
 3. Optionally set the **Meeting Date** using the date picker below the template selector. When set, the AI uses this date as context when filling date-related fields in the form. This works the same way as the Meeting Date in Prompt Settings for summary generation — the same date picker is shared between both modes.
 4. Click **Fill Form** — the AI analyses the transcript and extracts values for each field.
 5. The app moves to Step 3, showing the transcript on the left and the filled form on the right.
-6. Review the extracted values. You can **edit any field** manually.
+6. Review the extracted values. You can **edit any field** manually. A badge in the card header shows how many fields are filled (e.g., "7/10 filled"). **Hover** (desktop) or **tap** (mobile) the badge to see a popover listing the names of all unfilled fields.
 7. Click **Re-fill** to regenerate values from the transcript, or use the **Copy as** / **Save as** split buttons to copy or download the form in your preferred format. Copy formats: Formatted, Plain Text, Markdown, JSON. Save formats: .txt, .md, .docx, .pdf, .html, .json.
 
 > The AI only fills a field if the information is clearly stated in the transcript. Fields without matching content are left empty. When a Meeting Date is provided, the AI may use it to fill date fields if no specific date is mentioned in the transcript.
@@ -579,7 +579,7 @@ Instead of adding fields manually, you can let the AI design a template for you:
 1. In Realtime mode, switch to the **Form Output** tab below the transcript and summary panels.
 2. Select or create a form template.
 3. As speech is transcribed, the AI **automatically fills the form in real time** — no need to click a button.
-4. A badge shows how many fields are filled (e.g., "3/5 filled").
+4. A badge shows how many fields are filled (e.g., "3/5 filled"). **Hover** (desktop) or **tap** (mobile) the badge to see a popover listing the names of all unfilled fields.
 5. You can manually edit any field value at any time.
 6. Toggle **Mark as Complete** to lock the form and prevent further auto-updates. Manual edits are still allowed when locked. Unlock to resume auto-filling.
 7. To deselect a template entirely, choose **"No template"** from the dropdown. This clears the form and stops auto-filling.
