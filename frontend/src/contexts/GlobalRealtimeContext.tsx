@@ -169,7 +169,6 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
           setCurrentPartial("");
           setCommittedPartial("");
         } else {
-          lastFinalRef.current = "";  // New turn started — reset dedup
           setCurrentPartial(msg.transcript);
         }
         break;

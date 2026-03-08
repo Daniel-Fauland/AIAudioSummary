@@ -149,21 +149,30 @@ export function RealtimeTranscriptView({
                         </span>
                       </div>
                     ))}
+                    {(currentPartial || committedPartial) && (
+                      <div className="border-l-2 border-border/50 pl-3 py-1 opacity-60">
+                        <p className="text-sm text-foreground-muted">
+                          {currentPartial || committedPartial}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <span className="text-foreground">
-                    {accumulatedTranscript}
-                  </span>
-                )}
-                {committedPartial && (
-                  <span className="text-foreground">
-                    {committedPartial}
-                  </span>
-                )}
-                {currentPartial && (
-                  <span className="text-foreground-muted">
-                    {currentPartial}
-                  </span>
+                  <>
+                    <span className="text-foreground">
+                      {accumulatedTranscript}
+                    </span>
+                    {committedPartial && (
+                      <span className="text-foreground">
+                        {committedPartial}
+                      </span>
+                    )}
+                    {currentPartial && (
+                      <span className="text-foreground-muted">
+                        {currentPartial}
+                      </span>
+                    )}
+                  </>
                 )}
               </>
             ) : (

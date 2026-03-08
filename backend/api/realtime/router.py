@@ -352,9 +352,23 @@ async def _run_relay(
                     is_formatted = event.get("turn_is_formatted", False)
                     speaker = event.get("speaker_label", "")
 
+                    logger.debug(
+                        f"AAI Turn: formatted={is_formatted}, eos={is_eos}, "
+                        f"speaker={speaker}, text={transcript[:60]!r}"
+                    )
+
                     # Skip unformatted end-of-turn (duplicate of formatted one)
                     if is_eos and not is_formatted:
                         continue
+
+                    # Resolve speaker label
+                    if speaker and speaker != "UNKNOWN":
+                        resolved_speaker = f"Speaker {speaker}"
+                        last_known_speaker = resolved_speaker
+                    elif speaker == "UNKNOWN" and last_known_speaker:
+                        resolved_speaker = last_known_speaker
+                    else:
+                        resolved_speaker = f"Speaker {speaker}" if speaker else ""
 
                     if is_formatted and transcript:
                         # Progressive final — buffer and reset debounce timer
@@ -364,23 +378,26 @@ async def _run_relay(
                         if last_final_text and not transcript.startswith(last_final_text):
                             current_turn_start = last_sent_end_ms
                         pending_final = transcript
-                        # Resolve UNKNOWN to last known speaker
-                        if speaker and speaker != "UNKNOWN":
-                            current_speaker = f"Speaker {speaker}"
-                            last_known_speaker = current_speaker
-                        elif speaker == "UNKNOWN" and last_known_speaker:
-                            current_speaker = last_known_speaker
-                        else:
-                            current_speaker = f"Speaker {speaker}" if speaker else ""
+                        current_speaker = resolved_speaker
+
+                        # Immediately send as partial so the user sees live text
+                        await session_manager.update_partial(session_id, transcript)
+                        await ws.send_json({
+                            "type": "turn",
+                            "transcript": transcript,
+                            "is_final": False,
+                            "speaker_label": resolved_speaker,
+                        })
                         pending_task = asyncio.create_task(delayed_flush())
                     elif not is_eos and transcript:
-                        # Partial — flush any pending final first, then send
+                        # Unformatted partial — send as live preview
                         await flush_now()
                         await session_manager.update_partial(session_id, transcript)
                         await ws.send_json({
                             "type": "turn",
                             "transcript": transcript,
                             "is_final": False,
+                            "speaker_label": resolved_speaker,
                         })
                 else:
                     await _handle_aai_event(ws, event, session_id)
