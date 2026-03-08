@@ -14,8 +14,9 @@ class RealtimeTranscriptionService:
         params = (
             f"?sample_rate={sample_rate}"
             f"&encoding=pcm_s16le"
-            f"&speech_model=universal-streaming-multilingual"
+            f"&speech_model=u3-rt-pro"
             f"&format_turns=true"
+            f"&speaker_labels=true"
         )
         url = f"{AAI_STREAMING_URL}{params}"
 
@@ -23,7 +24,8 @@ class RealtimeTranscriptionService:
             url,
             additional_headers={"Authorization": api_key},
         )
-        logger.info(f"Connected to AssemblyAI streaming API (sample_rate={sample_rate})")
+        logger.info(
+            f"Connected to AssemblyAI streaming API (sample_rate={sample_rate})")
         return ws
 
     async def send_audio(

@@ -140,7 +140,10 @@ export function RealtimeTranscriptView({
                   <div className="space-y-3">
                     {utterances!.map((u, i) => (
                       <div key={i} className="border-l-2 border-border pl-3 py-1">
-                        <p className="text-sm text-foreground">{u.text}</p>
+                        <p className="text-sm text-foreground">
+                          {u.speaker && <span className="font-semibold">{u.speaker}: </span>}
+                          {u.text}
+                        </p>
                         <span className="text-xs text-foreground-muted">
                           {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
                         </span>

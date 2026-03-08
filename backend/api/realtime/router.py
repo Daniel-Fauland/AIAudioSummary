@@ -276,6 +276,9 @@ async def _run_relay(
         last_sent_end_ms: int = 0    # end_ms of the last send_final call
         last_final_text: str = ""    # text of last sent final (to detect progressive vs new)
 
+        current_speaker: str = ""      # speaker label for the current turn
+        last_known_speaker: str = ""   # last non-UNKNOWN speaker for fallback
+
         async def send_final(text: str):
             """Send a finalized turn to browser and session_manager."""
             nonlocal last_sent_end_ms, last_final_text
@@ -290,6 +293,7 @@ async def _run_relay(
                 "is_final": True,
                 "start_ms": current_turn_start,
                 "end_ms": end_ms,
+                "speaker_label": current_speaker,
             })
 
         async def delayed_flush():
@@ -346,6 +350,7 @@ async def _run_relay(
                     transcript = event.get("transcript", "")
                     is_eos = event.get("end_of_turn", False)
                     is_formatted = event.get("turn_is_formatted", False)
+                    speaker = event.get("speaker_label", "")
 
                     # Skip unformatted end-of-turn (duplicate of formatted one)
                     if is_eos and not is_formatted:
@@ -359,6 +364,14 @@ async def _run_relay(
                         if last_final_text and not transcript.startswith(last_final_text):
                             current_turn_start = last_sent_end_ms
                         pending_final = transcript
+                        # Resolve UNKNOWN to last known speaker
+                        if speaker and speaker != "UNKNOWN":
+                            current_speaker = f"Speaker {speaker}"
+                            last_known_speaker = current_speaker
+                        elif speaker == "UNKNOWN" and last_known_speaker:
+                            current_speaker = last_known_speaker
+                        else:
+                            current_speaker = f"Speaker {speaker}" if speaker else ""
                         pending_task = asyncio.create_task(delayed_flush())
                     elif not is_eos and transcript:
                         # Partial — flush any pending final first, then send

@@ -141,7 +141,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
                 const updated = [...realtimeUtterancesRef.current];
                 if (updated.length > 0) {
                   updated[updated.length - 1] = {
-                    speaker: "",
+                    speaker: msg.speaker_label || "",
                     text: msg.transcript,
                     start_ms: msg.start_ms!,
                     end_ms: msg.end_ms!,
@@ -156,7 +156,7 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
             lastFinalRef.current = msg.transcript;
             if (hasTimestamps) {
               const updated = [...realtimeUtterancesRef.current, {
-                speaker: "",
+                speaker: msg.speaker_label || "",
                 text: msg.transcript,
                 start_ms: msg.start_ms!,
                 end_ms: msg.end_ms!,
