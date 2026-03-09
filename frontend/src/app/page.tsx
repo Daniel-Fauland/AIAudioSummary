@@ -75,7 +75,6 @@ const DEFAULT_SAVE_FORMAT_KEY = "aias:v1:default_save_format";
 const DEFAULT_CHATBOT_COPY_FORMAT_KEY = "aias:v1:default_chatbot_copy_format";
 const ADVANCED_SETTINGS_KEY = "aias:v1:advanced_settings";
 const SHOW_STANDARD_TIMESTAMPS_KEY = "aias:v1:show_standard_timestamps";
-const SHOW_REALTIME_TIMESTAMPS_KEY = "aias:v1:show_realtime_timestamps";
 const REALTIME_SPEECH_MODEL_KEY = "aias:v1:realtime_speech_model";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
@@ -442,9 +441,6 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [showStandardTimestamps, setShowStandardTimestamps] = useState(
     () => safeGet(SHOW_STANDARD_TIMESTAMPS_KEY, "true") !== "false",
   );
-  const [showRealtimeTimestamps, setShowRealtimeTimestamps] = useState(
-    () => safeGet(SHOW_REALTIME_TIMESTAMPS_KEY, "true") !== "false",
-  );
   const [realtimeSpeechModel, setRealtimeSpeechModel] = useState<import("@/lib/types").RealtimeSpeechModel>(
     () => (serverPreferences?.realtime_speech_model || safeGet(REALTIME_SPEECH_MODEL_KEY, "precise")) as import("@/lib/types").RealtimeSpeechModel,
   );
@@ -474,11 +470,11 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   }, [transcript, utterances, showStandardTimestamps]);
 
   const realtimeTranscriptForLLM = useMemo(() => {
-    if (showRealtimeTimestamps && realtimeUtterancesForLLM.length > 0) {
+    if (realtimeSpeechModel === "precise" && realtimeUtterancesForLLM.length > 0) {
       return formatTranscriptWithTimestamps(realtimeUtterancesForLLM);
     }
     return realtimeTranscript;
-  }, [realtimeTranscript, realtimeUtterancesForLLM, showRealtimeTimestamps]);
+  }, [realtimeTranscript, realtimeUtterancesForLLM, realtimeSpeechModel]);
 
   // Transcript available for the current mode (ignoring suspended state)
   const availableTranscript = (() => {
@@ -730,12 +726,6 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
   }, [savePreferences]);
 
-  const handleShowRealtimeTimestampsChange = useCallback((enabled: boolean) => {
-    setShowRealtimeTimestamps(enabled);
-    safeSet(SHOW_REALTIME_TIMESTAMPS_KEY, enabled ? "true" : "false");
-    savePreferences();
-  }, [savePreferences]);
-
   const handleRealtimeSpeechModelChange = useCallback((model: import("@/lib/types").RealtimeSpeechModel) => {
     setRealtimeSpeechModel(model);
     safeSet(REALTIME_SPEECH_MODEL_KEY, model);
@@ -795,9 +785,6 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     safeSet(ADVANCED_SETTINGS_KEY, "false");
     setShowStandardTimestamps(true);
     safeSet(SHOW_STANDARD_TIMESTAMPS_KEY, "true");
-    setShowRealtimeTimestamps(true);
-    safeSet(SHOW_REALTIME_TIMESTAMPS_KEY, "true");
-
     // Formats
     setDefaultCopyFormat("formatted" as import("@/lib/types").CopyFormat);
     safeSet(DEFAULT_COPY_FORMAT_KEY, "formatted");
@@ -911,9 +898,6 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     },
     toggle_standard_timestamps: async ({ enabled }) => {
       handleShowStandardTimestampsChange(enabled as boolean);
-    },
-    toggle_realtime_timestamps: async ({ enabled }) => {
-      handleShowRealtimeTimestampsChange(enabled as boolean);
     },
     change_realtime_speech_model: async ({ model }) => {
       const validModels: import("@/lib/types").RealtimeSpeechModel[] = ["fast", "precise"];
@@ -1694,8 +1678,6 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onAdvancedSettingsChange={handleAdvancedSettingsChange}
         showStandardTimestamps={showStandardTimestamps}
         onShowStandardTimestampsChange={handleShowStandardTimestampsChange}
-        showRealtimeTimestamps={showRealtimeTimestamps}
-        onShowRealtimeTimestampsChange={handleShowRealtimeTimestampsChange}
         realtimeSpeechModel={realtimeSpeechModel}
         onRealtimeSpeechModelChange={handleRealtimeSpeechModelChange}
         keytermsLists={keytermsLists}
@@ -1785,7 +1767,6 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             onClearRealtimeSession={sessionPersistence.clearRealtimeSession}
             onSavePreferences={savePreferences}
             onSummaryUsage={handleRealtimeSummaryUsage}
-            showRealtimeTimestamps={showRealtimeTimestamps}
             realtimeSpeechModel={realtimeSpeechModel}
             keyterms={selectedKeyterms.length > 0 ? selectedKeyterms : undefined}
             autoKeyPointsEnabled={autoKeyPointsEnabled}

@@ -83,8 +83,6 @@ interface SettingsSheetProps {
   onAdvancedSettingsChange: (enabled: boolean) => void;
   showStandardTimestamps: boolean;
   onShowStandardTimestampsChange: (enabled: boolean) => void;
-  showRealtimeTimestamps: boolean;
-  onShowRealtimeTimestampsChange: (enabled: boolean) => void;
   realtimeSpeechModel: RealtimeSpeechModel;
   onRealtimeSpeechModelChange: (model: RealtimeSpeechModel) => void;
   keytermsLists: KeytermsList[];
@@ -173,8 +171,6 @@ export function SettingsSheet({
   onAdvancedSettingsChange,
   showStandardTimestamps,
   onShowStandardTimestampsChange,
-  showRealtimeTimestamps,
-  onShowRealtimeTimestampsChange,
   realtimeSpeechModel,
   onRealtimeSpeechModelChange,
   keytermsLists,
@@ -769,21 +765,6 @@ export function SettingsSheet({
                           />
                         </div>
 
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="space-y-0.5">
-                            <Label htmlFor="show-realtime-timestamps" className="text-sm">
-                              Show Timestamps
-                            </Label>
-                            <p className="text-xs text-foreground-muted">
-                              Display start/end timestamps for each utterance in the transcript
-                            </p>
-                          </div>
-                          <Switch
-                            id="show-realtime-timestamps"
-                            checked={showRealtimeTimestamps}
-                            onCheckedChange={onShowRealtimeTimestampsChange}
-                          />
-                        </div>
                       </div>
                     </>
                   )}

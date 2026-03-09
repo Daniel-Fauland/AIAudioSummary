@@ -79,7 +79,6 @@ interface RealtimeModeProps {
   onClearRealtimeSession?: () => void;
   onSavePreferences?: () => void;
   onSummaryUsage?: (usage: TokenUsage) => void;
-  showRealtimeTimestamps?: boolean;
   realtimeSpeechModel?: RealtimeSpeechModel;
   keyterms?: string[];
   autoKeyPointsEnabled?: boolean;
@@ -129,7 +128,6 @@ export function RealtimeMode({
   onClearRealtimeSession,
   onSavePreferences,
   onSummaryUsage,
-  showRealtimeTimestamps,
   realtimeSpeechModel = "precise",
   keyterms,
   autoKeyPointsEnabled = false,
@@ -639,7 +637,7 @@ export function RealtimeMode({
             isSessionActive={isActive}
             onClear={handleClearTranscript}
             utterances={session.realtimeUtterances}
-            showTimestamps={showRealtimeTimestamps}
+
             showSpeakerMapperButton={showSpeakerMapperButton}
             onOpenSpeakerMapper={() => setSpeakerMapperOpen(true)}
           />
@@ -690,7 +688,7 @@ export function RealtimeMode({
             isSessionActive={isActive}
             onClear={handleClearTranscript}
             utterances={session.realtimeUtterances}
-            showTimestamps={showRealtimeTimestamps}
+
             showSpeakerMapperButton={showSpeakerMapperButton}
             onOpenSpeakerMapper={() => setSpeakerMapperOpen(true)}
           />

@@ -450,7 +450,7 @@ If both the transcript and summary are already empty, clicking **Start** begins 
 - Auto-scrolls to the bottom as new text arrives.
 - A **speaker mapping icon** (👥) appears in the header when using Precise mode and at least one speaker has been detected. Click it to open the Speaker Mapping dialog (see below).
 - A **trash icon** lets you clear the accumulated transcript. A confirmation dialog appears before clearing.
-- When **Show Timestamps** is enabled (Settings → Features → Realtime), each finalized utterance displays a wall-clock timestamp (e.g., `00:00 - 00:27`). Timestamps reflect elapsed time since the session started. When visible, they are included in copy/download and chatbot context.
+- In **Precise** mode, each finalized utterance automatically displays a wall-clock timestamp (e.g., `00:00 - 00:27`). Timestamps reflect elapsed time since the session started and are included in copy/download and chatbot context. In **Fast** mode, timestamps are not shown.
 
 #### Speaker Mapping (Realtime)
 
@@ -700,7 +700,6 @@ The following sub-sections and their settings are only visible when **Advanced S
 | **System Prompt** → **Edit** button   | Opens an editor to customise the AI instructions for realtime summaries.                                                                                                                |
 | **Summary Interval** dropdown         | How often a new running summary is auto-generated: 1, 2, 3, 5, or 10 minutes.                                                                                                           |
 | **Final Summary on Stop** (toggle)    | When on, stopping a realtime session triggers a full final summary.                                                                                                                     |
-| **Show Timestamps** (toggle)          | When on (default), displays wall-clock timestamps for each utterance in the realtime transcript view. Timestamps are also included in copy/download and chatbot context.                |
 | **Sync Standard + Realtime** (toggle) | When on, starting one recording mode automatically starts the other with a shared microphone, and pause/stop actions are coordinated. See [Section 4.19](#419-sync-standard--realtime). |
 
 **AI Chatbot** sub-section:
@@ -924,7 +923,6 @@ The following actions are available:
 | **Change Realtime summary interval**   | Set how often Realtime summaries are generated (1, 2, 3, 5, or 10 minutes).                      |
 | **Toggle Final Summary on Stop**       | Enable or disable automatic full summary generation when a Realtime session is stopped.          |
 | **Toggle Standard Timestamps**         | Show or hide timestamps in the Standard mode transcript view.                                    |
-| **Toggle Realtime Timestamps**         | Show or hide timestamps in the Realtime mode transcript view.                                    |
 | **Change Default Copy Format**         | Change the default format for the Copy as button (Formatted, Plain Text, Markdown, or JSON).     |
 | **Change Default Save Format**         | Change the default file format for the Save as button (.txt, .md, .docx, .pdf, .html, or .json). |
 | **Change Default Chatbot Copy Format** | Change the format used when copying chatbot messages (Formatted Text, Plain Text, or Markdown).  |

@@ -28,7 +28,6 @@ interface RealtimeTranscriptViewProps {
   isSessionActive: boolean;
   onClear?: () => void;
   utterances?: TranscriptUtterance[];
-  showTimestamps?: boolean;
   onOpenSpeakerMapper?: () => void;
   showSpeakerMapperButton?: boolean;
 }
@@ -40,7 +39,6 @@ export function RealtimeTranscriptView({
   isSessionActive,
   onClear,
   utterances,
-  showTimestamps,
   onOpenSpeakerMapper,
   showSpeakerMapperButton,
 }: RealtimeTranscriptViewProps) {
@@ -100,7 +98,7 @@ export function RealtimeTranscriptView({
   // Use timestamped view only when there are speaker labels (precise mode).
   // In fast mode (no speakers), progressive finals cause flickering in the block view.
   const hasSpeakerLabels = !!utterances?.some((u) => !!u.speaker);
-  const hasTimestampedView = !!utterances?.length && !!showTimestamps && hasSpeakerLabels;
+  const hasTimestampedView = !!utterances?.length && hasSpeakerLabels;
 
   const contentPayload = useMemo<ContentPayload | null>(() => {
     if (!accumulatedTranscript) return null;

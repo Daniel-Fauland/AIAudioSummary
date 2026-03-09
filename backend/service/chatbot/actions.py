@@ -84,11 +84,6 @@ ACTION_REGISTRY = [
         "params": {"enabled": {"type": "boolean"}},
     },
     {
-        "action_id": "toggle_realtime_timestamps",
-        "description": "Show or hide timestamps on each utterance in the Realtime mode transcript view. When visible, timestamps are also included in copy/download and LLM requests.",
-        "params": {"enabled": {"type": "boolean"}},
-    },
-    {
         "action_id": "change_realtime_speech_model",
         "description": "Change the realtime speech model. 'fast' provides word-by-word streaming without speaker labels. 'precise' provides turn-based streaming with speaker diarization (speaker labels). Takes effect on the next session start.",
         "params": {"model": {"type": "string", "enum": ["fast", "precise"]}},
