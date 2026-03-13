@@ -129,7 +129,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v2.0.0** — click to view the changelog of recent updates
+- **v2.1.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -235,13 +235,39 @@ After transcription completes (or after skipping upload), you land on the **Tran
 
 ### 4.4 Speaker Mapping
 
-Below the Transcript card, the **Speaker Mapping** section automatically detects the speakers in the transcript (e.g., "Speaker A", "Speaker B") and lets you replace those labels with real names.
+Below the Transcript card, the **Speaker Mapping** section automatically detects the speakers in the transcript and lets you replace those labels with real names.
+
+**Supported speaker formats:**
+
+The app recognises two transcript formats:
+
+1. **Colon format** (default from AssemblyAI) — the speaker label appears at the start of a line followed by a colon and the spoken text on the same line:
+
+   ```
+   Speaker A: Hello, how are you?
+   Speaker B: I'm fine, thanks.
+   ```
+
+2. **Newline format** (fallback) — the speaker label appears on its own line, with the spoken text starting on the next line:
+
+   ```
+   Speaker 1
+   Hello, how are you?
+
+   Speaker 2
+   I'm fine, thanks.
+
+   Dennis
+   Yeah, I agree.
+   ```
+
+   This format supports generic labels (Speaker 1, Speaker 2), proper names (Dennis, Maximilian), and other labels (Microphone). It is detected automatically when no colon-format speakers are found.
 
 **What you see:**
 
 - A row for each detected speaker with:
   - A **person icon button** on the left — click to mark that speaker as the author/point-of-view for the summary.
-  - The current **speaker label** (e.g., "Speaker A").
+  - The current **speaker label** (e.g., "Speaker A" or "Speaker 1").
   - An **arrow (→)** followed by a **name input field** where you type the real name.
 - An **Apply Names** button — applies all entered names to the transcript, replacing the generic labels.
 - A **Generate Key Points** button (sparkle icon) — or **Regenerate** if key points were already generated.
@@ -251,7 +277,7 @@ Below the Transcript card, the **Speaker Mapping** section automatically detects
 
 1. In the name input field next to each speaker label, type the person's real name (e.g., "Sarah").
 2. Repeat for all speakers you want to rename.
-3. Click **Apply Names** — the transcript updates instantly, replacing "Speaker A" with "Sarah" throughout.
+3. Click **Apply Names** — the transcript updates instantly, replacing "Speaker A" with "Sarah" throughout. For the newline format, only the speaker label lines are renamed — occurrences of the name within the spoken text are left unchanged.
 
 **Setting the author/POV:**
 
@@ -1247,7 +1273,7 @@ A: If you cleared the transcript using the trash icon (which requires confirmati
 ---
 
 **Q: The Speaker Mapping card shows "No speakers detected in the transcript."**
-A: This happens when the transcript text doesn't follow the `Speaker X: text` pattern — for example, if you pasted plain text without speaker labels. Speaker detection is based on the transcript format returned by AssemblyAI. If you typed or pasted a transcript manually, you can still generate a summary — the Prompt Settings and Generate Summary button work regardless of whether speakers were detected.
+A: This happens when the transcript text doesn't follow a recognised speaker pattern. The app supports two formats: colon format (`Speaker A: text`) and newline format (speaker name on its own line followed by text on the next line). If your transcript uses a different structure — for example, plain text without any speaker labels — speakers won't be detected. You can still generate a summary regardless; the Prompt Settings and Generate Summary button work without speaker detection.
 
 ---
 

@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 from fastapi import APIRouter
 from utils.logging import logger
@@ -134,5 +135,12 @@ async def update_speakers(request: UpdatedTranscriptRequest):
     speakers = request.speakers
 
     for key, value in speakers.items():
-        transcript = transcript.replace(key, value)
+        # Try colon format first: "Speaker A:" at start of line → "John:"
+        colon_pattern = re.compile(r'^' + re.escape(key) + r':', re.MULTILINE)
+        if colon_pattern.search(transcript):
+            transcript = colon_pattern.sub(value + ':', transcript)
+        else:
+            # Newline format: name on its own line → replace only the label line
+            newline_pattern = re.compile(r'^' + re.escape(key) + r'$', re.MULTILINE)
+            transcript = newline_pattern.sub(value, transcript)
     return UpdatedTranscriptResponse(transcript=transcript)

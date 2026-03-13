@@ -21,6 +21,41 @@ import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
 import { formatTimestamp, formatTranscriptWithTimestamps } from "@/components/workflow/TranscriptView";
 import type { ContentPayload, TranscriptUtterance } from "@/lib/types";
 
+/** Normalize text to lowercase words for fuzzy overlap comparison. */
+function toWords(text: string): string[] {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").split(/\s+/).filter(Boolean);
+}
+
+/**
+ * When AssemblyAI assigns the start of a new speaker's speech to the previous
+ * speaker (no pause between them), the previous utterance's text ends with words
+ * that also appear at the start of the new utterance. This function detects that
+ * overlap (minimum 3 words) and trims it from the previous utterance.
+ */
+function trimSpeakerOverlap(prev: TranscriptUtterance, next: TranscriptUtterance) {
+  const MIN_OVERLAP = 2;
+  const prevWords = toWords(prev.text);
+  const nextWords = toWords(next.text);
+  if (prevWords.length < MIN_OVERLAP || nextWords.length < MIN_OVERLAP) return;
+
+  // Find the longest suffix of prevWords that matches a prefix of nextWords
+  const maxCheck = Math.min(prevWords.length, nextWords.length);
+  let bestOverlap = 0;
+  for (let len = MIN_OVERLAP; len <= maxCheck; len++) {
+    const prevSuffix = prevWords.slice(-len);
+    const nextPrefix = nextWords.slice(0, len);
+    if (prevSuffix.every((w, i) => w === nextPrefix[i])) {
+      bestOverlap = len;
+    }
+  }
+
+  if (bestOverlap >= MIN_OVERLAP) {
+    // Trim the overlapping words from the end of prev.text.
+    const originalWords = prev.text.split(/\s+/);
+    prev.text = originalWords.slice(0, originalWords.length - bestOverlap).join(" ");
+  }
+}
+
 interface RealtimeTranscriptViewProps {
   accumulatedTranscript: string;
   currentPartial: string;
@@ -79,16 +114,26 @@ export function RealtimeTranscriptView({
 
   const hasContent = accumulatedTranscript || committedPartial || currentPartial;
 
-  // Merge consecutive utterances from the same speaker into single entries
+  // Merge consecutive utterances from the same speaker into single entries.
+  // Also merge speakerless utterances into the preceding block (they belong
+  // to the same speaker but arrived without a label from the backend).
+  // When a speaker changes, trim overlapping text at the boundary caused by
+  // AssemblyAI attributing the start of a new speaker's speech to the previous one.
   const mergedUtterances = useMemo(() => {
     if (!utterances?.length) return [];
     const merged: TranscriptUtterance[] = [];
     for (const u of utterances) {
       const last = merged[merged.length - 1];
-      if (last && last.speaker && last.speaker === u.speaker) {
-        last.text = last.text + " " + u.text;
-        last.end_ms = u.end_ms;
+      const sameSpeaker = last && last.speaker === u.speaker;
+      const inheritsFromPrev = last && !u.speaker;
+      if (sameSpeaker || inheritsFromPrev) {
+        last!.text = last!.text + " " + u.text;
+        last!.end_ms = u.end_ms;
       } else {
+        // On speaker change, trim overlapping text from the previous block.
+        if (last && last.speaker && u.speaker && last.speaker !== u.speaker) {
+          trimSpeakerOverlap(last, u);
+        }
         merged.push({ ...u });
       }
     }
@@ -275,9 +320,12 @@ export function RealtimeTranscriptView({
             <ScrollArea className="flex-1 min-h-0">
               {hasTimestampedView ? (
                 <div className="space-y-3 p-4">
-                  {utterances!.map((u, i) => (
+                  {mergedUtterances.map((u, i) => (
                     <div key={i} className="border-l-2 border-border pl-3 py-1">
-                      <p className="font-mono text-sm text-foreground">{u.text}</p>
+                      <p className="font-mono text-sm text-foreground">
+                        {u.speaker && <span className="font-semibold">{u.speaker}: </span>}
+                        {u.text}
+                      </p>
                       <span className="text-xs text-foreground-muted">
                         {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
                       </span>

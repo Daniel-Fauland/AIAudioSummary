@@ -15,18 +15,24 @@ class MiscService:
             list[str]: A list of identified speakers
         """
         try:
-            # Match any speaker label at the start of a line followed by a colon.
-            # Handles original AssemblyAI format ("Speaker A:") and renamed labels ("Max:", "Müller:").
-            # The capture group returns just the name (without the colon).
+            # Pattern 1: Colon format – "Speaker A: text", "Max: text", "Müller: text"
+            # Matches a speaker label at the start of a line followed by a colon.
             speaker_pattern = r'^([A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F0-9 ]*?):'
             speaker_matches = re.findall(speaker_pattern, transcript, re.MULTILINE)
+
+            # Pattern 2 (fallback): Newline format – "Speaker 1\ntext", "Dennis\ntext"
+            # Speaker name on its own line, followed by a non-empty line of speech.
+            # Only used when no colon-format speakers are found.
+            if not speaker_matches:
+                newline_pattern = r'^([A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F0-9 ]*)\r?\n(?=\S)'
+                speaker_matches = re.findall(newline_pattern, transcript, re.MULTILINE)
 
             # Deduplicate while preserving first-appearance order
             seen: set[str] = set()
             speakers: list[str] = []
             for match in speaker_matches:
                 name = match.strip()
-                if name not in seen:
+                if name and name not in seen:
                     seen.add(name)
                     speakers.append(name)
             return speakers

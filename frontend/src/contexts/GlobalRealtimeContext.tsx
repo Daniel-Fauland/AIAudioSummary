@@ -143,13 +143,26 @@ export function GlobalRealtimeProvider({ children }: { children: ReactNode }) {
           setAccumulatedTranscript((prev) => {
             const lastFinal = lastFinalRef.current;
             if (lastFinal && msg.transcript.startsWith(lastFinal)) {
-              // Progressive update: replace last final with the longer version
               const base = prev.slice(0, prev.length - lastFinal.length);
               lastFinalRef.current = msg.transcript;
-              // Also replace the last utterance
               if (hasTimestamps) {
                 const updated = [...realtimeUtterancesRef.current];
-                if (updated.length > 0) {
+                const lastUtterance = updated[updated.length - 1];
+                const speakerChanged = lastUtterance && lastUtterance.speaker !== resolvedSpeaker && resolvedSpeaker;
+                if (speakerChanged) {
+                  // Speaker changed mid-progressive-update: keep old utterance,
+                  // add the new portion as a separate utterance for the new speaker.
+                  const newText = msg.transcript.slice(lastFinal.length).trim();
+                  if (newText) {
+                    updated.push({
+                      speaker: resolvedSpeaker,
+                      text: newText,
+                      start_ms: msg.start_ms!,
+                      end_ms: msg.end_ms!,
+                    });
+                  }
+                } else if (updated.length > 0) {
+                  // Same speaker: progressive update replaces the last utterance
                   updated[updated.length - 1] = {
                     speaker: resolvedSpeaker,
                     text: msg.transcript,
