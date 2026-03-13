@@ -17,7 +17,7 @@ export const changelog: ChangelogEntry[] = [
       {
         type: "added",
         description:
-          'Speaker Mapping now supports a second transcript format — speaker names on their own line followed by text on the next line (e.g., "Speaker 1", "Dennis", "Microphone"). This newline format is detected automatically when no colon-format speakers are found. Renaming only updates speaker label lines, not occurrences of the name within the spoken text. (Format used by MacWhisper)',
+          'Speaker Mapping now supports a second transcript format — speaker names on their own line followed by text on the next line (e.g., "Speaker 1", "Max Mustermann", "Microphone"). This newline format is detected automatically when no colon-format speakers are found. Renaming only updates speaker label lines, not occurrences of the name within the spoken text. (Format used by MacWhisper)',
       },
       {
         type: "fixed",
