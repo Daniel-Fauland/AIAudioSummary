@@ -234,6 +234,11 @@ function collectPreferences(): UserPreferences {
     default_copy_format: (defaultCopyFormat as import("@/lib/types").CopyFormat) || undefined,
     default_save_format: (defaultSaveFormat as import("@/lib/types").SaveFormat) || undefined,
     default_chatbot_copy_format: (defaultChatbotCopyFormat as import("@/lib/types").ChatbotCopyFormat) || undefined,
+    display_name: safeLocalGet("aias:v1:display_name") || undefined,
+    webhook_url: safeLocalGet("aias:v1:webhook_url") || undefined,
+    webhook_secret: safeLocalGet("aias:v1:webhook_secret") || undefined,
+    webhook_standard_trigger: (safeLocalGet("aias:v1:webhook_standard_trigger") as import("@/lib/types").WebhookStandardTrigger) || undefined,
+    webhook_realtime_trigger: (safeLocalGet("aias:v1:webhook_realtime_trigger") as import("@/lib/types").WebhookRealtimeTrigger) || undefined,
     session_standard: sessionStandard,
     session_realtime: sessionRealtime,
     session_chatbot: sessionChatbot,
@@ -274,6 +279,11 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.default_save_format) safeLocalSet("aias:v1:default_save_format", prefs.default_save_format);
   if (prefs.default_chatbot_copy_format) safeLocalSet("aias:v1:default_chatbot_copy_format", prefs.default_chatbot_copy_format);
   if (prefs.token_usage_history) safeLocalSet("aias:v1:token_usage_history", JSON.stringify(prefs.token_usage_history));
+  if (prefs.display_name !== undefined) safeLocalSet("aias:v1:display_name", prefs.display_name);
+  if (prefs.webhook_url !== undefined) safeLocalSet("aias:v1:webhook_url", prefs.webhook_url);
+  if (prefs.webhook_secret !== undefined) safeLocalSet("aias:v1:webhook_secret", prefs.webhook_secret);
+  if (prefs.webhook_standard_trigger) safeLocalSet("aias:v1:webhook_standard_trigger", prefs.webhook_standard_trigger);
+  if (prefs.webhook_realtime_trigger) safeLocalSet("aias:v1:webhook_realtime_trigger", prefs.webhook_realtime_trigger);
   applySessionData(prefs);
 }
 

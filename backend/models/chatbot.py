@@ -64,6 +64,10 @@ class AppContext(BaseModel):
     custom_templates: list[PromptTemplateInfo] | None = None
     form_templates: list[FormTemplateInfo] | None = None
     keyterms_lists: list[KeytermsListInfo] | None = None
+    webhook_url: str | None = None
+    webhook_standard_trigger: str | None = None
+    webhook_realtime_trigger: str | None = None
+    display_name: str | None = None
 
 
 class ChatRequest(BaseModel):

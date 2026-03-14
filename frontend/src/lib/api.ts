@@ -25,6 +25,8 @@ import type {
   UpdatedTranscriptResponse,
   UserPreferences,
   UserProfile,
+  WebhookFireRequest,
+  WebhookFireResponse,
 } from "./types";
 
 const API_BASE = "/api/proxy";
@@ -312,6 +314,15 @@ export async function deletePreferences(): Promise<void> {
   if (!response.ok && response.status !== 204) {
     await handleResponse<void>(response);
   }
+}
+
+export async function fireWebhook(request: WebhookFireRequest): Promise<WebhookFireResponse> {
+  const response = await fetch(`${API_BASE}/webhook/fire`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<WebhookFireResponse>(response);
 }
 
 export async function chatbotChat(

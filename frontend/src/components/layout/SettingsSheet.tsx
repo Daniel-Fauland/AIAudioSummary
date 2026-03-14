@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { ChevronDown, Info, Pencil, RotateCcw } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, Info, Pencil, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,7 +29,7 @@ import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
 import { FeatureModelOverrides } from "@/components/settings/FeatureModelOverrides";
 import { ChatbotSettings } from "@/components/settings/ChatbotSettings";
 import { KeytermsListSelector } from "@/components/settings/KeytermsListSelector";
-import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, RealtimeSpeechModel, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat, ChatbotCopyFormat, KeytermsList } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, RealtimeSpeechModel, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat, ChatbotCopyFormat, KeytermsList, WebhookStandardTrigger, WebhookRealtimeTrigger } from "@/lib/types";
 import { COPY_FORMAT_LABELS, SAVE_FORMAT_LABELS, CHATBOT_COPY_FORMAT_LABELS } from "@/lib/content-formats";
 
 interface SettingsSheetProps {
@@ -91,6 +91,16 @@ interface SettingsSheetProps {
   onSaveKeytermsList: (list: KeytermsList) => void;
   onUpdateKeytermsList: (list: KeytermsList) => void;
   onDeleteKeytermsList: (id: string) => void;
+  webhookUrl: string;
+  onWebhookUrlChange: (url: string) => void;
+  webhookSecret: string;
+  onWebhookSecretChange: (secret: string) => void;
+  webhookStandardTrigger: WebhookStandardTrigger;
+  onWebhookStandardTriggerChange: (trigger: WebhookStandardTrigger) => void;
+  webhookRealtimeTrigger: WebhookRealtimeTrigger;
+  onWebhookRealtimeTriggerChange: (trigger: WebhookRealtimeTrigger) => void;
+  displayName: string;
+  onDisplayNameChange: (name: string) => void;
   onResetSettings: () => void;
 }
 
@@ -179,6 +189,16 @@ export function SettingsSheet({
   onSaveKeytermsList,
   onUpdateKeytermsList,
   onDeleteKeytermsList,
+  displayName,
+  onDisplayNameChange,
+  webhookUrl,
+  onWebhookUrlChange,
+  webhookSecret,
+  onWebhookSecretChange,
+  webhookStandardTrigger,
+  onWebhookStandardTriggerChange,
+  webhookRealtimeTrigger,
+  onWebhookRealtimeTriggerChange,
   onResetSettings,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
@@ -212,6 +232,12 @@ export function SettingsSheet({
     setFeaturesOpen(value);
     writeSection("aias:v1:settings:section:features", value);
   };
+  const [webhooksOpen, setWebhooksOpen] = useState(() => readSection("aias:v1:settings:section:webhooks", false));
+  const handleWebhooksOpen = (value: boolean) => {
+    setWebhooksOpen(value);
+    writeSection("aias:v1:settings:section:webhooks", value);
+  };
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
 
   // Keyboard shortcut indicators
   const [altPressed, setAltPressed] = useState(false);
@@ -409,6 +435,21 @@ export function SettingsSheet({
                     <p className="text-xs font-medium uppercase tracking-wider text-foreground-muted">
                       General
                     </p>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="display-name" className="text-sm">Your Name</Label>
+                      <Input
+                        id="display-name"
+                        type="text"
+                        placeholder="e.g. Daniel"
+                        value={displayName}
+                        onChange={(e) => onDisplayNameChange(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                      <p className="text-xs text-foreground-muted">
+                        Used by the chatbot to understand who &quot;I&quot; / &quot;my&quot; refers to in transcripts
+                      </p>
+                    </div>
 
                     <div className="flex items-center justify-between gap-3">
                       <div className="space-y-0.5">
@@ -771,6 +812,76 @@ export function SettingsSheet({
                 </div>
               </CollapsibleContent>
             </Collapsible>
+            {advancedSettings && (
+              <>
+                <Separator />
+                <Collapsible open={webhooksOpen} onOpenChange={handleWebhooksOpen}>
+                  <SectionHeader>Webhooks</SectionHeader>
+                  <CollapsibleContent className="pt-3 space-y-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="webhook-url" className="text-sm">Webhook URL</Label>
+                      <Input
+                        id="webhook-url"
+                        type="url"
+                        placeholder="https://example.com/webhook"
+                        value={webhookUrl}
+                        onChange={(e) => onWebhookUrlChange(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="webhook-secret" className="text-sm">Webhook Secret</Label>
+                      <div className="relative">
+                        <Input
+                          id="webhook-secret"
+                          type={showWebhookSecret ? "text" : "password"}
+                          placeholder="Optional HMAC secret"
+                          value={webhookSecret}
+                          onChange={(e) => onWebhookSecretChange(e.target.value)}
+                          className="h-8 text-sm pr-9"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground"
+                          onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                          tabIndex={-1}
+                        >
+                          {showWebhookSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Standard Mode</Label>
+                      <Select value={webhookStandardTrigger} onValueChange={(v) => onWebhookStandardTriggerChange(v as WebhookStandardTrigger)}>
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="summary">After Summary</SelectItem>
+                          <SelectItem value="transcript_and_summary">After Transcript &amp; Summary</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Realtime Mode</Label>
+                      <Select value={webhookRealtimeTrigger} onValueChange={(v) => onWebhookRealtimeTriggerChange(v as WebhookRealtimeTrigger)}>
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="on_stop">When Session Stops</SelectItem>
+                          <SelectItem value="on_stop_with_final_summary">After Final Summary (always fire)</SelectItem>
+                          <SelectItem value="only_with_final_summary">After Final Summary (skip if disabled)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </>
+            )}
             <Separator />
 
             <div className="pt-2 pb-2">

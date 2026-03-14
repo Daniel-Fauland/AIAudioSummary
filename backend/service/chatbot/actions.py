@@ -286,4 +286,32 @@ ACTION_REGISTRY = [
         "description": "Reset all settings to their factory defaults. This resets provider, model, all toggles, intervals, formats, system prompt, feature overrides, and keyterms selection. API keys are NOT affected.",
         "params": {},
     },
+    {
+        "action_id": "set_webhook_url",
+        "description": "Set or clear the webhook URL. When set, webhooks will be sent to this URL at configured trigger points after transcription, summary generation, or realtime session completion.",
+        "params": {
+            "url": {"type": "string", "description": "The webhook URL (e.g. https://example.com/webhook), or empty string to disable"},
+        },
+    },
+    {
+        "action_id": "set_webhook_secret",
+        "description": "Set or clear the webhook HMAC secret used for signing webhook payloads with X-Webhook-Signature header.",
+        "params": {
+            "secret": {"type": "string", "description": "The HMAC secret, or empty string to clear"},
+        },
+    },
+    {
+        "action_id": "set_webhook_standard_trigger",
+        "description": "Set when webhooks fire in standard mode. Options: 'summary' (fire after summary/form output) or 'transcript_and_summary' (fire after transcript AND after summary/form output).",
+        "params": {
+            "trigger": {"type": "string", "enum": ["summary", "transcript_and_summary"], "description": "When to fire webhooks in standard mode"},
+        },
+    },
+    {
+        "action_id": "set_webhook_realtime_trigger",
+        "description": "Set when webhooks fire in realtime mode. Options: 'on_stop' (when session stops), 'on_stop_with_final_summary' (after final summary, falls back to on_stop if disabled), 'only_with_final_summary' (only if final summary is enabled).",
+        "params": {
+            "trigger": {"type": "string", "enum": ["on_stop", "on_stop_with_final_summary", "only_with_final_summary"], "description": "When to fire webhooks in realtime mode"},
+        },
+    },
 ]

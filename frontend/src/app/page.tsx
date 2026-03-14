@@ -42,11 +42,13 @@ import { useTokenUsage } from "@/hooks/useTokenUsage";
 import { useGlobalRecording } from "@/contexts/GlobalRecordingContext";
 import { useGlobalRealtime } from "@/contexts/GlobalRealtimeContext";
 import { useGlobalSync } from "@/contexts/GlobalSyncContext";
+import { useSession } from "next-auth/react";
 import { createTranscript, createSummary, extractKeyPoints, fillForm } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { extractDateFromFilename } from "@/lib/utils";
 import { parseConfigString, importSettings, configContainsApiKeys } from "@/lib/config-export";
-import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType, TokenUsage, TranscriptUtterance } from "@/lib/types";
+import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType, TokenUsage, TranscriptUtterance, WebhookStandardTrigger, WebhookRealtimeTrigger } from "@/lib/types";
+import { buildWebhookPayload, fireWebhookWithToast } from "@/lib/webhook";
 import { getContextWindow } from "@/lib/token-utils";
 import { APP_VERSION } from "@/lib/constants";
 import { changelog } from "@/lib/changelog";
@@ -76,6 +78,10 @@ const DEFAULT_CHATBOT_COPY_FORMAT_KEY = "aias:v1:default_chatbot_copy_format";
 const ADVANCED_SETTINGS_KEY = "aias:v1:advanced_settings";
 const SHOW_STANDARD_TIMESTAMPS_KEY = "aias:v1:show_standard_timestamps";
 const REALTIME_SPEECH_MODEL_KEY = "aias:v1:realtime_speech_model";
+const WEBHOOK_URL_KEY = "aias:v1:webhook_url";
+const WEBHOOK_SECRET_KEY = "aias:v1:webhook_secret";
+const WEBHOOK_STANDARD_TRIGGER_KEY = "aias:v1:webhook_standard_trigger";
+const WEBHOOK_REALTIME_TRIGGER_KEY = "aias:v1:webhook_realtime_trigger";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -114,15 +120,18 @@ function safeSet(key: string, value: string): void {
 // source in useState initialisers, with localStorage as fallback. This avoids
 // relying on applyPreferences() writing to localStorage before mount.
 
+const DISPLAY_NAME_KEY = "aias:v1:display_name";
+
 interface HomeInnerProps {
   config: ConfigResponse | null;
   savePreferences: () => void;
   setStorageMode: (mode: "local" | "account") => void;
   serverPreferences: import("@/lib/types").UserPreferences | null;
   pendingImportConfig?: string;
+  authName?: string;
 }
 
-function HomeInner({ config, savePreferences, setStorageMode, serverPreferences, pendingImportConfig }: HomeInnerProps) {
+function HomeInner({ config, savePreferences, setStorageMode, serverPreferences, pendingImportConfig, authName }: HomeInnerProps) {
   const { getKey, setKey, hasKey, getAzureConfig, getLangdockConfig, setLangdockConfig } = useApiKeys();
   const { theme, setTheme } = useTheme();
   const globalRecording = useGlobalRecording();
@@ -445,6 +454,25 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     () => (serverPreferences?.realtime_speech_model || safeGet(REALTIME_SPEECH_MODEL_KEY, "precise")) as import("@/lib/types").RealtimeSpeechModel,
   );
 
+  // Webhook settings
+  const [webhookUrl, setWebhookUrl] = useState(
+    () => serverPreferences?.webhook_url || safeGet(WEBHOOK_URL_KEY, ""),
+  );
+  const [webhookSecret, setWebhookSecret] = useState(
+    () => serverPreferences?.webhook_secret || safeGet(WEBHOOK_SECRET_KEY, ""),
+  );
+  const [webhookStandardTrigger, setWebhookStandardTrigger] = useState<import("@/lib/types").WebhookStandardTrigger>(
+    () => (serverPreferences?.webhook_standard_trigger || safeGet(WEBHOOK_STANDARD_TRIGGER_KEY, "summary") || "summary") as import("@/lib/types").WebhookStandardTrigger,
+  );
+  const [webhookRealtimeTrigger, setWebhookRealtimeTrigger] = useState<import("@/lib/types").WebhookRealtimeTrigger>(
+    () => (serverPreferences?.webhook_realtime_trigger || safeGet(WEBHOOK_REALTIME_TRIGGER_KEY, "on_stop") || "on_stop") as import("@/lib/types").WebhookRealtimeTrigger,
+  );
+
+  // Display name (defaults to Google Auth name)
+  const [displayName, setDisplayName] = useState(
+    () => serverPreferences?.display_name || safeGet(DISPLAY_NAME_KEY, "") || authName || "",
+  );
+
   // Form output state — initialize from persisted session
   const [outputMode, setOutputMode] = useState<"summary" | "form">(initialStandardSession.outputMode);
   const [selectedFormTemplateId, setSelectedFormTemplateId] = useState<string | null>(initialStandardSession.formTemplateId);
@@ -732,6 +760,36 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
   }, [savePreferences]);
 
+  const handleWebhookUrlChange = useCallback((url: string) => {
+    setWebhookUrl(url);
+    safeSet(WEBHOOK_URL_KEY, url);
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleWebhookSecretChange = useCallback((secret: string) => {
+    setWebhookSecret(secret);
+    safeSet(WEBHOOK_SECRET_KEY, secret);
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleWebhookStandardTriggerChange = useCallback((trigger: import("@/lib/types").WebhookStandardTrigger) => {
+    setWebhookStandardTrigger(trigger);
+    safeSet(WEBHOOK_STANDARD_TRIGGER_KEY, trigger);
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleWebhookRealtimeTriggerChange = useCallback((trigger: import("@/lib/types").WebhookRealtimeTrigger) => {
+    setWebhookRealtimeTrigger(trigger);
+    safeSet(WEBHOOK_REALTIME_TRIGGER_KEY, trigger);
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleDisplayNameChange = useCallback((name: string) => {
+    setDisplayName(name);
+    safeSet(DISPLAY_NAME_KEY, name);
+    savePreferences();
+  }, [savePreferences]);
+
   const handleResetSettings = useCallback(() => {
     // Provider / model
     const defaultProvider: LLMProvider = "openai";
@@ -796,6 +854,20 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     // Keyterms
     setSelectedKeytermsListId(null);
     safeSet("aias:v1:selected_keyterms_list_id", "");
+
+    // Display name — reset to auth name
+    setDisplayName(authName || "");
+    safeSet(DISPLAY_NAME_KEY, authName || "");
+
+    // Webhooks
+    setWebhookUrl("");
+    safeSet(WEBHOOK_URL_KEY, "");
+    setWebhookSecret("");
+    safeSet(WEBHOOK_SECRET_KEY, "");
+    setWebhookStandardTrigger("summary");
+    safeSet(WEBHOOK_STANDARD_TRIGGER_KEY, "summary");
+    setWebhookRealtimeTrigger("on_stop");
+    safeSet(WEBHOOK_REALTIME_TRIGGER_KEY, "on_stop");
 
     savePreferences();
   }, [savePreferences, globalSync]);
@@ -1065,7 +1137,31 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       handleResetSettings();
       toast.success("All settings have been reset to defaults.");
     },
-  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates, saveKeytermsList, updateKeytermsList, deleteKeytermsList, keytermsLists, selectedKeytermsListId, handleKeytermsListChange, handleResetSettings]);
+    set_webhook_url: async (params) => {
+      const url = (params.url as string) ?? "";
+      handleWebhookUrlChange(url);
+      toast.success(url ? "Webhook URL updated" : "Webhook URL cleared");
+    },
+    set_webhook_secret: async (params) => {
+      const secret = (params.secret as string) ?? "";
+      handleWebhookSecretChange(secret);
+      toast.success(secret ? "Webhook secret updated" : "Webhook secret cleared");
+    },
+    set_webhook_standard_trigger: async (params) => {
+      const trigger = params.trigger as string;
+      const valid = ["summary", "transcript_and_summary"];
+      if (!valid.includes(trigger)) throw new Error(`Invalid trigger: ${trigger}. Valid: ${valid.join(", ")}`);
+      handleWebhookStandardTriggerChange(trigger as import("@/lib/types").WebhookStandardTrigger);
+      toast.success(`Standard webhook trigger set to "${trigger}"`);
+    },
+    set_webhook_realtime_trigger: async (params) => {
+      const trigger = params.trigger as string;
+      const valid = ["on_stop", "on_stop_with_final_summary", "only_with_final_summary"];
+      if (!valid.includes(trigger)) throw new Error(`Invalid trigger: ${trigger}. Valid: ${valid.join(", ")}`);
+      handleWebhookRealtimeTriggerChange(trigger as import("@/lib/types").WebhookRealtimeTrigger);
+      toast.success(`Realtime webhook trigger set to "${trigger}"`);
+    },
+  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates, saveKeytermsList, updateKeytermsList, deleteKeytermsList, keytermsLists, selectedKeytermsListId, handleKeytermsListChange, handleResetSettings, handleWebhookUrlChange, handleWebhookSecretChange, handleWebhookStandardTriggerChange, handleWebhookRealtimeTriggerChange]);
 
   const getAssemblyAiKey = useCallback((): string | null => {
     const key = getKey("assemblyai");
@@ -1109,8 +1205,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       custom_templates: customTemplates.length > 0 ? customTemplates.map(t => ({ id: t.id, name: t.name, content: t.content })) : undefined,
       form_templates: formTemplates.length > 0 ? formTemplates.map(t => ({ id: t.id, name: t.name, fields: t.fields.map(f => ({ label: f.label, type: f.type, description: f.description, options: f.options })) })) : undefined,
       keyterms_lists: keytermsLists.length > 0 ? keytermsLists.map(l => ({ id: l.id, name: l.name, terms: l.terms })) : undefined,
+      webhook_url: webhookUrl || undefined,
+      webhook_standard_trigger: webhookStandardTrigger,
+      webhook_realtime_trigger: webhookRealtimeTrigger,
+      display_name: displayName || undefined,
     };
-  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp, defaultCopyFormat, defaultSaveFormat, defaultChatbotCopyFormat, customTemplates, formTemplates, keytermsLists]);
+  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp, defaultCopyFormat, defaultSaveFormat, defaultChatbotCopyFormat, customTemplates, formTemplates, keytermsLists, webhookUrl, webhookStandardTrigger, webhookRealtimeTrigger, displayName]);
 
   const onChatbotMessagesChange = useCallback((msgs: import("@/lib/types").ChatMessageType[]) => {
     if (msgs.length === 0) {
@@ -1321,6 +1421,24 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         sessionPersistence.saveStandardUtterances(result.utterances);
         savePreferences();
         toast.success("Transcription complete!");
+        // Fire webhook on transcript completion if configured
+        if (webhookUrl && webhookStandardTrigger === "transcript_and_summary") {
+          fireWebhookWithToast(webhookUrl, webhookSecret, buildWebhookPayload({
+            transcript: result.transcript,
+            speakerMapping: {},
+            summary: "",
+            mode: "standard",
+            contentType: "transcript",
+            meetingDate,
+            model: selectedModel,
+            provider: selectedProvider,
+            prompt: "",
+            language: selectedLanguage,
+            tokenUsage: null,
+            formOutput: null,
+            questions: null,
+          }));
+        }
       } catch (e) {
         toast.error(getErrorMessage(e, "transcript"));
         setCurrentStep(1);
@@ -1330,7 +1448,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         setIsTranscribing(false);
       }
     },
-    [getKey, minSpeakers, maxSpeakers, selectedKeyterms, sessionPersistence.clearStandardSession, savePreferences],
+    [getKey, minSpeakers, maxSpeakers, selectedKeyterms, sessionPersistence.clearStandardSession, savePreferences, webhookUrl, webhookSecret, webhookStandardTrigger, meetingDate, selectedModel, selectedProvider, selectedLanguage],
   );
 
   // Skip upload: go directly to step 2 with empty transcript
@@ -1375,6 +1493,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     const controller = new AbortController();
     abortControllerRef.current = controller;
     let accumulatedSummary = "";
+    let capturedUsage: TokenUsage | null = null;
 
     try {
       const result = await createSummary(
@@ -1404,6 +1523,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         setSummary(result.text);
       }
       if (result.usage) {
+        capturedUsage = result.usage;
         setSummaryUsage(result.usage);
         recordUsage({
           feature: "summary_generation",
@@ -1425,6 +1545,24 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       setIsGenerating(false);
       if (accumulatedSummary) sessionPersistence.saveStandardSummary(accumulatedSummary);
       savePreferences();
+      // Fire webhook on summary completion if configured
+      if (webhookUrl && accumulatedSummary) {
+        fireWebhookWithToast(webhookUrl, webhookSecret, buildWebhookPayload({
+          transcript,
+          speakerMapping: speakerRenamesRef.current,
+          summary: accumulatedSummary,
+          mode: "standard",
+          contentType: "summary",
+          meetingDate,
+          model: summaryModel,
+          provider: summaryProvider,
+          prompt: selectedPrompt,
+          language: selectedLanguage,
+          tokenUsage: capturedUsage,
+          formOutput: null,
+          questions: null,
+        }));
+      }
     }
   }, [
     resolveModelConfig,
@@ -1438,6 +1576,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     meetingDate,
     authorSpeaker,
     savePreferences,
+    webhookUrl,
+    webhookSecret,
+    transcript,
   ]);
 
   const handleStopGenerating = useCallback(() => {
@@ -1564,13 +1705,31 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       });
       setFormValues(response.values);
       sessionPersistence.saveStandardFormValues(response.values);
+      // Fire webhook on form completion if configured
+      if (webhookUrl) {
+        fireWebhookWithToast(webhookUrl, webhookSecret, buildWebhookPayload({
+          transcript,
+          speakerMapping: speakerRenamesRef.current,
+          summary: "",
+          mode: "standard",
+          contentType: "form",
+          meetingDate,
+          model: resolvedFormOutputConfig.model,
+          provider: resolvedFormOutputConfig.provider,
+          prompt: "",
+          language: selectedLanguage,
+          tokenUsage: null,
+          formOutput: response.values,
+          questions: null,
+        }));
+      }
     } catch (e) {
       toast.error(getErrorMessage(e, "formOutput"));
     } finally {
       setIsFillingForm(false);
       savePreferences();
     }
-  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, meetingDate, savePreferences]);
+  }, [formTemplates, selectedFormTemplateId, resolvedFormOutputConfig, getKey, azureConfig, langdockConfig, transcript, meetingDate, savePreferences, webhookUrl, webhookSecret, selectedLanguage]);
 
   const handleFormManualEdit = useCallback((fieldId: string, value: unknown) => {
     setFormValues((prev) => ({ ...prev, [fieldId]: value }));
@@ -1686,6 +1845,16 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onSaveKeytermsList={saveKeytermsList}
         onUpdateKeytermsList={updateKeytermsList}
         onDeleteKeytermsList={deleteKeytermsList}
+        displayName={displayName}
+        onDisplayNameChange={handleDisplayNameChange}
+        webhookUrl={webhookUrl}
+        onWebhookUrlChange={handleWebhookUrlChange}
+        webhookSecret={webhookSecret}
+        onWebhookSecretChange={handleWebhookSecretChange}
+        webhookStandardTrigger={webhookStandardTrigger}
+        onWebhookStandardTriggerChange={handleWebhookStandardTriggerChange}
+        webhookRealtimeTrigger={webhookRealtimeTrigger}
+        onWebhookRealtimeTriggerChange={handleWebhookRealtimeTriggerChange}
         onResetSettings={handleResetSettings}
       />
 
@@ -1773,6 +1942,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             speakerLabelsEnabled={speakerLabelsEnabled}
             keyPointProvider={resolveModelConfig("key_point_extraction").provider}
             keyPointModel={resolveModelConfig("key_point_extraction").model}
+            webhookUrl={webhookUrl}
+            webhookSecret={webhookSecret}
+            webhookRealtimeTrigger={webhookRealtimeTrigger}
           />
         </div>
 
@@ -2151,6 +2323,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
 // primary source, with localStorage as fallback.
 
 export default function Home() {
+  const { data: authSession } = useSession();
   const { config, loading: configLoading, error: configError, refetch } = useConfig();
   const { setStorageMode, isLoading: prefsLoading, savePreferences, serverPreferences } = usePreferences();
 
@@ -2216,6 +2389,7 @@ export default function Home() {
       setStorageMode={setStorageMode}
       serverPreferences={serverPreferences}
       pendingImportConfig={pendingImportConfig}
+      authName={authSession?.user?.name ?? undefined}
     />
   );
 }

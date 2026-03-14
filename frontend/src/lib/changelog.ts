@@ -10,6 +10,23 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "2.2.0",
+    date: "2026-03-14",
+    title: "Webhook support & display name",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Webhooks — automatically send transcripts, summaries, and form outputs to external systems (Slack, Notion, n8n, CRMs, etc.) via HTTP POST. Configure a webhook URL and optional HMAC signing secret in Settings > Webhooks (requires Advanced Settings). Standard mode supports firing after summary only or after both transcript and summary. Realtime mode supports firing when the session stops, after the final summary, or only when a final summary is enabled. Webhook settings can also be configured via the chatbot.",
+      },
+      {
+        type: "added",
+        description:
+          'Your Name — set your name in Settings > Features > General (defaults to your Google account name). The chatbot uses this to understand who "I" / "my" refers to in transcripts, so you can ask questions like "What are my action items?" instead of referring to yourself by name.',
+      },
+    ],
+  },
+  {
     version: "2.1.0",
     date: "2026-03-13",
     title: "Newline speaker format support & Realtime aggregation fix",

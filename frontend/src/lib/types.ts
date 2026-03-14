@@ -299,6 +299,10 @@ export interface AppContext {
   custom_templates?: { id: string; name: string; content: string }[];
   form_templates?: { id: string; name: string; fields: { label: string; type: string; description?: string; options?: string[] }[] }[];
   keyterms_lists?: { id: string; name: string; terms: string[] }[];
+  webhook_url?: string;
+  webhook_standard_trigger?: string;
+  webhook_realtime_trigger?: string;
+  display_name?: string;
 }
 
 export interface ChatRequest {
@@ -344,6 +348,44 @@ export interface ContentPayload {
   fileNamePrefix: string;
 }
 
+// === Webhook types ===
+
+export type WebhookStandardTrigger = "summary" | "transcript_and_summary";
+export type WebhookRealtimeTrigger = "on_stop" | "on_stop_with_final_summary" | "only_with_final_summary";
+
+export interface WebhookPayload {
+  event: string;
+  mode: "standard" | "realtime";
+  content_type: "transcript" | "summary" | "form";
+  timestamp: string;
+  data: {
+    transcript: string;
+    speaker_mapping: Record<string, string>;
+    summary_plain: string;
+    summary_markdown: string;
+    meeting_date: string | null;
+    model: string;
+    provider: string;
+    prompt: string;
+    language: string;
+    token_usage: TokenUsage | null;
+    form_output: Record<string, unknown> | null;
+    questions: { id: string; question: string; status: string; answer?: string }[] | null;
+  };
+}
+
+export interface WebhookFireRequest {
+  webhook_url: string;
+  webhook_secret?: string;
+  payload: WebhookPayload;
+}
+
+export interface WebhookFireResponse {
+  success: boolean;
+  status_code?: number;
+  error?: string;
+}
+
 // === Preferences types ===
 
 export interface UserPreferences {
@@ -379,6 +421,11 @@ export interface UserPreferences {
   default_save_format?: SaveFormat;
   default_chatbot_copy_format?: ChatbotCopyFormat;
   advanced_settings?: boolean;
+  webhook_url?: string;
+  webhook_secret?: string;
+  webhook_standard_trigger?: WebhookStandardTrigger;
+  webhook_realtime_trigger?: WebhookRealtimeTrigger;
+  display_name?: string;
   session_standard?: {
     transcript?: string;
     summary?: string;

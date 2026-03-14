@@ -90,6 +90,21 @@ class ChatbotService:
                         f"  - ID: `{t.id}` | Name: {t.name} | Fields: [{field_desc}]")
                 context_lines.append(
                     "- Custom form templates:\n" + "\n".join(tpl_lines))
+            if ctx.display_name:
+                context_lines.append(
+                    f"- User's name: {ctx.display_name} (when the user says \"I\", \"me\", \"my\", they refer to this person in transcripts)")
+            if ctx.webhook_url:
+                context_lines.append(
+                    f"- Webhook URL: {ctx.webhook_url}")
+            if ctx.webhook_standard_trigger:
+                context_lines.append(
+                    f"- Webhook standard trigger: {ctx.webhook_standard_trigger}")
+            if ctx.webhook_realtime_trigger:
+                context_lines.append(
+                    f"- Webhook realtime trigger: {ctx.webhook_realtime_trigger}")
+            if not ctx.webhook_url:
+                context_lines.append(
+                    "- Webhook: not configured")
             if ctx.keyterms_lists:
                 kt_lines = []
                 for kt in ctx.keyterms_lists:

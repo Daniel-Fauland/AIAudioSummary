@@ -31,6 +31,7 @@
    - [4.19 Sync Standard + Realtime](#419-sync-standard--realtime)
    - [4.20 AI Usage Tracking](#420-ai-usage-tracking)
    - [4.21 Keyterms Prompting](#421-keyterms-prompting)
+   - [4.22 Webhooks](#422-webhooks)
 5. [Common Workflows](#5-common-workflows)
    - [5.1 Transcribing and Summarising a Recording](#51-transcribing-and-summarising-a-recording)
    - [5.2 Recording Live Audio and Getting a Summary](#52-recording-live-audio-and-getting-a-summary)
@@ -129,7 +130,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v2.1.0** — click to view the changelog of recent updates
+- **v2.2.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -1096,6 +1097,79 @@ You can change the selected keyterms list while a Realtime session is active. Th
 #### Chatbot integration
 
 The AI Assistant (chatbot) can also manage keyterms lists on your behalf. You can ask it to create, update, delete, or select a keyterms list using natural language (e.g., "Create a keyterms list called Medical Terms with hypertension, tachycardia, and bradycardia").
+
+---
+
+### 4.22 Webhooks
+
+Webhooks let you automatically send transcripts, summaries, and form outputs to external systems — such as Slack, Notion, CRMs, or any service that accepts HTTP POST requests — after processing completes. This is useful for building automated workflows where meeting results flow directly into your existing tools without manual copy-pasting.
+
+#### Configuration
+
+Webhook settings are found in **Settings → Webhooks**. The Webhooks section only appears when **Advanced Settings** is enabled in the Settings panel.
+
+| Setting                   | Description                                                                                                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Webhook URL**           | The destination URL that will receive POST requests when processing completes. Leave empty to disable webhooks.                                                                                                    |
+| **Webhook Secret**        | An optional HMAC-SHA256 secret. When set, each request includes an `X-Webhook-Signature` header containing a signature of the payload body, allowing the receiving server to verify that the request is authentic. |
+| **Standard Mode Trigger** | Controls when the webhook fires during Standard mode processing (see below).                                                                                                                                       |
+| **Realtime Mode Trigger** | Controls when the webhook fires during Realtime mode processing (see below).                                                                                                                                       |
+
+#### Standard mode triggers
+
+| Trigger                        | Behaviour                                                                                                |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| **After Summary** (default)    | Fires once after summary generation completes, or after form output completion if a form is configured.  |
+| **After Transcript & Summary** | Fires twice: once after the transcript is ready, and again after the summary (or form output) completes. |
+
+#### Realtime mode triggers
+
+| Trigger                          | Behaviour                                                                                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **When Session Stops** (default) | Fires immediately when the Realtime session ends, sending whatever transcript and summary data is available at that moment.                         |
+| **After Final Summary**          | Waits for the final summary to finish after the session stops before firing. Falls back to firing immediately if Final Summary on Stop is disabled. |
+| **Only With Final Summary**      | Only fires if Final Summary on Stop is enabled and completes successfully. If Final Summary on Stop is disabled, no webhook is sent.                |
+
+#### Payload format
+
+Each webhook delivery is an HTTP POST request with a JSON body. The structure is:
+
+| Field          | Description                                                                               |
+| -------------- | ----------------------------------------------------------------------------------------- |
+| `event`        | The event type, such as `summary.completed`, `transcript.completed`, or `form.completed`. |
+| `mode`         | Either `standard` or `realtime`, indicating which processing mode produced the data.      |
+| `content_type` | The type of content included: `transcript`, `summary`, or `form`.                         |
+| `timestamp`    | An ISO 8601 timestamp indicating when the event occurred.                                 |
+| `data`         | An object containing the actual content (see below).                                      |
+
+The `data` object may include:
+
+- `transcript` — the full transcript text.
+- `speaker_mapping` — the speaker label-to-name mapping.
+- `summary_plain` — the summary as plain text.
+- `summary_markdown` — the summary as Markdown.
+- `meeting_date` — the date associated with the meeting.
+- `model` — the LLM model used for summarisation.
+- `provider` — the LLM provider (e.g., OpenAI, Anthropic, Google).
+- `prompt` — the prompt that was used.
+- `language` — the output language.
+- `token_usage` — token consumption details for the request.
+- `form_output` — the structured form output, if a form was configured.
+- `questions` — questions and topics captured during a Realtime session (Realtime mode only).
+
+Not every field is present in every payload — the included fields depend on the event type and the data available at the time the webhook fires.
+
+#### Chatbot integration
+
+You can also configure webhooks through the AI Assistant (chatbot) using natural-language commands:
+
+- **"Set webhook URL to https://..."** — configures the webhook destination.
+- **"Clear webhook URL"** — removes the URL and disables webhooks.
+- **"Set webhook secret to ..."** — configures the HMAC-SHA256 signing secret.
+- **"Set standard webhook trigger to transcript_and_summary"** — changes the Standard mode trigger.
+- **"Set realtime webhook trigger to on_stop_with_final_summary"** — changes the Realtime mode trigger.
+
+> **Tip:** To test your webhook setup, you can use a free request-inspection tool such as [webhook.site](https://webhook.site) as your Webhook URL and then run a short transcription to see the payload that gets delivered.
 
 ---
 
