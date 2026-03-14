@@ -19,4 +19,5 @@ dependencies = [
     "alembic>=1.18.4",
     "pyjwt>=2.10.0",
     "aiofiles>=24.1.0",
+    "httpx>=0.28.0",
 ]

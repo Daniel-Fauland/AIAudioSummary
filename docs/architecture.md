@@ -97,8 +97,9 @@ project-root/
 │   │   ├── live_questions/router.py    #   POST /live-questions/evaluate
 │   │   ├── form_output/router.py     #   POST /form-output/fill, POST /form-output/generate-template
 │   │   ├── chatbot/router.py      #   POST /chatbot/chat, GET /chatbot/knowledge, WS /chatbot/ws/voice
+│   │   ├── webhook/router.py      #   POST /webhook/fire
 │   │   ├── auth/router.py         #   GET /auth/verify (no auth required)
-│   │   └── users/router.py        #   GET /users/me, GET /users, POST /users, DELETE /users/{id}
+│   │   └── users/router.py        #   GET /users/me, GET /users, POST /users, PATCH /users/{id}, DELETE /users/{id}
 │   ├── service/                    # Service layer (business logic)
 │   │   ├── assembly_ai/core.py    #   AssemblyAIService
 │   │   ├── llm/core.py            #   LLMService (multi-provider)
@@ -109,6 +110,7 @@ project-root/
 │   │   ├── form_output/core.py      #   FormOutputService (structured form filling + AI template generation)
 │   │   ├── chatbot/core.py        #   ChatbotService (chat, knowledge base, actions)
 │   │   ├── chatbot/actions.py     #   ACTION_REGISTRY (available chatbot actions)
+│   │   ├── webhook/core.py        #   WebhookService
 │   │   ├── auth/core.py           #   AuthService (email verification against DB)
 │   │   └── users/core.py          #   UsersService (CRUD, name sync)
 │   ├── dependencies/               # FastAPI dependencies
@@ -121,7 +123,9 @@ project-root/
 │   │   ├── prompt_assistant.py    #   AssistantQuestion, AnalyzeRequest/Response, GenerateRequest/Response
 │   │   ├── live_questions.py      #   EvaluateQuestionsRequest/Response, QuestionInput, QuestionEvaluation
 │   │   ├── form_output.py        #   FormFieldType, FormFieldDefinition, FillFormRequest/Response
-│   │   └── chatbot.py            #   ChatRole, ChatMessage, ActionProposal, ChatRequest/ChatResponse
+│   │   ├── chatbot.py            #   ChatRole, ChatMessage, ActionProposal, ChatRequest/ChatResponse
+│   │   ├── webhook.py            #   WebhookFireRequest, WebhookFireResponse
+│   │   └── users.py              #   CreateUserRequest, UpdateUserRequest, UserResponse, PreferencesRequest/Response
 │   ├── db/                         # Database layer (SQLAlchemy async)
 │   │   ├── engine.py              #   async_engine, AsyncSessionLocal, get_db(), Base
 │   │   └── models.py              #   User ORM model (id, email, name, role, preferences, storage_mode)
@@ -157,12 +161,12 @@ project-root/
 │   │   │   ├── page.tsx            # Main orchestrator (all state lives here)
 │   │   │   └── globals.css         # Theme variables, animations
 │   │   ├── components/
-│   │   │   ├── admin/              # AddUserDialog, DeleteUserDialog
+│   │   │   ├── admin/              # AddUserDialog, EditUserDialog, DeleteUserDialog
 │   │   ├── auth/               # SessionWrapper, UserMenu, StorageModeDialog, ConfigExportDialog, AIUsageDialog
 │   │   │   ├── layout/             # Header, Footer, StepIndicator, SettingsSheet
 │   │   │   ├── settings/           # ApiKeyManager, ProviderSelector, ModelSelector, AzureConfigForm, LangdockConfigForm
 │   │   │   ├── workflow/           # FileUpload, AudioRecorder, TranscriptView, SpeakerMapper, PromptEditor (+ Prompt Assistant trigger), SummaryView
-│   │   │   ├── realtime/          # RealtimeMode, RealtimeControls, RealtimeTranscriptView, RealtimeSummaryView, ConnectionStatus
+│   │   │   ├── realtime/          # RealtimeMode, RealtimeControls, RealtimeTranscriptView, RealtimeSummaryView, RealtimeSpeakerMapper, ConnectionStatus
 │   │   │   ├── live-transcript/   # LiveQuestions, LiveQuestionItem, AddQuestionInput, useLiveQuestions hook
 │   │   │   ├── form-output/      # FormTemplateEditor, FormTemplateSelector, FormOutputView, RealtimeFormOutput, useFormOutput hook
 │   │   │   ├── prompt-assistant/  # PromptAssistantModal, StepBasePrompt, StepQuestions, StepSummary, StepResult, QuestionField, usePromptAssistant hook
@@ -183,7 +187,8 @@ project-root/
 │   │   │   ├── useTokenUsage.ts    # Token usage history management (localStorage, up to 10k entries, cross-tab sync)
 │   │   │   ├── useRealtimeSession.ts # Realtime session lifecycle (WS, audio, transcript, summary timer)
 │   │   │   ├── useRealtimeSummary.ts # Realtime summary logic (extracted from useRealtimeSession)
-│   │   │   └── useChatbot.ts      # Chatbot hook (messages, streaming, actions, persistent voice session, mic device selection)
+│   │   │   ├── useChatbot.ts      # Chatbot hook (messages, streaming, actions, persistent voice session, mic device selection)
+│   │   │   └── useKeytermsLists.ts # Keyterms list CRUD (localStorage + server sync)
 │   │   └── lib/
 │   │       ├── api.ts              # Centralized API client (routes through /api/proxy)
 │   │       ├── changelog.ts        # Version history (ChangelogEntry[]) shown in Footer "What's New" dialog
@@ -193,7 +198,8 @@ project-root/
 │   │       ├── errors.ts           # getErrorMessage() — maps ApiError status codes to user-friendly strings
 │   │       ├── token-utils.ts      # Token count formatting (formatTokenCount, formatTokenCountExact) and context window lookup
 │   │       ├── types.ts            # TypeScript types (mirrors backend models)
-│   │       └── utils.ts            # cn() Tailwind merge utility
+│   │       ├── utils.ts            # cn() Tailwind merge utility
+│   │       └── webhook.ts          # Webhook payload builder, fire-and-forget helper (stripMarkdown, buildWebhookPayload, fireWebhookWithToast)
 │   ├── public/
 │   │   └── pcm-worklet-processor.js  # AudioWorklet for PCM16 capture
 │   ├── package.json
@@ -427,6 +433,8 @@ Key models:
 | `models/live_questions.py`   | `QuestionInput`, `EvaluateQuestionsRequest`, `QuestionEvaluation`, `EvaluateQuestionsResponse`                                                    |
 | `models/form_output.py`     | `FormFieldType` (enum: string, number, date, boolean, list_str, enum, multi_select), `FormFieldDefinition`, `FillFormRequest` (includes `previous_values`, `meeting_date`), `FillFormResponse`, `GenerateTemplateRequest/Response`, `GeneratedField` |
 | `models/chatbot.py`         | `ChatRole` (enum), `ChatMessage`, `ActionProposal`, `AppContext` (current app state for system prompt), `ChatRequest` (includes `app_context: AppContext | None`), `ChatResponse` (includes `usage: TokenUsage | None`) |
+| `models/webhook.py`         | `WebhookFireRequest`, `WebhookFireResponse` |
+| `models/users.py`           | `CreateUserRequest`, `UpdateUserRequest`, `UserResponse`, `PreferencesRequest`, `PreferencesResponse` |
 
 ### Configuration & Environment
 
@@ -753,6 +761,7 @@ RootLayout (layout.tsx)
         │   └── orchestrator, uses useRealtimeSession() + useFormOutput() + useLiveQuestions() hooks
         │       ├── RealtimeControls   ← Start/Pause/Stop, mic selector, elapsed timer, countdown + Refresh button
         │       │   └── ConnectionStatus
+        │       ├── RealtimeSpeakerMapper  ← live speaker label renaming during/after session
         │       ├── RealtimeTranscriptView  ← live transcript with auto-scroll + ContentActions (Copy as/Save as) + trash/clear icon
         │       ├── RealtimeSummaryView     ← markdown summary with ContentActions (Copy as/Save as) + TokenUsageBadge (accumulated session usage) + trash/clear icon
         │       └── [Questions & Topics | Form Output] tab bar
@@ -777,7 +786,7 @@ RootLayout (layout.tsx)
    - `components/layout/` — structural/layout components
    - `components/settings/` — settings panel sub-components (including ChatbotSettings)
    - `components/workflow/` — standard mode step-specific workflow components
-   - `components/realtime/` — realtime mode components (RealtimeMode, Controls, TranscriptView, SummaryView, ConnectionStatus)
+   - `components/realtime/` — realtime mode components (RealtimeMode, Controls, TranscriptView, SummaryView, SpeakerMapper, ConnectionStatus)
    - `components/chatbot/` — chatbot overlay components (ChatbotFAB, ChatbotModal, ChatMessage, ChatMessageList, ChatInputBar, TranscriptBadge, ActionConfirmCard)
    - `components/global/` — app-wide components (GlobalProviders context wrapper, RecordingIndicator persistent header bar)
 
@@ -834,6 +843,10 @@ Most application state lives in `page.tsx` using `useState`. Three React context
 | Chatbot copy format | Yes (localStorage) | Yes               | `aias:v1:chatbot_copy_format` |
 | Advanced settings   | Yes (localStorage) | Yes               | `aias:v1:advanced_settings` |
 | Re-evaluate questions | Yes (localStorage) | Yes             | `aias:v1:reevaluate_all_questions` |
+| Speech model        | Yes (localStorage) | Yes               | `aias:v1:realtime_speech_model` |
+| Show timestamps     | Yes (localStorage) | Yes               | `aias:v1:show_standard_timestamps` |
+| Keyterms lists      | Yes (localStorage) | Yes               | `aias:v1:keyterms_lists` |
+| Selected keyterms   | Yes (localStorage) | Yes               | `aias:v1:selected_keyterms_list_id` |
 | Sync std + realtime | Yes (localStorage) | Yes               | `aias:v1:sync_standard_realtime` |
 | Default copy format | Yes (localStorage) | Yes               | `aias:v1:default_copy_format` |
 | Default save format | Yes (localStorage) | Yes               | `aias:v1:default_save_format` |
@@ -946,6 +959,7 @@ All backend calls go through `lib/api.ts`. The base URL is `/api/proxy`, which r
 | `getMe()`                      | GET    | `/users/me`                  | `UserProfile`                                 |
 | `getUsers()`                   | GET    | `/users`                     | `UserProfile[]` (admin only)                  |
 | `createUser(email, name?)`     | POST   | `/users`                     | `UserProfile` (admin only)                    |
+| `updateUser(id, name)`         | PATCH  | `/users/{id}`                | `UserProfile` (admin only)                    |
 | `deleteUser(id)`               | DELETE | `/users/{id}`                | `void` (admin only)                           |
 | `getPreferences()`             | GET    | `/users/me/preferences`      | `PreferencesResponse`                         |
 | `putPreferences(prefs)`        | PUT    | `/users/me/preferences`      | `PreferencesResponse`                         |
@@ -1039,11 +1053,19 @@ const { storageMode, setStorageMode, isLoading, serverPreferences, savePreferenc
 | `aias:v1:custom_templates`      | JSON array of custom prompt templates (`PromptTemplate[]`) | Yes |
 | `aias:v1:form_templates`        | JSON array of form templates (`FormTemplate[]`) for structured form output | Yes |
 | `aias:v1:sync_standard_realtime` | Sync Standard + Realtime toggle (`true`/`false`) | Yes |
+| `aias:v1:realtime_speech_model` | Realtime speech model: `"fast"` or `"precise"` (default: `"precise"`) | Yes |
+| `aias:v1:show_standard_timestamps` | Show timestamps in standard transcript view (`"true"`/`"false"`) | Yes |
+| `aias:v1:keyterms_lists`        | JSON array of keyterms lists (`{ id, name, terms }[]`) for transcription prompting | Yes |
+| `aias:v1:selected_keyterms_list_id` | ID of the currently selected keyterms list (empty string = none) | Yes |
 | `aias:v1:advanced_settings`     | Advanced Settings toggle — when `"false"`, only essential settings shown (`"true"` default for existing users) | Yes |
 | `aias:v1:reevaluate_all_questions` | Re-evaluate answered questions on manual Questions refresh (`"true"`/`"false"`) | Yes |
 | `aias:v1:default_copy_format`   | Default copy format for Copy as button (`"formatted"` default) | Yes |
 | `aias:v1:default_save_format`   | Default save format for Save as button (`"docx"` default) | Yes |
 | `aias:v1:chatbot_copy_format`   | Default format for copying chatbot messages (`"formatted"` default; options: formatted, plain, markdown) | Yes |
+| `aias:v1:webhook_url`           | Webhook destination URL              | Yes     |
+| `aias:v1:webhook_secret`        | HMAC signing secret                  | Yes     |
+| `aias:v1:webhook_standard_trigger` | Standard mode trigger ("summary" or "transcript_and_summary") | Yes |
+| `aias:v1:webhook_realtime_trigger` | Realtime mode trigger ("on_stop", "on_stop_with_final_summary", "only_with_final_summary") | Yes |
 | `aias:v1:token_usage_history`   | JSON array of `TokenUsageEntry` (timestamp, feature, provider, model, input/output/total tokens) — max 10,000 entries | **Never** |
 | `aias:v1:session:standard:*`   | Standard mode session data (transcript, summary, form_template_id, form_values, output_mode, current_step, updated_at) | Yes (as `session_standard` object) |
 | `aias:v1:session:realtime:*`   | Realtime mode session data (transcript, summary, form_template_id, form_values, questions, updated_at) | Yes (as `session_realtime` object) |
@@ -1119,6 +1141,7 @@ import { cn } from "@/lib/utils";
 
 ```tsx
 export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai" | "langdock";
+export type RealtimeSpeechModel = "fast" | "precise";
 export interface ProviderInfo {
   id: LLMProvider;
   name: string;
@@ -1311,6 +1334,42 @@ misc/router.py:
     │
     ▼
 Frontend: populates provider dropdown, template selector, language picker
+```
+
+### Webhook Flow
+
+```
+Webhook configured in Settings (URL + optional secret)
+    │
+    ▼
+Trigger event occurs:
+    ├── Standard mode:
+    │   ├── "transcript_and_summary" → fires after createTranscript AND after createSummary/fillForm
+    │   └── "summary" (default) → fires after createSummary/fillForm only
+    │
+    └── Realtime mode:
+        ├── "on_stop" (default) → fires when session stops
+        ├── "on_stop_with_final_summary" → fires after final summary (falls back if disabled)
+        └── "only_with_final_summary" → fires only if final summary enabled and completes
+    │
+    ▼
+Frontend: buildWebhookPayload() assembles payload (lib/webhook.ts)
+    │  Includes: transcript, speaker_mapping, summary (plain + markdown),
+    │  mode, content_type, meeting_date, model, provider, prompt, language,
+    │  token_usage, form_output, questions (realtime only)
+    │
+    ▼
+Frontend: fireWebhookWithToast() → POST /webhook/fire via api.ts
+    │  Sends: { webhook_url, webhook_secret?, payload }
+    │
+    ▼
+Backend: WebhookService.fire()
+    ├── JSON-serializes payload
+    ├── If secret: HMAC-SHA256 signature → X-Webhook-Signature header
+    ├── POST to webhook_url with 10s timeout (httpx)
+    │
+    ▼
+Toast notification: success or error message shown to user
 ```
 
 ### Prompt Assistant Flow
@@ -1524,6 +1583,7 @@ The chatbot shares the same `aias:v1:mic_device_id` localStorage key as `AudioRe
 | `update_realtime_system_prompt` | Update realtime summary system prompt | `prompt`: string | — |
 | `change_realtime_interval` | Set summary interval | `minutes`: 1/2/3/5/10 | — |
 | `toggle_final_summary` | Toggle final summary | `enabled`: boolean | — |
+| `change_realtime_speech_model` | Change realtime speech model | `model`: fast/precise | Validates against allowed values |
 | `toggle_reevaluate_all_questions` | Toggle re-evaluate answered questions on manual refresh | `enabled`: boolean | — |
 | `change_default_copy_format` | Change default copy format | `format`: formatted/plain/markdown/json | — |
 | `change_default_save_format` | Change default save format | `format`: txt/md/docx/pdf/html/json | — |
@@ -1540,10 +1600,20 @@ The chatbot shares the same `aias:v1:mic_device_id` localStorage key as `AudioRe
 | `get_form_template` | Show a specific form template (read-only, no confirmation) | `id`: string | — |
 | `update_form_template` | Update an existing form template | `id`, `name`: string, `fields`: array | Validates template exists |
 | `delete_form_template` | Delete a form template | `id`: string | Validates template exists |
+| `save_keyterms_list` | Save a new keyterms list | `name`: string, `terms`: string[] | Validates name and terms non-empty |
+| `list_keyterms_lists` | List all keyterms lists (read-only, no confirmation) | (none) | — |
+| `get_keyterms_list` | Show a specific keyterms list (read-only, no confirmation) | `id`: string | — |
+| `update_keyterms_list` | Update an existing keyterms list | `id`, `name`: string, `terms`: string[] | Validates list exists |
+| `delete_keyterms_list` | Delete a keyterms list | `id`: string | Validates list exists |
+| `select_keyterms_list` | Select a keyterms list for transcription (or deselect with empty string) | `id`: string | — |
+| `set_webhook_url` | Set or clear the webhook URL | `url`: string | — |
+| `set_webhook_secret` | Set or clear the webhook HMAC secret | `secret`: string | — |
+| `set_webhook_standard_trigger` | Set when webhooks fire in standard mode | `trigger`: summary/transcript_and_summary | Validates against allowed values |
+| `set_webhook_realtime_trigger` | Set when webhooks fire in realtime mode | `trigger`: on_stop/on_stop_with_final_summary/only_with_final_summary | Validates against allowed values |
 
 **Quick-apply**: Users can prefix a message with `!` to skip the action confirmation step and apply the action immediately (e.g., `!Switch to light mode`).
 
-**App context**: The chatbot receives an `AppContext` object with the current app state (selected provider/model, app mode, theme, app version, changelog, user timestamp, last visit timestamp, copy/save format defaults, custom prompt templates, and form templates). This enables read-only actions like `list_prompt_templates` and context-aware responses (e.g., "What has changed since my last visit?").
+**App context**: The chatbot receives an `AppContext` object with the current app state (selected provider/model, app mode, theme, app version, changelog, user timestamp, last visit timestamp, copy/save format defaults, custom prompt templates, form templates, and keyterms lists). This enables read-only actions like `list_prompt_templates`, `list_keyterms_lists`, and context-aware responses (e.g., "What has changed since my last visit?").
 
 > **Note**: Storage mode (local/account) is **not** available as a chatbot action. It requires the StorageModeDialog flow (avatar menu → Storage Mode) which involves data upload/download confirmation. The system prompt explicitly instructs the LLM to explain this to users.
 

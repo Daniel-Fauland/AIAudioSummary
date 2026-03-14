@@ -23,6 +23,7 @@ import { useFormOutput } from "@/components/form-output/useFormOutput";
 import { useRealtimeSession } from "@/hooks/useRealtimeSession";
 import { extractKeyPoints } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { buildWebhookPayload, fireWebhookWithToast } from "@/lib/webhook";
 import type {
   AzureConfig,
   LangdockConfig,
@@ -85,6 +86,9 @@ interface RealtimeModeProps {
   speakerLabelsEnabled?: boolean;
   keyPointProvider?: LLMProvider;
   keyPointModel?: string;
+  webhookUrl?: string;
+  webhookSecret?: string;
+  webhookRealtimeTrigger?: import("@/lib/types").WebhookRealtimeTrigger;
 }
 
 export function RealtimeMode({
@@ -134,6 +138,9 @@ export function RealtimeMode({
   speakerLabelsEnabled = false,
   keyPointProvider,
   keyPointModel,
+  webhookUrl,
+  webhookSecret,
+  webhookRealtimeTrigger = "on_stop",
 }: RealtimeModeProps) {
   const session = useRealtimeSession({
     initialTranscript: initialRealtimeSession?.transcript,
@@ -244,17 +251,62 @@ export function RealtimeMode({
 
   // Sync preferences when realtime session ends (includes final summary)
   const prevIsSessionEndedRef = useRef(false);
+
+  // Helper: fire webhook with current realtime data
+  const fireRealtimeWebhook = useCallback(() => {
+    if (!webhookUrl) return;
+    const questionsData = liveQuestions.questions.length > 0
+      ? liveQuestions.questions.map((q) => ({ id: q.id, question: q.question, status: q.status, answer: q.answer }))
+      : null;
+    fireWebhookWithToast(webhookUrl, webhookSecret ?? "", buildWebhookPayload({
+      transcript: session.accumulatedTranscript,
+      speakerMapping: speakerMappings,
+      summary: session.realtimeSummary,
+      mode: "realtime",
+      contentType: session.realtimeSummary ? "summary" : "transcript",
+      meetingDate: meetingDate || null,
+      model: selectedModel,
+      provider: selectedProvider,
+      prompt: realtimeSystemPrompt,
+      language: selectedLanguage,
+      tokenUsage: session.summaryAccumulatedUsage,
+      formOutput: formOutput.values && Object.keys(formOutput.values).length > 0 ? formOutput.values : null,
+      questions: questionsData,
+    }));
+  }, [webhookUrl, webhookSecret, session.accumulatedTranscript, session.realtimeSummary, session.summaryAccumulatedUsage, speakerMappings, liveQuestions.questions, formOutput.values, meetingDate, selectedModel, selectedProvider, realtimeSystemPrompt, selectedLanguage]);
+
   useEffect(() => {
     if (session.isSessionEnded && !prevIsSessionEndedRef.current) {
       // Small delay to let final summary persist to localStorage first
       const timer = setTimeout(() => onSavePreferences?.(), 500);
       prevIsSessionEndedRef.current = true;
+
+      // Fire webhook based on trigger setting
+      if (webhookUrl) {
+        if (webhookRealtimeTrigger === "on_stop") {
+          // Fire immediately alongside preferences save
+          const webhookTimer = setTimeout(fireRealtimeWebhook, 500);
+          return () => { clearTimeout(timer); clearTimeout(webhookTimer); };
+        } else if (webhookRealtimeTrigger === "on_stop_with_final_summary") {
+          // Wait longer for final summary; fall back if final summary disabled
+          const delay = realtimeFinalSummaryEnabled ? 2000 : 500;
+          const webhookTimer = setTimeout(fireRealtimeWebhook, delay);
+          return () => { clearTimeout(timer); clearTimeout(webhookTimer); };
+        } else if (webhookRealtimeTrigger === "only_with_final_summary") {
+          // Only fire if final summary is enabled
+          if (realtimeFinalSummaryEnabled) {
+            const webhookTimer = setTimeout(fireRealtimeWebhook, 2000);
+            return () => { clearTimeout(timer); clearTimeout(webhookTimer); };
+          }
+        }
+      }
+
       return () => clearTimeout(timer);
     }
     if (!session.isSessionEnded) {
       prevIsSessionEndedRef.current = false;
     }
-  }, [session.isSessionEnded, onSavePreferences]);
+  }, [session.isSessionEnded, onSavePreferences, webhookUrl, webhookRealtimeTrigger, realtimeFinalSummaryEnabled, fireRealtimeWebhook]);
 
   // Track previous isSummaryUpdating value to detect when a summary run starts
   const prevIsSummaryUpdatingRef = useRef(false);

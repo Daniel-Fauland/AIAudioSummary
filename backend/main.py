@@ -19,6 +19,7 @@ from api.auth.router import auth_router
 from api.users.router import users_router
 from api.chatbot.router import chatbot_router
 from api.form_output.router import form_output_router
+from api.webhook.router import webhook_router
 
 
 def _run_migrations_sync() -> None:
@@ -102,6 +103,7 @@ app.include_router(auth_router, tags=["Auth"])
 app.include_router(users_router, tags=["Users"])
 app.include_router(chatbot_router, tags=["Chatbot"])
 app.include_router(form_output_router, tags=["FormOutput"])
+app.include_router(webhook_router, tags=["Webhook"])
 
 
 @app.get("/")
