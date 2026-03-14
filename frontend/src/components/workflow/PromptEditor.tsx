@@ -202,7 +202,7 @@ export function PromptEditor({
 
   return (
     <>
-      <Card className="border-border">
+      <Card className="border-border/50 bg-card/10 backdrop-blur-md shadow-sm transition-all duration-300">
         <CardHeader>
           <CardTitle className="text-lg">Prompt Settings</CardTitle>
         </CardHeader>

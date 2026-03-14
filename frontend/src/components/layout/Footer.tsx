@@ -508,7 +508,7 @@ export function Footer() {
 
   return (
     <>
-      <footer className="w-full py-6 flex items-center justify-center gap-2 text-xs text-foreground-muted">
+      <footer className="w-full py-6 flex items-center justify-center gap-2 text-xs text-foreground-muted border-t border-border/10 bg-background/50 backdrop-blur-sm mt-auto">
         <button
           type="button"
           className="cursor-pointer hover:text-foreground-secondary transition-colors"
@@ -516,7 +516,7 @@ export function Footer() {
         >
           Imprint
         </button>
-        <span aria-hidden="true">·</span>
+        <span aria-hidden="true" className="text-border">·</span>
         <button
           type="button"
           className="cursor-pointer hover:text-foreground-secondary transition-colors"
@@ -524,7 +524,7 @@ export function Footer() {
         >
           Privacy Policy
         </button>
-        <span aria-hidden="true">·</span>
+        <span aria-hidden="true" className="text-border">·</span>
         <button
           type="button"
           className="cursor-pointer hover:text-foreground-secondary transition-colors"
@@ -532,10 +532,10 @@ export function Footer() {
         >
           Cookie Settings
         </button>
-        <span aria-hidden="true">·</span>
+        <span aria-hidden="true" className="text-border">·</span>
         <button
           type="button"
-          className="cursor-pointer hover:text-foreground-secondary transition-colors"
+          className="cursor-pointer hover:text-foreground-secondary transition-colors font-mono"
           onClick={() => setOpenModal("changelog")}
         >
           v{APP_VERSION}

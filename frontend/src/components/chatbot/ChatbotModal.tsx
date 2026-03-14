@@ -140,17 +140,17 @@ export function ChatbotModal({
     {/* Backdrop — click outside to restore from maximized */}
     {isMaximized && <div className="fixed inset-0 z-[40]" onClick={() => setIsMaximized(false)} />}
     <div className={cn(
-      "fixed z-[41] flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200 transition-[right,left,top,width,max-height,bottom] ease-in-out",
+      "fixed z-[41] flex flex-col overflow-hidden rounded-2xl border border-border/50 bg-background/60 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in-95 duration-200 transition-[right,left,top,width,max-height,bottom] ease-in-out",
       isMaximized
         ? "top-[88px] bottom-[56px] left-12 right-12 w-auto max-h-none"
         : "bottom-20 w-[420px] max-h-[600px]",
       !isMaximized && (isSettingsOpen ? "right-[404px]" : "right-6"),
-      "max-md:bottom-0 max-md:right-0 max-md:left-0 max-md:top-auto max-md:w-full max-md:max-h-[80vh] max-md:rounded-t-xl max-md:rounded-b-none"
+      "max-md:bottom-0 max-md:right-0 max-md:left-0 max-md:top-auto max-md:w-full max-md:max-h-[80vh] max-md:rounded-t-2xl max-md:rounded-b-none"
     )}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <div className="flex items-center justify-between border-b border-border/20 bg-background/30 px-4 py-4">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-foreground">AI Assistant</h3>
+          <h3 className="text-lg font-semibold text-foreground">AI Assistant</h3>
           <div className="hidden md:flex items-center gap-1">
             <kbd className={`${kbdBase} ${altPressed ? kbdActive : kbdDefault}`}>
               {typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? (

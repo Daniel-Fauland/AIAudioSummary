@@ -326,12 +326,12 @@ export function SettingsSheet({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
-          className="w-[380px] flex flex-col border-l border-border bg-card sm:max-w-[380px]"
+          className="w-[380px] flex flex-col border-l border-border/50 bg-background/60 backdrop-blur-2xl sm:max-w-[380px] shadow-2xl"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
-          <SheetHeader>
+          <SheetHeader className="pb-4 border-b border-border/20">
             <div className="flex items-center gap-2">
-              <SheetTitle>Settings</SheetTitle>
+              <SheetTitle className="text-xl font-semibold">Settings</SheetTitle>
               <div className="hidden md:flex items-center gap-1">
                 <kbd className={`${kbdBase} ${altPressed ? kbdActive : kbdDefault}`}>
                   {typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? (

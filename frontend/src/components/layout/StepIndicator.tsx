@@ -26,7 +26,7 @@ export function StepIndicator({ currentStep, maxReachedStep, onStepClick }: Step
 
         return (
           <div key={step.label} className="flex items-start">
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-3">
               <div
                 role={isClickable ? "button" : undefined}
                 tabIndex={isClickable ? 0 : undefined}
@@ -41,43 +41,43 @@ export function StepIndicator({ currentStep, maxReachedStep, onStepClick }: Step
                       }
                     : undefined
                 }
-                className={`flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300 ${
+                className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-500 ${
                   isClickable
-                    ? "cursor-pointer hover:opacity-80 hover:ring-2 hover:ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                    ? "cursor-pointer hover:opacity-100 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
                     : ""
                 } ${
                   isCompleted
-                    ? "bg-primary text-white"
+                    ? "bg-primary text-white shadow-lg shadow-primary/20"
                     : isActive
-                      ? "scale-110 bg-primary text-white shadow-[0_0_12px_2px_rgba(252,82,11,0.14)]"
-                      : "border border-border bg-card-elevated text-foreground-muted"
+                      ? "scale-110 bg-[#12121A] text-primary glow-border z-10"
+                      : "border border-border bg-card/50 text-foreground-muted opacity-60 backdrop-blur-sm"
                 }`}
               >
                 <Icon className="h-5 w-5" />
               </div>
-              <div className="hidden md:flex flex-col items-center gap-1">
+              <div className="hidden md:flex flex-col items-center gap-1.5 min-w-[80px]">
                 <span
-                  className={`text-xs font-medium ${
+                  className={`text-xs font-mono uppercase tracking-wider ${
                     isCompleted
                       ? "text-foreground-secondary"
                       : isActive
-                        ? "font-bold text-foreground"
+                        ? "font-bold text-foreground text-glow"
                         : "text-foreground-muted"
                   }`}
                 >
                   {step.label}
                 </span>
                 {isActive ? (
-                  <span className="h-1 w-1 rounded-full bg-primary" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(252,82,11,0.8)]" />
                 ) : (
-                  <span className="h-1 w-1" />
+                  <span className="h-1.5 w-1.5" />
                 )}
               </div>
             </div>
             {index < steps.length - 1 ? (
               <div
-                className={`mx-3 mt-5 h-0.5 w-12 md:w-20 -translate-y-1/2 ${
-                  stepNumber < currentStep ? "bg-primary" : "bg-border"
+                className={`mx-2 mt-6 h-[1px] w-12 md:w-20 -translate-y-1/2 transition-colors duration-500 ${
+                  stepNumber < currentStep ? "bg-primary shadow-[0_0_8px_rgba(252,82,11,0.5)]" : "bg-border/50"
                 }`}
               />
             ) : null}

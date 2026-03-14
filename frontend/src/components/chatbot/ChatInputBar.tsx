@@ -140,7 +140,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
         readOnly={isVoiceActive && !!partialTranscript}
         rows={1}
         className={cn(
-          "flex-1 resize-none rounded-lg border border-border bg-card-elevated px-3 py-2 text-base text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50",
+          "flex-1 resize-none rounded-xl border border-border/50 bg-background/40 backdrop-blur-sm px-3 py-2 text-base text-foreground placeholder:text-foreground-muted focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 transition-all",
           isVoiceActive && !input && "italic text-foreground-muted"
         )}
       />

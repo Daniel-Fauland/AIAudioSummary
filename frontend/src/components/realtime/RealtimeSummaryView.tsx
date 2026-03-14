@@ -83,10 +83,10 @@ export function RealtimeSummaryView({
   }, [summary, isSummaryUpdating]);
 
   return (
-    <Card className="border-border flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between">
+    <Card className="border-border/50 bg-card/10 backdrop-blur-md flex flex-col shadow-sm transition-all duration-300 h-full">
+      <CardHeader className="flex flex-row items-center justify-between border-b border-border/20 bg-background/30 backdrop-blur-sm pb-4">
         <div className="flex items-center gap-2">
-          <CardTitle className="text-lg">Summary</CardTitle>
+          <CardTitle className="text-lg font-semibold">Summary</CardTitle>
           <TokenUsageBadge usage={tokenUsage} lastRequestUsage={lastRequestUsage} contextWindow={contextWindow} />
         </div>
         <div className="flex items-center gap-2">
@@ -105,9 +105,10 @@ export function RealtimeSummaryView({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="ghost"
-                  size="icon"
+                  variant="outline"
+                  size="icon-sm"
                   onClick={() => setConfirmClear(true)}
+                  className="text-foreground-secondary hover:text-destructive transition-all"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -119,9 +120,9 @@ export function RealtimeSummaryView({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden md:inline-flex"
+                  variant="outline"
+                  size="icon-sm"
+                  className="hidden md:inline-flex text-foreground-secondary hover:text-foreground transition-all"
                   onClick={() => setFullscreen(true)}
                 >
                   <Maximize2 className="h-4 w-4" />
@@ -150,8 +151,8 @@ export function RealtimeSummaryView({
         {/* Copy & Save buttons */}
         {!!summary && (
           <div className="mt-auto flex items-center gap-2">
-            <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-            <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+            <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+            <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
           </div>
         )}
       </CardContent>

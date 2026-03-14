@@ -104,7 +104,7 @@ export function FormTemplateSelector({
 
   return (
     <>
-      <Card className="border-border bg-card">
+      <Card className="border-border/50 bg-card/10 backdrop-blur-md shadow-sm transition-all duration-300">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold">Form Template</CardTitle>
         </CardHeader>

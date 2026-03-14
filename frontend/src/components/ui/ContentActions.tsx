@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { ContentPayload, CopyFormat, SaveFormat } from "@/lib/types";
 import {
   getAvailableCopyFormats,
@@ -62,23 +63,25 @@ export function CopyAsButton({ payload, variant = "secondary", size = "default" 
   );
 
   return (
-    <div className="flex">
+    <div className={cn(
+      "inline-flex items-stretch rounded-md border bg-background shadow-xs dark:bg-input/30 dark:border-input focus-within:ring-1 focus-within:ring-ring transition-colors hover:bg-accent/20 dark:hover:bg-accent/10",
+      size === "sm" ? "h-8" : size === "lg" ? "h-10" : "h-9"
+    )}>
       <Button
-        variant={variant}
-        size={size}
-        className="rounded-r-none justify-start"
+        variant="ghost"
+        className="h-full rounded-r-none justify-start font-mono text-xs uppercase tracking-wider hover:bg-transparent px-2.5 sm:px-3 border-0 focus-visible:ring-0"
         disabled={disabled}
         onClick={() => handleCopy(defaultFormat)}
       >
         <Copy className="mr-1.5 h-3.5 w-3.5" />
         Copy as
       </Button>
+      <div className="w-[1px] bg-border/50 my-1" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant={variant}
-            size={size}
-            className="rounded-l-none border-l border-border/50 px-1.5"
+            variant="ghost"
+            className="h-full rounded-l-none px-1.5 sm:px-2 hover:bg-accent/40 dark:hover:bg-accent/20 outline-none border-0 focus-visible:ring-0"
             disabled={disabled}
           >
             <ChevronDown className="h-3.5 w-3.5" />
@@ -131,23 +134,25 @@ export function SaveAsButton({ payload, variant = "secondary", size = "default" 
   );
 
   return (
-    <div className="flex">
+    <div className={cn(
+      "inline-flex items-stretch rounded-md border bg-background shadow-xs dark:bg-input/30 dark:border-input focus-within:ring-1 focus-within:ring-ring transition-colors hover:bg-accent/20 dark:hover:bg-accent/10",
+      size === "sm" ? "h-8" : size === "lg" ? "h-10" : "h-9"
+    )}>
       <Button
-        variant={variant}
-        size={size}
-        className="rounded-r-none justify-start"
+        variant="ghost"
+        className="h-full rounded-r-none justify-start font-mono text-xs uppercase tracking-wider hover:bg-transparent px-2.5 sm:px-3 border-0 focus-visible:ring-0"
         disabled={disabled}
         onClick={() => handleSave(defaultFormat)}
       >
         <Download className="mr-1.5 h-3.5 w-3.5" />
         Save as
       </Button>
+      <div className="w-[1px] bg-border/50 my-1" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant={variant}
-            size={size}
-            className="rounded-l-none border-l border-border/50 px-1.5"
+            variant="ghost"
+            className="h-full rounded-l-none px-1.5 sm:px-2 hover:bg-accent/40 dark:hover:bg-accent/20 outline-none border-0 focus-visible:ring-0"
             disabled={disabled}
           >
             <ChevronDown className="h-3.5 w-3.5" />

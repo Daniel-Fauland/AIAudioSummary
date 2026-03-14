@@ -83,7 +83,7 @@ export function TranscriptView({
 
   if (loading) {
     return (
-      <Card className="border-border">
+      <Card className="border-border/50 bg-card/10 backdrop-blur-md shadow-sm transition-all duration-300">
         <CardHeader>
           <CardTitle className="text-lg">Transcript</CardTitle>
         </CardHeader>
@@ -109,18 +109,18 @@ export function TranscriptView({
   }
 
   return (
-    <Card className="border-border h-full min-h-0 overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between shrink-0">
-        <CardTitle className="text-lg">Transcript</CardTitle>
+    <Card className="border-border/50 bg-card/10 backdrop-blur-md h-full min-h-0 overflow-hidden shadow-sm transition-all duration-300">
+      <CardHeader className="flex flex-row items-center justify-between shrink-0 border-b border-border/20 bg-background/30 backdrop-blur-sm pb-4">
+        <CardTitle className="text-lg font-semibold">Transcript</CardTitle>
         <div className="flex items-center gap-2">
           {transcript && !readOnly ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="ghost"
-                  size="icon"
+                  variant="outline"
+                  size="icon-sm"
                   onClick={() => setClearDialogOpen(true)}
-                  className="text-foreground-secondary hover:text-destructive"
+                  className="text-foreground-secondary hover:text-destructive transition-all"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -130,15 +130,15 @@ export function TranscriptView({
           ) : null}
           {transcript && !readOnly ? (
             <>
-              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+              <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+              <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
             </>
           ) : null}
           {transcript ? (
             <Button
-              variant="ghost"
-              size="icon"
-              className="hidden md:inline-flex text-foreground-secondary hover:text-foreground"
+              variant="outline"
+              size="icon-sm"
+              className="hidden md:inline-flex text-foreground-secondary hover:text-foreground transition-all"
               onClick={() => setFullscreen(true)}
             >
               <Maximize2 className="h-4 w-4" />
@@ -146,24 +146,27 @@ export function TranscriptView({
           ) : null}
         </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden p-6">
         {readOnly ? (
-          <ScrollArea className="flex-1 min-h-0">
+          <ScrollArea className="flex-1 min-h-0 pr-4">
             {hasTimestampedView ? (
-              <div className="space-y-3">
+              <div className="space-y-6">
                 {utterances!.map((u, i) => (
-                  <div key={i} className="border-l-2 border-border pl-3 py-1">
-                    <p className="font-mono text-sm text-foreground">
-                      <span className="font-semibold">{u.speaker}:</span> {u.text}
+                  <div key={i} className="pl-4 border-l-2 border-primary/30 py-1 transition-colors hover:border-primary/80">
+                    <p className="font-sans text-[0.95rem] leading-relaxed text-foreground">
+                      <span className="font-mono text-xs font-semibold text-primary/80 uppercase tracking-widest block mb-1">
+                        {u.speaker}
+                      </span>
+                      {u.text}
                     </p>
-                    <span className="text-xs text-foreground-muted">
-                      {formatTimestamp(u.start_ms)} - {formatTimestamp(u.end_ms)}
+                    <span className="font-mono text-[10px] text-foreground-muted block mt-2 opacity-70">
+                      [{formatTimestamp(u.start_ms)} — {formatTimestamp(u.end_ms)}]
                     </span>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="whitespace-pre-wrap font-mono text-sm text-foreground">
+              <div className="whitespace-pre-wrap font-sans text-[0.95rem] leading-relaxed text-foreground">
                 {transcript || "Transcript will appear here..."}
               </div>
             )}
@@ -172,14 +175,14 @@ export function TranscriptView({
           <Textarea
             value={transcript}
             onChange={(e) => onTranscriptChange?.(e.target.value)}
-            className="min-h-[300px] max-h-[500px] resize-none bg-card-elevated font-mono text-sm text-foreground"
+            className="min-h-[300px] h-full resize-none border-border/30 bg-card/20 font-sans text-[0.95rem] leading-relaxed text-foreground focus-visible:ring-primary/40 p-4"
             placeholder="Transcript will appear here..."
           />
         )}
         {transcript && readOnly ? (
-          <div className="grid grid-cols-2 gap-2 mt-4 shrink-0">
-            <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-            <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+          <div className="flex flex-wrap justify-end gap-3 mt-6 shrink-0 pt-4 border-t border-border/20">
+            <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+            <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
           </div>
         ) : null}
       </CardContent>
@@ -241,8 +244,8 @@ export function TranscriptView({
               />
             )}
             <div className="grid grid-cols-2 gap-2 p-4 pt-2">
-              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+              <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+              <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
             </div>
           </div>
         </DialogContent>

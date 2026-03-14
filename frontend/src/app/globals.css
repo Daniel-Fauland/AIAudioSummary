@@ -7,7 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -33,7 +34,7 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
 
-  /* Custom semantic colors — mapped from CSS vars set per-theme below */
+  /* Custom semantic colors — mapped from CSS vars */
   --color-success: var(--color-success);
   --color-success-muted: var(--color-success-muted);
   --color-warning: var(--color-warning);
@@ -51,88 +52,89 @@
   --color-foreground-secondary: var(--color-foreground-secondary);
   --color-foreground-muted: var(--color-foreground-muted);
   --color-foreground-accent: var(--color-foreground-accent);
+  --color-plasma: #7B61FF;
 }
 
-/* Light mode (default) */
+/* Light mode (Clinical / Lab aesthetic) */
 :root {
-  --radius: 0.5rem;
-  --background: #FAFAFA;
-  --foreground: #0A0A0A;
+  --radius: 0.75rem; /* Smoother premium corners */
+  --background: #F7F6FB; /* Ghost white */
+  --foreground: #0A0A14; /* Deep Void */
   --card: #FFFFFF;
-  --card-foreground: #0A0A0A;
+  --card-foreground: #0A0A14;
   --popover: #FFFFFF;
-  --popover-foreground: #0A0A0A;
-  --primary: #FC520B;
+  --popover-foreground: #0A0A14;
+  --primary: #FC520B; /* User Orange */
   --primary-foreground: #FFFFFF;
-  --secondary: #F5F5F5;
-  --secondary-foreground: #0A0A0A;
-  --muted: #F5F5F5;
-  --muted-foreground: #A1A1AA;
-  --accent: #F5F5F5;
-  --accent-foreground: #0A0A0A;
+  --secondary: #EBEAFA; /* Soft Plasma tint */
+  --secondary-foreground: #0A0A14;
+  --muted: #EBEAFA;
+  --muted-foreground: #6B6B78;
+  --accent: #F0EFF4; /* Ghost */
+  --accent-foreground: #0A0A14;
   --destructive: #DC2626;
-  --border: #E5E5E5;
-  --input: #E5E5E5;
+  --border: #E5E4EE;
+  --input: #E5E4EE;
   --ring: rgba(252, 82, 11, 0.3);
 
-  /* Custom semantic colors — light */
+  /* Semantic - Light */
   --color-success: #16A34A;
   --color-success-muted: rgba(22, 163, 74, 0.10);
   --color-warning: #D97706;
   --color-warning-muted: rgba(217, 119, 6, 0.10);
-  --color-info: #2563EB;
-  --color-info-muted: rgba(37, 99, 235, 0.10);
+  --color-info: #7B61FF; /* Plasma */
+  --color-info-muted: rgba(123, 97, 255, 0.10);
   --color-error: #DC2626;
   --color-error-muted: rgba(220, 38, 38, 0.10);
-  --color-card-elevated: #F5F5F5;
+  --color-card-elevated: #FFFFFF;
   --color-primary-hover: #E04A0A;
   --color-primary-active: #C84209;
   --color-primary-muted: rgba(252, 82, 11, 0.10);
-  --color-border-hover: #D4D4D4;
+  --color-border-hover: #D0CDE0;
   --color-border-accent: #FC520B;
-  --color-foreground-secondary: #3F3F46;
-  --color-foreground-muted: #71717A;
+  --color-foreground-secondary: #40404C;
+  --color-foreground-muted: #6B6B78;
   --color-foreground-accent: #FC520B;
 }
 
-/* Dark mode */
+/* Dark mode (Preset D: Vapor Clinic) */
 .dark {
-  --background: #0A0A0A;
-  --foreground: #FAFAFA;
-  --card: #141414;
-  --card-foreground: #FAFAFA;
-  --popover: #1A1A1A;
-  --popover-foreground: #FAFAFA;
-  --primary: #FC520B;
+  --background: #0A0A14; /* Deep Void */
+  --foreground: #F0EFF4; /* Ghost */
+  --card: #12121A;
+  --card-foreground: #F0EFF4;
+  --popover: #15151F;
+  --popover-foreground: #F0EFF4;
+  --primary: #FC520B; /* User Orange */
   --primary-foreground: #FFFFFF;
-  --secondary: #141414;
-  --secondary-foreground: #FAFAFA;
-  --muted: #1A1A1A;
-  --muted-foreground: #71717A;
-  --accent: #1A1A1A;
-  --accent-foreground: #FAFAFA;
+  --secondary: #18181B; /* Graphite */
+  --secondary-foreground: #F0EFF4;
+  --muted: #1A1A24;
+  --muted-foreground: #8B8B9B;
+  --accent: #1F1F2E;
+  --accent-foreground: #FFFFFF;
   --destructive: #EF4444;
-  --border: #262626;
-  --input: #262626;
+  --border: #21212D;
+  --input: #21212D;
   --ring: rgba(252, 82, 11, 0.4);
 
-  /* Custom semantic colors — dark */
-  --color-success: #22C55E;
-  --color-success-muted: rgba(34, 197, 94, 0.15);
+  /* Semantic - Dark */
+  --color-success: #10B981;
+  --color-success-muted: rgba(16, 185, 129, 0.15);
   --color-warning: #F59E0B;
   --color-warning-muted: rgba(245, 158, 11, 0.15);
-  --color-info: #3B82F6;
-  --color-info-muted: rgba(59, 130, 246, 0.15);
+  --color-info: #7B61FF; /* Plasma */
+  --color-info-muted: rgba(123, 97, 255, 0.15);
   --color-error: #EF4444;
   --color-error-muted: rgba(239, 68, 68, 0.15);
-  --color-card-elevated: #1A1A1A;
-  --color-primary-hover: #E04A0A;
-  --color-primary-active: #C84209;
+  --color-card-elevated: #15151F;
+  --color-primary-hover: #FF6A2C; /* Brighter orange on hover in dark mode */
+  --color-primary-active: #E04A0A;
   --color-primary-muted: rgba(252, 82, 11, 0.15);
-  --color-border-hover: #3A3A3A;
+  --color-border-hover: #353545;
   --color-border-accent: #FC520B;
-  --color-foreground-secondary: #B4B4BB;
-  --color-foreground-muted: #8A8A93;
+  --color-foreground-secondary: #B5B5C5;
+  --color-foreground-muted: #8B8B9B;
   --color-foreground-accent: #FC520B;
 }
 
@@ -142,6 +144,32 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: radial-gradient(circle at 50% 0%, rgba(123, 97, 255, 0.05) 0%, transparent 70%);
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-background/70 backdrop-blur-xl border border-border/50;
+  }
+  .dark .glass {
+    @apply bg-[#12121A]/70 backdrop-blur-xl border border-[#21212D]/50;
+  }
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-lg border border-border/50 shadow-sm transition-all;
+  }
+  .dark .glass-card {
+    background: linear-gradient(145deg, rgba(20, 20, 30, 0.6) 0%, rgba(15, 15, 25, 0.8) 100%);
+    @apply backdrop-blur-lg border border-white/5 shadow-2xl;
+  }
+  .text-glow {
+    text-shadow: 0 0 20px rgba(252, 82, 11, 0.4);
+  }
+  .glow-border {
+    box-shadow: 0 0 0 1px rgba(252, 82, 11, 0.2), 0 0 20px rgba(252, 82, 11, 0.1);
+  }
+  .glow-border-plasma {
+    box-shadow: 0 0 0 1px rgba(123, 97, 255, 0.2), 0 0 20px rgba(123, 97, 255, 0.1);
   }
 }
 

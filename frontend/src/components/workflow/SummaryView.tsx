@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { RefreshCw, ArrowLeft, Maximize2, Square } from "lucide-react";
+import { RefreshCw, ArrowLeft, Maximize2, Square, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,18 +89,18 @@ export function SummaryView({
   }, [summary, loading]);
 
   return (
-    <Card className="border-border flex flex-col h-full">
-      <CardHeader className="flex flex-row items-center justify-between">
+    <Card className="border-border/50 bg-card/10 backdrop-blur-md flex flex-col h-full shadow-sm transition-all duration-300">
+      <CardHeader className="flex flex-row items-center justify-between border-b border-border/20 bg-background/30 backdrop-blur-sm pb-4">
         <div className="flex items-center gap-2">
-          <CardTitle className="text-lg">Summary</CardTitle>
+          <CardTitle className="text-lg font-semibold">Summary</CardTitle>
           {!loading && <TokenUsageBadge usage={tokenUsage} contextWindow={contextWindow} />}
         </div>
         <div className="flex items-center gap-2">
           {!loading && summary ? (
             <Button
-              variant="ghost"
-              size="icon"
-              className="hidden md:inline-flex"
+              variant="outline"
+              size="icon-sm"
+              className="hidden md:inline-flex text-foreground-secondary hover:text-foreground transition-all"
               onClick={() => setFullscreen(true)}
             >
               <Maximize2 className="h-4 w-4" />
@@ -109,10 +109,10 @@ export function SummaryView({
           {loading ? (
             <Badge
               variant="outline"
-              className={`border-primary-muted bg-primary-muted text-primary transition-colors ${
+              className={`border-primary/30 bg-primary/10 text-primary transition-all duration-300 ${
                 badgeHovered
-                  ? "cursor-pointer border-destructive/30 bg-destructive/10 text-destructive"
-                  : ""
+                  ? "cursor-pointer border-destructive/30 bg-destructive/10 text-destructive scale-[1.02]"
+                  : "glow-border-plasma"
               }`}
               onMouseEnter={() => setBadgeHovered(true)}
               onMouseLeave={() => setBadgeHovered(false)}
@@ -124,47 +124,57 @@ export function SummaryView({
                   Stop Generating
                 </>
               ) : (
-                "Generating..."
+                <>
+                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                  Generating...
+                </>
               )}
             </Badge>
           ) : null}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <ScrollArea ref={scrollRef} className="max-h-[600px] rounded-md bg-card">
-          <div className="p-4">
+      <CardContent className="flex-1 flex flex-col space-y-4 p-6 overflow-hidden">
+        <ScrollArea ref={scrollRef} className="flex-1 min-h-0 pr-4">
+          <div className="pb-4">
             {summary ? (
               <div className="markdown-prose">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
                 {loading ? <span className="streaming-cursor">▊</span> : null}
               </div>
             ) : loading ? (
-              <div className="flex items-center gap-2 py-8 justify-center">
-                <span className="streaming-cursor text-lg">▊</span>
-                <span className="text-sm text-foreground-secondary">
-                  Waiting for response...
+              <div className="flex items-center gap-3 py-16 justify-center opacity-80">
+                <div className="flex space-x-1">
+                  <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                  <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                  <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce"></div>
+                </div>
+                <span className="text-sm font-mono text-info/80 tracking-widest uppercase">
+                  Synthesizing Data...
                 </span>
               </div>
             ) : (
-              <p className="py-8 text-center text-sm text-foreground-muted">
-                Summary will appear here...
-              </p>
+              <div className="flex flex-col items-center gap-2 py-16 text-center">
+                <p className="text-sm font-mono text-foreground-muted uppercase tracking-widest opacity-60">
+                 Awaiting Input
+                </p>
+                <div className="w-12 h-[1px] bg-border/40 mt-2"></div>
+              </div>
             )}
           </div>
         </ScrollArea>
 
         {!loading ? (
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" className="justify-start" onClick={onRegenerate}>
-              <RefreshCw className="mr-2 h-4 w-4" />
+          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-border/20 shrink-0">
+            <Button variant="outline" size="sm" className="justify-start transition-all" onClick={onRegenerate}>
+              <RefreshCw className="mr-2 h-3.5 w-3.5" />
               Regenerate
             </Button>
-            <Button variant="ghost" className="justify-start" onClick={onBack}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Transcript
+            <Button variant="outline" size="sm" className="justify-start transition-all" onClick={onBack}>
+              <ArrowLeft className="mr-2 h-3.5 w-3.5" />
+              Back
             </Button>
-            <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-            <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+            <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+            <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
           </div>
         ) : null}
       </CardContent>
@@ -180,17 +190,17 @@ export function SummaryView({
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
               </div>
             </ScrollArea>
-            <div className="grid grid-cols-2 gap-2 p-4 pt-2">
-              <Button variant="secondary" className="justify-start" onClick={onRegenerate}>
+            <div className="grid grid-cols-2 gap-2 p-4 pt-2 border-t border-border/20 bg-background/30 backdrop-blur-sm">
+              <Button variant="outline" size="sm" className="justify-start" onClick={onRegenerate}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Regenerate
               </Button>
-              <Button variant="ghost" className="justify-start" onClick={onBack}>
+              <Button variant="outline" size="sm" className="justify-start" onClick={onBack}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Transcript
               </Button>
-              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+              <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+              <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
             </div>
           </div>
         </DialogContent>
