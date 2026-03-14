@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { ChevronDown, Eye, EyeOff, Info, Pencil, RotateCcw } from "lucide-react";
+import { ChevronDown, ClipboardPaste, Eye, EyeOff, Info, Pencil, RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -820,35 +820,93 @@ export function SettingsSheet({
                   <CollapsibleContent className="pt-3 space-y-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="webhook-url" className="text-sm">Webhook URL</Label>
-                      <Input
-                        id="webhook-url"
-                        type="url"
-                        placeholder="https://example.com/webhook"
-                        value={webhookUrl}
-                        onChange={(e) => onWebhookUrlChange(e.target.value)}
-                        className="h-8 text-sm"
-                      />
+                      <div className="flex items-center gap-1">
+                        <Input
+                          id="webhook-url"
+                          type="url"
+                          placeholder="https://example.com/webhook"
+                          value={webhookUrl}
+                          onChange={(e) => onWebhookUrlChange(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                        {webhookUrl ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onWebhookUrlChange("")}
+                            className="text-foreground-muted hover:text-destructive shrink-0"
+                            aria-label="Clear webhook URL"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={async () => {
+                              try {
+                                const text = await navigator.clipboard.readText();
+                                const trimmed = text.trim();
+                                if (trimmed) onWebhookUrlChange(trimmed);
+                              } catch {}
+                            }}
+                            className="text-foreground-muted hover:text-foreground shrink-0"
+                            aria-label="Paste from clipboard"
+                          >
+                            <ClipboardPaste className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-1.5">
                       <Label htmlFor="webhook-secret" className="text-sm">Webhook Secret</Label>
-                      <div className="relative">
-                        <Input
-                          id="webhook-secret"
-                          type={showWebhookSecret ? "text" : "password"}
-                          placeholder="Optional HMAC secret"
-                          value={webhookSecret}
-                          onChange={(e) => onWebhookSecretChange(e.target.value)}
-                          className="h-8 text-sm pr-9"
-                        />
-                        <button
-                          type="button"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground"
-                          onClick={() => setShowWebhookSecret(!showWebhookSecret)}
-                          tabIndex={-1}
-                        >
-                          {showWebhookSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </button>
+                      <div className="flex items-center gap-1">
+                        <div className="relative flex-1">
+                          <Input
+                            id="webhook-secret"
+                            type={showWebhookSecret ? "text" : "password"}
+                            placeholder="Optional HMAC secret"
+                            value={webhookSecret}
+                            onChange={(e) => onWebhookSecretChange(e.target.value)}
+                            className="h-8 text-sm pr-9"
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground"
+                            onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                            tabIndex={-1}
+                          >
+                            {showWebhookSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        {webhookSecret ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onWebhookSecretChange("")}
+                            className="text-foreground-muted hover:text-destructive shrink-0"
+                            aria-label="Clear webhook secret"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={async () => {
+                              try {
+                                const text = await navigator.clipboard.readText();
+                                const trimmed = text.trim();
+                                if (trimmed) onWebhookSecretChange(trimmed);
+                              } catch {}
+                            }}
+                            className="text-foreground-muted hover:text-foreground shrink-0"
+                            aria-label="Paste from clipboard"
+                          >
+                            <ClipboardPaste className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
 
