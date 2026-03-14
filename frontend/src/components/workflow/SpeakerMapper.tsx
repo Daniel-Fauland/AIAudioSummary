@@ -291,8 +291,8 @@ export function SpeakerMapper({
   };
 
   return (
-    <Card className="border-border">
-      <CardHeader>
+    <Card className="border-border/50 bg-card/10 backdrop-blur-md shadow-sm transition-all duration-300 mb-6">
+      <CardHeader className="border-b border-border/20 bg-background/30 backdrop-blur-sm pb-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle className="text-lg">Speaker Mapping</CardTitle>

@@ -162,17 +162,18 @@ export function RealtimeTranscriptView({
   }, [accumulatedTranscript, hasTimestampedView, mergedUtterances]);
 
   return (
-    <Card className="border-border flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">Live Transcript</CardTitle>
+    <Card className="border-border/50 bg-card/10 backdrop-blur-md flex flex-col shadow-sm transition-all duration-300 h-full">
+      <CardHeader className="flex flex-row items-center justify-between border-b border-border/20 bg-background/30 backdrop-blur-sm pb-4">
+        <CardTitle className="text-lg font-semibold">Live Transcript</CardTitle>
         <div className="flex items-center gap-1">
           {showSpeakerMapperButton && onOpenSpeakerMapper && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="ghost"
-                  size="icon"
+                  variant="outline"
+                  size="icon-sm"
                   onClick={onOpenSpeakerMapper}
+                  className="text-foreground-secondary hover:text-primary transition-all"
                 >
                   <Users className="h-4 w-4" />
                 </Button>
@@ -184,9 +185,10 @@ export function RealtimeTranscriptView({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="ghost"
-                  size="icon"
+                  variant="outline"
+                  size="icon-sm"
                   onClick={() => setConfirmClear(true)}
+                  className="text-foreground-secondary hover:text-destructive transition-all"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -198,9 +200,9 @@ export function RealtimeTranscriptView({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden md:inline-flex"
+                  variant="outline"
+                  size="icon-sm"
+                  className="hidden md:inline-flex text-foreground-secondary hover:text-foreground transition-all"
                   onClick={() => setFullscreen(true)}
                 >
                   <Maximize2 className="h-4 w-4" />
@@ -290,8 +292,8 @@ export function RealtimeTranscriptView({
         {/* Copy, Save & Auto-scroll */}
         {hasContent && (
           <div className="mt-auto flex items-center gap-2">
-            <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-            <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+            <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+            <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
             <div className="ml-auto">
               <Button
                 variant="ghost"
@@ -349,8 +351,8 @@ export function RealtimeTranscriptView({
               )}
             </ScrollArea>
             <div className="grid grid-cols-2 gap-2 p-4 pt-2">
-              <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-              <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+              <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+              <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
             </div>
           </div>
         </DialogContent>

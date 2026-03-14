@@ -64,7 +64,7 @@ export function LiveQuestions({
   });
 
   return (
-    <Card className="border-border bg-card">
+    <Card className="border-border/50 bg-card/10 backdrop-blur-md flex flex-col shadow-sm transition-all duration-300 h-full">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base font-semibold">Questions &amp; Topics</CardTitle>

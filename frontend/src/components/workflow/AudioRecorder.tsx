@@ -252,12 +252,12 @@ export function AudioRecorder({
 
   return (
     <div
-      className={`flex min-h-[240px] flex-col items-center justify-center gap-4 rounded-lg border p-6 transition-colors duration-150 ${
+      className={`flex min-h-[240px] flex-col items-center justify-center gap-4 rounded-2xl border p-6 transition-all duration-300 ${
         isDisabled
-          ? "border-border bg-card opacity-50"
+          ? "border-border/50 bg-card/20 opacity-50 backdrop-blur-sm"
           : recorderState === "recording"
-            ? "border-border-accent bg-primary-muted"
-            : "border-border bg-card"
+            ? "border-primary/50 bg-primary/5 glow-border"
+            : "border-border/50 bg-card/10 backdrop-blur-md hover:bg-card/20"
       }`}
     >
         {/* Idle */}

@@ -186,7 +186,7 @@ export function RealtimeControls({
   // On desktop (≥ 640px): keep the original horizontal row layout.
   if (isIdle || isSessionEnded) {
     return (
-      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 rounded-lg border border-border bg-card p-3">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 rounded-2xl border border-border/50 bg-card/20 p-4 transition-all duration-300 backdrop-blur-md">
         {/* Row 1 (mobile): CTA button — full width on mobile, auto on desktop */}
         <Button
           onClick={onStart}
@@ -300,7 +300,7 @@ export function RealtimeControls({
   // ── Active / Connecting state ─────────────────────────────────────────────
   // Layout unchanged from original — already works well on mobile.
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3">
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/50 bg-card/20 p-4 transition-all duration-300 backdrop-blur-md">
       {/* Action buttons */}
       <div className="flex items-center gap-2">
         {isActive && !isPaused && (

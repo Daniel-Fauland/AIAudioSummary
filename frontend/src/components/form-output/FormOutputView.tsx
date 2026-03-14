@@ -234,7 +234,7 @@ export function FormOutputView({
   const [popoverOpen, setPopoverOpen] = useState(false);
 
   return (
-    <Card className="border-border bg-card">
+    <Card className="border-border/50 bg-card/10 backdrop-blur-md flex flex-col shadow-sm transition-all duration-300 h-full">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base font-semibold">{templateName}</CardTitle>
@@ -292,8 +292,8 @@ export function FormOutputView({
             <RefreshCw className="mr-1.5 h-4 w-4" />
             Re-fill
           </Button>
-          <CopyAsButton payload={contentPayload} variant="secondary" size="default" />
-          <SaveAsButton payload={contentPayload} variant="secondary" size="default" />
+          <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+          <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
         </div>
       </CardContent>
     </Card>

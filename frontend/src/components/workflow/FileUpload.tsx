@@ -158,17 +158,17 @@ export function FileUpload({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onClick={() => !isDisabled && inputRef.current?.click()}
-          className={`flex min-h-[240px] cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 transition-colors duration-150 ${
+          className={`flex min-h-[240px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-6 transition-all duration-300 ${
             isDisabled
-              ? "border-border bg-card opacity-50 cursor-not-allowed"
+              ? "border-border/50 bg-card/20 opacity-50 cursor-not-allowed backdrop-blur-sm"
               : dragOver
-                ? "border-border-accent bg-primary-muted"
-                : "border-border bg-card hover:border-border-hover hover:bg-card-elevated"
+                ? "border-info bg-info/5 glow-border-plasma scale-[1.02]"
+                : "border-border/50 bg-card/10 hover:border-info/30 hover:bg-card/20 backdrop-blur-md"
           }`}
         >
           <UploadCloud
-            className={`h-12 w-12 ${
-              dragOver ? "text-primary" : "text-foreground-muted"
+            className={`h-12 w-12 transition-colors duration-300 ${
+              dragOver ? "text-info drop-shadow-[0_0_8px_rgba(123,97,255,0.6)]" : "text-foreground-muted"
             }`}
           />
           <p className="text-sm text-foreground-secondary">

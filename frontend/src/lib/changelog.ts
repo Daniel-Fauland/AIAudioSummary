@@ -10,6 +10,18 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "2.3.0",
+    date: "2026-03-15",
+    title: "Redesigned UI",
+    changes: [
+      {
+        type: "changed",
+        description:
+          "Updated the overall design of the application with a cleaner and more modern look & improved typography.",
+      },
+    ],
+  },
+  {
     version: "2.2.0",
     date: "2026-03-14",
     title: "Webhook support & display name",

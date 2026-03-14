@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Sora, Instrument_Serif, Fira_Code } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionWrapper } from "@/components/auth/SessionWrapper";
@@ -7,8 +7,19 @@ import { ThemeProvider } from "next-themes";
 import { GlobalProviders } from "@/components/global/GlobalProviders";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const sora = Sora({
+  variable: "--font-sans",
+  subsets: ["latin"],
+});
+
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-serif",
+  weight: "400",
+  subsets: ["latin"],
+});
+
+const firaCode = Fira_Code({
+  variable: "--font-mono",
   subsets: ["latin"],
 });
 
@@ -25,7 +36,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${sora.variable} ${instrumentSerif.variable} ${firaCode.variable} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
