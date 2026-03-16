@@ -52,6 +52,7 @@ export interface WebhookPayloadParams {
   tokenUsage: TokenUsage | null;
   formOutput: Record<string, unknown> | null;
   questions: { id: string; question: string; status: string; answer?: string }[] | null;
+  userArgs: { key: string; value: string }[] | null;
 }
 
 /**
@@ -80,8 +81,14 @@ export function buildWebhookPayload(params: WebhookPayloadParams): WebhookPayloa
       prompt: params.prompt,
       language: params.language,
       token_usage: params.tokenUsage,
+      summary_title: params.contentType === "summary" && params.summary
+        ? params.summary.split("\n")[0].replace(/^#+\s*/, "").trim() || null
+        : null,
       form_output: params.formOutput,
       questions: params.questions,
+      user_args: params.userArgs && params.userArgs.length > 0
+        ? Object.fromEntries(params.userArgs.map(({ key, value }) => [key, value]))
+        : null,
     },
   };
 }

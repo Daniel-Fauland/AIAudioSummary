@@ -63,6 +63,21 @@ export interface CreateTranscriptResponse {
   utterances: TranscriptUtterance[];
 }
 
+// === LLM Test types ===
+
+export interface TestLLMRequest {
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  azure_config: AzureConfig | null;
+  langdock_config?: LangdockConfig;
+}
+
+export interface TestLLMResponse {
+  success: boolean;
+  error: string | null;
+}
+
 // === Summary types ===
 
 export interface AzureConfig {
@@ -371,13 +386,15 @@ export interface WebhookPayload {
     token_usage: TokenUsage | null;
     form_output: Record<string, unknown> | null;
     questions: { id: string; question: string; status: string; answer?: string }[] | null;
+    summary_title: string | null;
+    user_args: Record<string, string> | null;
   };
 }
 
 export interface WebhookFireRequest {
   webhook_url: string;
   webhook_secret?: string;
-  payload: WebhookPayload;
+  payload: WebhookPayload | Record<string, unknown>;
 }
 
 export interface WebhookFireResponse {
@@ -425,6 +442,7 @@ export interface UserPreferences {
   webhook_secret?: string;
   webhook_standard_trigger?: WebhookStandardTrigger;
   webhook_realtime_trigger?: WebhookRealtimeTrigger;
+  webhook_user_args?: { key: string; value: string }[];
   display_name?: string;
   session_standard?: {
     transcript?: string;

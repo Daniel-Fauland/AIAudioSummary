@@ -165,7 +165,11 @@ export function useChatbot({
   // Resolve chatbot-specific model override
   const override = featureOverrides["chatbot"];
   const provider = override?.provider ?? selectedProvider;
-  const model = override?.model ?? selectedModel;
+  const rawModel = override?.model ?? selectedModel;
+  // For Azure OpenAI, ensure model is never empty — use deployment name as fallback
+  const model = provider === "azure_openai" && !rawModel
+    ? (azureConfig?.deployment_name || "azure")
+    : rawModel;
   const apiKey = getKey(provider as LLMProvider);
   const hasApiKey = apiKey.trim().length > 0;
 

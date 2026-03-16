@@ -10,6 +10,38 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "2.4.0",
+    date: "2026-03-16",
+    title: "Webhook enhancements, connection testing & Azure OpenAI fix",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Webhook Custom Arguments — add optional key-value pairs in Settings > Webhooks that are included in every webhook payload under data.user_args. Useful for passing metadata like team IDs, environment tags, or routing keys to your webhook receiver.",
+      },
+      {
+        type: "added",
+        description:
+          "Webhook payloads now include a summary_title field (extracted from the first line of the summary) when the content type is \"summary\".",
+      },
+      {
+        type: "added",
+        description:
+          "Test Connection button in AI Model settings — sends a quick ping to verify your LLM provider credentials and model are working. Shows a green indicator on success or a red indicator with error details on failure.",
+      },
+      {
+        type: "added",
+        description:
+          "Test Webhook button in Webhook settings — fires a test payload to your configured webhook URL to verify it is reachable. Includes any custom arguments in the test payload.",
+      },
+      {
+        type: "fixed",
+        description:
+          "Fixed Azure OpenAI not working when selected as the LLM provider — the model field was sent as an empty string instead of the deployment name, causing a validation error.",
+      },
+    ],
+  },
+  {
     version: "2.3.0",
     date: "2026-03-15",
     title: "Redesigned UI",

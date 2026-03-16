@@ -13,7 +13,7 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
-from models.llm import LLMProvider, AzureConfig, LangdockConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse
+from models.llm import LLMProvider, AzureConfig, LangdockConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse, TestLLMRequest
 from service.misc.core import MiscService
 
 
@@ -309,3 +309,31 @@ class LLMService:
                 # Initial error (no data sent yet): re-raise so the router
                 # can return a proper HTTP error response.
                 raise
+
+    async def test_connection(self, request: TestLLMRequest) -> tuple[bool, str | None]:
+        """Test LLM connectivity by sending a minimal prompt.
+
+        Returns:
+            Tuple of (success, error_message).
+        """
+        model_name = request.model
+        if request.provider == LLMProvider.AZURE_OPENAI and request.azure_config:
+            model_name = request.azure_config.deployment_name
+
+        model = self._create_model(
+            provider=request.provider,
+            model_name=model_name,
+            api_key=request.api_key,
+            azure_config=request.azure_config,
+            langdock_config=request.langdock_config,
+        )
+
+        agent = Agent(
+            model,
+            system_prompt="Reply with exactly: pong",
+            model_settings=self.build_model_settings(request.provider, model_name, temperature=0, max_tokens=16),
+        )
+
+        result = await agent.run("ping")
+        # If we get here without an exception, the connection works
+        return True, None

@@ -82,6 +82,7 @@ const WEBHOOK_URL_KEY = "aias:v1:webhook_url";
 const WEBHOOK_SECRET_KEY = "aias:v1:webhook_secret";
 const WEBHOOK_STANDARD_TRIGGER_KEY = "aias:v1:webhook_standard_trigger";
 const WEBHOOK_REALTIME_TRIGGER_KEY = "aias:v1:webhook_realtime_trigger";
+const WEBHOOK_USER_ARGS_KEY = "aias:v1:webhook_user_args";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -467,6 +468,16 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [webhookRealtimeTrigger, setWebhookRealtimeTrigger] = useState<import("@/lib/types").WebhookRealtimeTrigger>(
     () => (serverPreferences?.webhook_realtime_trigger || safeGet(WEBHOOK_REALTIME_TRIGGER_KEY, "on_stop") || "on_stop") as import("@/lib/types").WebhookRealtimeTrigger,
   );
+  const [webhookUserArgs, setWebhookUserArgs] = useState<{ key: string; value: string }[]>(
+    () => {
+      const server = serverPreferences?.webhook_user_args;
+      if (server && server.length > 0) return server;
+      try {
+        const stored = safeGet(WEBHOOK_USER_ARGS_KEY, "");
+        return stored ? JSON.parse(stored) : [];
+      } catch { return []; }
+    },
+  );
 
   // Display name (defaults to Google Auth name)
   const [displayName, setDisplayName] = useState(
@@ -697,9 +708,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const resolveModelConfig = useCallback(
     (feature: LLMFeature): { provider: LLMProvider; model: string } => {
       const override = featureOverrides[feature];
-      return override ?? { provider: selectedProvider, model: selectedModel };
+      const config = override ?? { provider: selectedProvider, model: selectedModel };
+      // For Azure OpenAI, ensure model is never empty — use deployment name as fallback
+      if (config.provider === "azure_openai" && !config.model) {
+        return { ...config, model: azureConfig?.deployment_name || "azure" };
+      }
+      return config;
     },
-    [featureOverrides, selectedProvider, selectedModel],
+    [featureOverrides, selectedProvider, selectedModel, azureConfig],
   );
 
   const handleFeatureOverridesChange = useCallback(
@@ -781,6 +797,12 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const handleWebhookRealtimeTriggerChange = useCallback((trigger: import("@/lib/types").WebhookRealtimeTrigger) => {
     setWebhookRealtimeTrigger(trigger);
     safeSet(WEBHOOK_REALTIME_TRIGGER_KEY, trigger);
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleWebhookUserArgsChange = useCallback((args: { key: string; value: string }[]) => {
+    setWebhookUserArgs(args);
+    safeSet(WEBHOOK_USER_ARGS_KEY, JSON.stringify(args));
     savePreferences();
   }, [savePreferences]);
 
@@ -868,6 +890,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     safeSet(WEBHOOK_STANDARD_TRIGGER_KEY, "summary");
     setWebhookRealtimeTrigger("on_stop");
     safeSet(WEBHOOK_REALTIME_TRIGGER_KEY, "on_stop");
+    setWebhookUserArgs([]);
+    safeSet(WEBHOOK_USER_ARGS_KEY, "[]");
 
     savePreferences();
   }, [savePreferences, globalSync]);
@@ -1208,9 +1232,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       webhook_url: webhookUrl || undefined,
       webhook_standard_trigger: webhookStandardTrigger,
       webhook_realtime_trigger: webhookRealtimeTrigger,
+      webhook_user_args: webhookUserArgs.length > 0 ? webhookUserArgs : undefined,
       display_name: displayName || undefined,
     };
-  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp, defaultCopyFormat, defaultSaveFormat, defaultChatbotCopyFormat, customTemplates, formTemplates, keytermsLists, webhookUrl, webhookStandardTrigger, webhookRealtimeTrigger, displayName]);
+  }, [selectedProvider, selectedModel, appMode, theme, lastVisitTimestamp, defaultCopyFormat, defaultSaveFormat, defaultChatbotCopyFormat, customTemplates, formTemplates, keytermsLists, webhookUrl, webhookStandardTrigger, webhookRealtimeTrigger, webhookUserArgs, displayName]);
 
   const onChatbotMessagesChange = useCallback((msgs: import("@/lib/types").ChatMessageType[]) => {
     if (msgs.length === 0) {
@@ -1437,6 +1462,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             tokenUsage: null,
             formOutput: null,
             questions: null,
+            userArgs: webhookUserArgs,
           }));
         }
       } catch (e) {
@@ -1561,6 +1587,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           tokenUsage: capturedUsage,
           formOutput: null,
           questions: null,
+          userArgs: webhookUserArgs,
         }));
       }
     }
@@ -1721,6 +1748,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           tokenUsage: null,
           formOutput: response.values,
           questions: null,
+          userArgs: webhookUserArgs,
         }));
       }
     } catch (e) {
@@ -1855,6 +1883,8 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onWebhookStandardTriggerChange={handleWebhookStandardTriggerChange}
         webhookRealtimeTrigger={webhookRealtimeTrigger}
         onWebhookRealtimeTriggerChange={handleWebhookRealtimeTriggerChange}
+        webhookUserArgs={webhookUserArgs}
+        onWebhookUserArgsChange={handleWebhookUserArgsChange}
         onResetSettings={handleResetSettings}
       />
 
@@ -1945,6 +1975,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             webhookUrl={webhookUrl}
             webhookSecret={webhookSecret}
             webhookRealtimeTrigger={webhookRealtimeTrigger}
+            webhookUserArgs={webhookUserArgs}
           />
         </div>
 

@@ -25,6 +25,8 @@ import type {
   UpdatedTranscriptResponse,
   UserPreferences,
   UserProfile,
+  TestLLMRequest,
+  TestLLMResponse,
   WebhookFireRequest,
   WebhookFireResponse,
 } from "./types";
@@ -386,4 +388,15 @@ export async function chatbotChat(
 
   const data = await response.json();
   return { text: data.content, usage: data.usage };
+}
+
+export async function testLlmConnection(
+  request: TestLLMRequest,
+): Promise<TestLLMResponse> {
+  const response = await fetch(`${API_BASE}/testLLM`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<TestLLMResponse>(response);
 }

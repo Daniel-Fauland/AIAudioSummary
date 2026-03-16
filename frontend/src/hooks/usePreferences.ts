@@ -239,6 +239,7 @@ function collectPreferences(): UserPreferences {
     webhook_secret: safeLocalGet("aias:v1:webhook_secret") ?? undefined,
     webhook_standard_trigger: (safeLocalGet("aias:v1:webhook_standard_trigger") as import("@/lib/types").WebhookStandardTrigger) || undefined,
     webhook_realtime_trigger: (safeLocalGet("aias:v1:webhook_realtime_trigger") as import("@/lib/types").WebhookRealtimeTrigger) || undefined,
+    webhook_user_args: (() => { try { const v = safeLocalGet("aias:v1:webhook_user_args"); return v ? JSON.parse(v) : undefined; } catch { return undefined; } })(),
     session_standard: sessionStandard,
     session_realtime: sessionRealtime,
     session_chatbot: sessionChatbot,
@@ -284,6 +285,7 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.webhook_secret !== undefined) safeLocalSet("aias:v1:webhook_secret", prefs.webhook_secret);
   if (prefs.webhook_standard_trigger) safeLocalSet("aias:v1:webhook_standard_trigger", prefs.webhook_standard_trigger);
   if (prefs.webhook_realtime_trigger) safeLocalSet("aias:v1:webhook_realtime_trigger", prefs.webhook_realtime_trigger);
+  if (prefs.webhook_user_args !== undefined) safeLocalSet("aias:v1:webhook_user_args", JSON.stringify(prefs.webhook_user_args));
   applySessionData(prefs);
 }
 
