@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { ChevronDown, ClipboardPaste, Eye, EyeOff, Info, Pencil, RotateCcw, X } from "lucide-react";
+import { ChevronDown, ClipboardPaste, Eye, EyeOff, Info, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -99,6 +99,8 @@ interface SettingsSheetProps {
   onWebhookStandardTriggerChange: (trigger: WebhookStandardTrigger) => void;
   webhookRealtimeTrigger: WebhookRealtimeTrigger;
   onWebhookRealtimeTriggerChange: (trigger: WebhookRealtimeTrigger) => void;
+  webhookUserArgs: { key: string; value: string }[];
+  onWebhookUserArgsChange: (args: { key: string; value: string }[]) => void;
   displayName: string;
   onDisplayNameChange: (name: string) => void;
   onResetSettings: () => void;
@@ -199,6 +201,8 @@ export function SettingsSheet({
   onWebhookStandardTriggerChange,
   webhookRealtimeTrigger,
   onWebhookRealtimeTriggerChange,
+  webhookUserArgs,
+  onWebhookUserArgsChange,
   onResetSettings,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
@@ -935,6 +939,60 @@ export function SettingsSheet({
                           <SelectItem value="only_with_final_summary">After Final Summary (skip if disabled)</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Custom Arguments</Label>
+                      <p className="text-xs text-foreground-muted">
+                        Key-value pairs sent in the webhook payload under <code className="text-xs">data.user_args</code>.
+                      </p>
+                      <div className="space-y-2">
+                        {webhookUserArgs.map((arg, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5">
+                            <Input
+                              placeholder="Key"
+                              value={arg.key}
+                              onChange={(e) => {
+                                const updated = [...webhookUserArgs];
+                                updated[idx] = { ...updated[idx], key: e.target.value };
+                                onWebhookUserArgsChange(updated);
+                              }}
+                              className="h-8 text-sm flex-1"
+                            />
+                            <Input
+                              placeholder="Value"
+                              value={arg.value}
+                              onChange={(e) => {
+                                const updated = [...webhookUserArgs];
+                                updated[idx] = { ...updated[idx], value: e.target.value };
+                                onWebhookUserArgsChange(updated);
+                              }}
+                              className="h-8 text-sm flex-1"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                const updated = webhookUserArgs.filter((_, i) => i !== idx);
+                                onWebhookUserArgsChange(updated);
+                              }}
+                              className="text-foreground-muted hover:text-destructive shrink-0 h-8 w-8"
+                              aria-label="Remove argument"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onWebhookUserArgsChange([...webhookUserArgs, { key: "", value: "" }])}
+                          className="w-full h-8 text-sm"
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1.5" />
+                          Add Argument
+                        </Button>
+                      </div>
                     </div>
                   </CollapsibleContent>
                 </Collapsible>

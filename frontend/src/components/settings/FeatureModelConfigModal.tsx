@@ -48,20 +48,34 @@ export function FeatureModelConfigModal({
 
   const handleOpenChange = (val: boolean) => {
     if (val) {
-      setLocalProvider(override?.provider ?? defaultProvider);
-      setLocalModel(override?.model ?? defaultModel);
+      const provider = override?.provider ?? defaultProvider;
+      setLocalProvider(provider);
+      const model = override?.model ?? defaultModel;
+      // For Azure, ensure model is never empty — use deployment name as fallback
+      if (provider === "azure_openai" && !model) {
+        setLocalModel(getAzureConfig()?.deployment_name ?? "azure");
+      } else {
+        setLocalModel(model);
+      }
     }
     setOpen(val);
   };
 
   const handleProviderChange = (provider: LLMProvider) => {
     setLocalProvider(provider);
-    const providerInfo = providers.find((p) => p.id === provider);
-    setLocalModel(providerInfo?.models[0] ?? "");
+    if (provider === "azure_openai") {
+      setLocalModel(getAzureConfig()?.deployment_name ?? "azure");
+    } else {
+      const providerInfo = providers.find((p) => p.id === provider);
+      setLocalModel(providerInfo?.models[0] ?? "");
+    }
   };
 
   const handleSave = () => {
-    onSave({ provider: localProvider, model: localModel });
+    const model = localProvider === "azure_openai"
+      ? (getAzureConfig()?.deployment_name || localModel || "azure")
+      : localModel;
+    onSave({ provider: localProvider, model });
     setOpen(false);
   };
 

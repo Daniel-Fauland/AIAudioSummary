@@ -371,6 +371,8 @@ export interface WebhookPayload {
     token_usage: TokenUsage | null;
     form_output: Record<string, unknown> | null;
     questions: { id: string; question: string; status: string; answer?: string }[] | null;
+    summary_title: string | null;
+    user_args: Record<string, string> | null;
   };
 }
 
@@ -425,6 +427,7 @@ export interface UserPreferences {
   webhook_secret?: string;
   webhook_standard_trigger?: WebhookStandardTrigger;
   webhook_realtime_trigger?: WebhookRealtimeTrigger;
+  webhook_user_args?: { key: string; value: string }[];
   display_name?: string;
   session_standard?: {
     transcript?: string;

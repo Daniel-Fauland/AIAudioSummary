@@ -89,6 +89,7 @@ interface RealtimeModeProps {
   webhookUrl?: string;
   webhookSecret?: string;
   webhookRealtimeTrigger?: import("@/lib/types").WebhookRealtimeTrigger;
+  webhookUserArgs?: { key: string; value: string }[];
 }
 
 export function RealtimeMode({
@@ -141,6 +142,7 @@ export function RealtimeMode({
   webhookUrl,
   webhookSecret,
   webhookRealtimeTrigger = "on_stop",
+  webhookUserArgs,
 }: RealtimeModeProps) {
   const session = useRealtimeSession({
     initialTranscript: initialRealtimeSession?.transcript,
@@ -272,8 +274,9 @@ export function RealtimeMode({
       tokenUsage: session.summaryAccumulatedUsage,
       formOutput: formOutput.values && Object.keys(formOutput.values).length > 0 ? formOutput.values : null,
       questions: questionsData,
+      userArgs: webhookUserArgs ?? null,
     }));
-  }, [webhookUrl, webhookSecret, session.accumulatedTranscript, session.realtimeSummary, session.summaryAccumulatedUsage, speakerMappings, liveQuestions.questions, formOutput.values, meetingDate, selectedModel, selectedProvider, realtimeSystemPrompt, selectedLanguage]);
+  }, [webhookUrl, webhookSecret, session.accumulatedTranscript, session.realtimeSummary, session.summaryAccumulatedUsage, speakerMappings, liveQuestions.questions, formOutput.values, meetingDate, selectedModel, selectedProvider, realtimeSystemPrompt, selectedLanguage, webhookUserArgs]);
 
   useEffect(() => {
     if (session.isSessionEnded && !prevIsSessionEndedRef.current) {
