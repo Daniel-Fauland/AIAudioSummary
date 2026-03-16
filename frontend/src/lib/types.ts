@@ -63,6 +63,21 @@ export interface CreateTranscriptResponse {
   utterances: TranscriptUtterance[];
 }
 
+// === LLM Test types ===
+
+export interface TestLLMRequest {
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  azure_config: AzureConfig | null;
+  langdock_config?: LangdockConfig;
+}
+
+export interface TestLLMResponse {
+  success: boolean;
+  error: string | null;
+}
+
 // === Summary types ===
 
 export interface AzureConfig {
@@ -379,7 +394,7 @@ export interface WebhookPayload {
 export interface WebhookFireRequest {
   webhook_url: string;
   webhook_secret?: string;
-  payload: WebhookPayload;
+  payload: WebhookPayload | Record<string, unknown>;
 }
 
 export interface WebhookFireResponse {

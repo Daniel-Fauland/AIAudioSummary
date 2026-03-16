@@ -29,6 +29,9 @@ import { LangdockConfigForm } from "@/components/settings/LangdockConfigForm";
 import { FeatureModelOverrides } from "@/components/settings/FeatureModelOverrides";
 import { ChatbotSettings } from "@/components/settings/ChatbotSettings";
 import { KeytermsListSelector } from "@/components/settings/KeytermsListSelector";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useApiKeys } from "@/hooks/useApiKeys";
+import { testLlmConnection, fireWebhook } from "@/lib/api";
 import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, RealtimeSpeechModel, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat, ChatbotCopyFormat, KeytermsList, WebhookStandardTrigger, WebhookRealtimeTrigger } from "@/lib/types";
 import { COPY_FORMAT_LABELS, SAVE_FORMAT_LABELS, CHATBOT_COPY_FORMAT_LABELS } from "@/lib/content-formats";
 
@@ -211,6 +214,109 @@ export function SettingsSheet({
   const handleKeyChange = useCallback(() => {
     setKeyVersion((v) => v + 1);
   }, []);
+
+  const { getKey } = useApiKeys();
+  const [llmTestStatus, setLlmTestStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [llmTestError, setLlmTestError] = useState<string | null>(null);
+
+  // Reset test status when provider or model changes
+  useEffect(() => {
+    setLlmTestStatus("idle");
+    setLlmTestError(null);
+  }, [selectedProvider, selectedModel]);
+
+  const handleTestLlm = useCallback(async () => {
+    const apiKey = getKey(selectedProvider);
+    if (!apiKey) {
+      setLlmTestStatus("error");
+      setLlmTestError("No API key configured");
+      toast.error("No API key configured");
+      return;
+    }
+
+    const model = selectedProvider === "azure_openai"
+      ? (azureConfig?.deployment_name || "azure")
+      : selectedModel;
+
+    setLlmTestStatus("loading");
+    setLlmTestError(null);
+
+    try {
+      const result = await testLlmConnection({
+        provider: selectedProvider,
+        api_key: apiKey,
+        model,
+        azure_config: selectedProvider === "azure_openai" ? azureConfig : null,
+        langdock_config: selectedProvider === "langdock" ? langdockConfig : undefined,
+      });
+
+      if (result.success) {
+        setLlmTestStatus("success");
+      } else {
+        setLlmTestStatus("error");
+        setLlmTestError(result.error ?? "Unknown error");
+        toast.error(result.error ?? "Connection test failed");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Connection test failed";
+      setLlmTestStatus("error");
+      setLlmTestError(msg);
+      toast.error(msg);
+    }
+  }, [selectedProvider, selectedModel, azureConfig, langdockConfig, getKey]);
+
+  const [webhookTestStatus, setWebhookTestStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [webhookTestError, setWebhookTestError] = useState<string | null>(null);
+
+  const handleTestWebhook = useCallback(async () => {
+    if (!webhookUrl) {
+      setWebhookTestStatus("error");
+      setWebhookTestError("No webhook URL configured");
+      toast.error("No webhook URL configured");
+      return;
+    }
+
+    setWebhookTestStatus("loading");
+    setWebhookTestError(null);
+
+    try {
+      const result = await fireWebhook({
+        webhook_url: webhookUrl,
+        webhook_secret: webhookSecret || undefined,
+        payload: {
+          event: "test.ping",
+          mode: "test",
+          content_type: "test",
+          timestamp: new Date().toISOString(),
+          data: {
+            message: "This is a test webhook from AIAudioSummary",
+            user_args: webhookUserArgs.length > 0
+              ? Object.fromEntries(webhookUserArgs.map(({ key, value }) => [key, value]))
+              : null,
+          },
+        },
+      });
+
+      if (result.success) {
+        setWebhookTestStatus("success");
+      } else {
+        setWebhookTestStatus("error");
+        setWebhookTestError(result.error ?? `HTTP ${result.status_code}`);
+        toast.error(result.error ?? `Webhook failed with HTTP ${result.status_code}`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Webhook test failed";
+      setWebhookTestStatus("error");
+      setWebhookTestError(msg);
+      toast.error(msg);
+    }
+  }, [webhookUrl, webhookSecret, webhookUserArgs]);
+
+  // Reset webhook test status when URL changes
+  useEffect(() => {
+    setWebhookTestStatus("idle");
+    setWebhookTestError(null);
+  }, [webhookUrl]);
 
   const [minSpeakersInput, setMinSpeakersInput] = useState(String(minSpeakers));
   const [maxSpeakersInput, setMaxSpeakersInput] = useState(String(maxSpeakers));
@@ -411,6 +517,42 @@ export function SettingsSheet({
                       <LangdockConfigForm config={langdockConfig} onConfigChange={onLangdockConfigChange} />
                     </>
                   ) : null}
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTestLlm}
+                      disabled={llmTestStatus === "loading"}
+                    >
+                      {llmTestStatus === "loading" ? (
+                        <>
+                          <svg className="animate-spin -ml-0.5 mr-1.5 h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Testing...
+                        </>
+                      ) : (
+                        "Test Connection"
+                      )}
+                    </Button>
+                    {llmTestStatus === "success" && (
+                      <div className="h-2 w-2 rounded-full bg-success" title="Connection successful" />
+                    )}
+                    {llmTestStatus === "error" && llmTestError && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="h-2 w-2 rounded-full bg-destructive cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-[250px]">
+                            <p className="text-xs">{llmTestError}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
 
                   {advancedSettings && (
                     <>
@@ -993,6 +1135,42 @@ export function SettingsSheet({
                           Add Argument
                         </Button>
                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTestWebhook}
+                        disabled={webhookTestStatus === "loading"}
+                      >
+                        {webhookTestStatus === "loading" ? (
+                          <>
+                            <svg className="animate-spin -ml-0.5 mr-1.5 h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Testing...
+                          </>
+                        ) : (
+                          "Test Webhook"
+                        )}
+                      </Button>
+                      {webhookTestStatus === "success" && (
+                        <div className="h-2 w-2 rounded-full bg-success" title="Webhook delivered successfully" />
+                      )}
+                      {webhookTestStatus === "error" && webhookTestError && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="h-2 w-2 rounded-full bg-destructive cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="max-w-[250px]">
+                              <p className="text-xs">{webhookTestError}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
