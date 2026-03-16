@@ -43,7 +43,7 @@ import { useGlobalRecording } from "@/contexts/GlobalRecordingContext";
 import { useGlobalRealtime } from "@/contexts/GlobalRealtimeContext";
 import { useGlobalSync } from "@/contexts/GlobalSyncContext";
 import { useSession } from "next-auth/react";
-import { createTranscript, createSummary, extractKeyPoints, fillForm } from "@/lib/api";
+import { createTranscript, createSummary, extractKeyPoints, fillForm, testLlmConnection, fireWebhook } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { extractDateFromFilename } from "@/lib/utils";
 import { parseConfigString, importSettings, configContainsApiKeys } from "@/lib/config-export";
@@ -1185,7 +1185,45 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       handleWebhookRealtimeTriggerChange(trigger as import("@/lib/types").WebhookRealtimeTrigger);
       toast.success(`Realtime webhook trigger set to "${trigger}"`);
     },
-  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates, saveKeytermsList, updateKeytermsList, deleteKeytermsList, keytermsLists, selectedKeytermsListId, handleKeytermsListChange, handleResetSettings, handleWebhookUrlChange, handleWebhookSecretChange, handleWebhookStandardTriggerChange, handleWebhookRealtimeTriggerChange]);
+    test_llm_connection: async () => {
+      const apiKey = getKey(selectedProvider);
+      if (!apiKey) throw new Error(`No API key configured for ${selectedProvider}`);
+      const model = selectedProvider === "azure_openai"
+        ? (azureConfig?.deployment_name || "azure")
+        : selectedModel;
+      const result = await testLlmConnection({
+        provider: selectedProvider,
+        api_key: apiKey,
+        model,
+        azure_config: selectedProvider === "azure_openai" ? azureConfig : null,
+        langdock_config: selectedProvider === "langdock" ? langdockConfig : undefined,
+      });
+      if (result.success) {
+        toast.success("LLM connection test passed");
+      } else {
+        throw new Error(result.error ?? "Connection test failed");
+      }
+    },
+    test_webhook: async () => {
+      if (!webhookUrl) throw new Error("No webhook URL configured");
+      const result = await fireWebhook({
+        webhook_url: webhookUrl,
+        webhook_secret: webhookSecret || undefined,
+        payload: {
+          event: "test.ping",
+          mode: "test",
+          content_type: "test",
+          timestamp: new Date().toISOString(),
+          data: { message: "This is a test webhook from AIAudioSummary" },
+        },
+      });
+      if (result.success) {
+        toast.success("Webhook test delivered successfully");
+      } else {
+        throw new Error(result.error ?? `Webhook failed with HTTP ${result.status_code}`);
+      }
+    },
+  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, selectedModel, azureConfig, langdockConfig, getKey, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates, saveKeytermsList, updateKeytermsList, deleteKeytermsList, keytermsLists, selectedKeytermsListId, handleKeytermsListChange, handleResetSettings, handleWebhookUrlChange, handleWebhookSecretChange, handleWebhookStandardTriggerChange, handleWebhookRealtimeTriggerChange, webhookUrl, webhookSecret]);
 
   const getAssemblyAiKey = useCallback((): string | null => {
     const key = getKey("assemblyai");

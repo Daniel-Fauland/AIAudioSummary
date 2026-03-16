@@ -301,6 +301,16 @@ ACTION_REGISTRY = [
         },
     },
     {
+        "action_id": "test_llm_connection",
+        "description": "Test the current LLM provider connection by sending a minimal ping request. Reports whether the connection succeeded or failed with an error message. Use this when the user asks to test, verify, or check their LLM/AI connection or API key.",
+        "params": {},
+    },
+    {
+        "action_id": "test_webhook",
+        "description": "Test the configured webhook URL by sending a test ping payload. Reports whether the webhook was delivered successfully or failed. Use this when the user asks to test or verify their webhook setup.",
+        "params": {},
+    },
+    {
         "action_id": "set_webhook_standard_trigger",
         "description": "Set when webhooks fire in standard mode. Options: 'summary' (fire after summary/form output) or 'transcript_and_summary' (fire after transcript AND after summary/form output).",
         "params": {
