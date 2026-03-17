@@ -32,6 +32,7 @@ import { KeytermsListSelector } from "@/components/settings/KeytermsListSelector
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { testLlmConnection, fireWebhook } from "@/lib/api";
+import { buildTestWebhookPayload } from "@/lib/webhook";
 import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, RealtimeSpeechModel, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat, ChatbotCopyFormat, KeytermsList, WebhookStandardTrigger, WebhookRealtimeTrigger } from "@/lib/types";
 import { COPY_FORMAT_LABELS, SAVE_FORMAT_LABELS, CHATBOT_COPY_FORMAT_LABELS } from "@/lib/content-formats";
 
@@ -104,6 +105,10 @@ interface SettingsSheetProps {
   onWebhookRealtimeTriggerChange: (trigger: WebhookRealtimeTrigger) => void;
   webhookUserArgs: { key: string; value: string }[];
   onWebhookUserArgsChange: (args: { key: string; value: string }[]) => void;
+  webhookTranscriptTitle: boolean;
+  onWebhookTranscriptTitleChange: (enabled: boolean) => void;
+  webhookTitlePrompt: string;
+  onWebhookTitlePromptChange: (prompt: string) => void;
   displayName: string;
   onDisplayNameChange: (name: string) => void;
   onResetSettings: () => void;
@@ -206,6 +211,10 @@ export function SettingsSheet({
   onWebhookRealtimeTriggerChange,
   webhookUserArgs,
   onWebhookUserArgsChange,
+  webhookTranscriptTitle,
+  onWebhookTranscriptTitleChange,
+  webhookTitlePrompt,
+  onWebhookTitlePromptChange,
   onResetSettings,
 }: SettingsSheetProps) {
   const providers = config?.providers ?? [];
@@ -283,18 +292,7 @@ export function SettingsSheet({
       const result = await fireWebhook({
         webhook_url: webhookUrl,
         webhook_secret: webhookSecret || undefined,
-        payload: {
-          event: "test.ping",
-          mode: "test",
-          content_type: "test",
-          timestamp: new Date().toISOString(),
-          data: {
-            message: "This is a test webhook from AIAudioSummary",
-            user_args: webhookUserArgs.length > 0
-              ? Object.fromEntries(webhookUserArgs.map(({ key, value }) => [key, value]))
-              : null,
-          },
-        },
+        payload: buildTestWebhookPayload(webhookUserArgs.length > 0 ? webhookUserArgs : null),
       });
 
       if (result.success) {
@@ -387,6 +385,10 @@ export function SettingsSheet({
   const [promptDraft, setPromptDraft] = useState("");
   const [isMobile, setIsMobile] = useState(false);
 
+  // Webhook title prompt editor state
+  const [titlePromptEditorOpen, setTitlePromptEditorOpen] = useState(false);
+  const [titlePromptDraft, setTitlePromptDraft] = useState("");
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
     setIsMobile(mq.matches);
@@ -407,6 +409,22 @@ export function SettingsSheet({
 
   const cancelPrompt = () => {
     setPromptEditorOpen(false);
+  };
+
+  const defaultTitlePrompt = "Generate a concise, descriptive title for a meeting/recording summary. Keep it under 10 words. Capture the main topic of the meeting.";
+
+  const openTitlePromptEditor = () => {
+    setTitlePromptDraft(webhookTitlePrompt || defaultTitlePrompt);
+    setTitlePromptEditorOpen(true);
+  };
+
+  const saveTitlePrompt = () => {
+    onWebhookTitlePromptChange(titlePromptDraft === defaultTitlePrompt ? "" : titlePromptDraft);
+    setTitlePromptEditorOpen(false);
+  };
+
+  const cancelTitlePrompt = () => {
+    setTitlePromptEditorOpen(false);
   };
 
   const kbdBase =
@@ -1064,7 +1082,8 @@ export function SettingsSheet({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="summary">After Summary</SelectItem>
-                          <SelectItem value="transcript_and_summary">After Transcript &amp; Summary</SelectItem>
+                          <SelectItem value="transcript_and_summary">After Transcript (immediately) &amp; Summary</SelectItem>
+                          <SelectItem value="transcript_mapped_and_summary">After Transcript (speaker mapping) &amp; Summary</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1136,6 +1155,34 @@ export function SettingsSheet({
                         </Button>
                       </div>
                     </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm">Generate title for transcript</Label>
+                        <p className="text-xs text-foreground-muted">
+                          Generate a summary title via LLM before firing transcript webhooks
+                        </p>
+                      </div>
+                      <Switch
+                        checked={webhookTranscriptTitle}
+                        onCheckedChange={onWebhookTranscriptTitleChange}
+                      />
+                    </div>
+
+                    {webhookTranscriptTitle ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="text-sm">Title Prompt</Label>
+                          <Button variant="outline" size="sm" onClick={openTitlePromptEditor} className="h-7 px-2 text-xs shrink-0">
+                            <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                            Edit
+                          </Button>
+                        </div>
+                        <p className="text-xs text-foreground-muted">
+                          Customize the prompt used to generate transcript titles.
+                        </p>
+                      </div>
+                    ) : null}
 
                     <div className="flex items-center gap-2">
                       <Button
@@ -1240,6 +1287,70 @@ export function SettingsSheet({
               Save
             </Button>
             <Button variant="ghost" onClick={cancelPrompt}>
+              Cancel
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Desktop: Title prompt editor */}
+      <Dialog open={!isMobile && titlePromptEditorOpen} onOpenChange={(o) => !o && cancelTitlePrompt()}>
+        <DialogContent className="max-w-2xl bg-card">
+          <DialogHeader>
+            <DialogTitle>Edit Title Prompt</DialogTitle>
+            <DialogDescription>
+              Customize the system prompt used when generating titles for transcript webhooks.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea
+              value={titlePromptDraft}
+              onChange={(e) => setTitlePromptDraft(e.target.value)}
+              className="min-h-[200px] resize-y bg-card-elevated font-mono text-sm"
+              placeholder="e.g., Generate a concise, descriptive title for a meeting summary..."
+            />
+            <div className="flex justify-end">
+              <span className="text-xs text-foreground-muted">{titlePromptDraft.length} characters</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={cancelTitlePrompt}>
+              Cancel
+            </Button>
+            <Button onClick={saveTitlePrompt}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mobile: Title prompt editor */}
+      <Sheet open={isMobile && titlePromptEditorOpen} onOpenChange={(o) => !o && cancelTitlePrompt()}>
+        <SheetContent side="bottom" className="h-[85vh] bg-card flex flex-col gap-4">
+          <SheetHeader>
+            <SheetTitle>Edit Title Prompt</SheetTitle>
+            <SheetDescription>
+              Customize the prompt for generating transcript webhook titles.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-hidden flex flex-col gap-2">
+            <div className="space-y-2">
+              <Textarea
+                value={titlePromptDraft}
+                onChange={(e) => setTitlePromptDraft(e.target.value)}
+                className="min-h-[150px] flex-1 resize-none bg-card-elevated font-mono text-sm"
+                placeholder="e.g., Generate a concise, descriptive title for a meeting summary..."
+              />
+              <div className="flex justify-end">
+                <span className="text-xs text-foreground-muted">{titlePromptDraft.length} characters</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 pb-2">
+            <Button onClick={saveTitlePrompt}>
+              Save
+            </Button>
+            <Button variant="ghost" onClick={cancelTitlePrompt}>
               Cancel
             </Button>
           </div>

@@ -109,7 +109,7 @@ export function TranscriptView({
   }
 
   return (
-    <Card className="border-border/50 bg-card/10 backdrop-blur-md h-full min-h-0 overflow-hidden shadow-sm transition-all duration-300">
+    <Card className="border-border/50 bg-card/10 backdrop-blur-md h-full min-h-0 max-h-[70vh] overflow-hidden shadow-sm transition-all duration-300">
       <CardHeader className="flex flex-row items-center justify-between shrink-0 border-b border-border/20 bg-background/30 backdrop-blur-sm pb-4">
         <CardTitle className="text-lg font-semibold">Transcript</CardTitle>
         <div className="flex items-center gap-2">
@@ -175,7 +175,7 @@ export function TranscriptView({
           <Textarea
             value={transcript}
             onChange={(e) => onTranscriptChange?.(e.target.value)}
-            className="min-h-[300px] h-full resize-none border-border/30 bg-card/20 font-sans text-[0.95rem] leading-relaxed text-foreground focus-visible:ring-primary/40 p-4"
+            className="min-h-0 flex-1 resize-none border-border/30 bg-card/20 font-sans text-[0.95rem] leading-relaxed text-foreground focus-visible:ring-primary/40 p-4"
             placeholder="Transcript will appear here..."
           />
         )}

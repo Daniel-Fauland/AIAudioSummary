@@ -130,7 +130,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v2.4.0** — click to view the changelog of recent updates
+- **v2.5.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -271,6 +271,7 @@ The app recognises two transcript formats:
   - The current **speaker label** (e.g., "Speaker A" or "Speaker 1").
   - An **arrow (→)** followed by a **name input field** where you type the real name.
 - An **Apply Names** button — applies all entered names to the transcript, replacing the generic labels.
+- A **Fire Webhook** button (send icon) — visible when a webhook URL is configured. Sends a transcript webhook with the current speaker mapping. If any speakers still have default names (e.g. "Speaker A"), a confirmation dialog asks whether to proceed.
 - A **Generate Key Points** button (sparkle icon) — or **Regenerate** if key points were already generated.
 - **Collapse All / Expand All** links — show or hide key point summaries per speaker.
 
@@ -683,8 +684,9 @@ Override the default model for individual features. Click the section to expand 
 - Prompt Assistant
 - Live Question Evaluation
 - Form Output
+- Webhook Transcript Title
 
-This is useful if, for example, you want to use a cheaper model for key point extraction but a more capable model for final summaries.
+This is useful if, for example, you want to use a cheaper model for key point extraction but a more capable model for final summaries. The **Webhook Transcript Title** override lets you use a different (e.g. cheaper or faster) model for generating titles when the "Generate title for transcript" webhook option is enabled.
 
 ---
 
@@ -1115,21 +1117,24 @@ Webhooks let you automatically send transcripts, summaries, and form outputs to 
 
 Webhook settings are found in **Settings → Webhooks**. The Webhooks section only appears when **Advanced Settings** is enabled in the Settings panel.
 
-| Setting                   | Description                                                                                                                                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Webhook URL**           | The destination URL that will receive POST requests when processing completes. Leave empty to disable webhooks.                                                                                                    |
-| **Webhook Secret**        | An optional HMAC-SHA256 secret. When set, each request includes an `X-Webhook-Signature` header containing a signature of the payload body, allowing the receiving server to verify that the request is authentic. |
-| **Standard Mode Trigger** | Controls when the webhook fires during Standard mode processing (see below).                                                                                                                                       |
-| **Realtime Mode Trigger** | Controls when the webhook fires during Realtime mode processing (see below).                                                                                                                                       |
-| **Custom Arguments**      | Key-value pairs included in every webhook payload under `data.user_args`. Useful for routing or tagging deliveries in your receiving system.                                                                       |
-| **Test Webhook**          | Sends a test payload (`event: "test.ping"`) to your configured URL to verify it is reachable. A green dot indicates success; a red dot (with hover tooltip) indicates failure. The status resets when the URL changes. |
+| Setting                   | Description                                                                                                                                                                                                            |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Webhook URL**           | The destination URL that will receive POST requests when processing completes. Leave empty to disable webhooks.                                                                                                        |
+| **Webhook Secret**        | An optional HMAC-SHA256 secret. When set, each request includes an `X-Webhook-Signature` header containing a signature of the payload body, allowing the receiving server to verify that the request is authentic.     |
+| **Standard Mode Trigger** | Controls when the webhook fires during Standard mode processing (see below).                                                                                                                                           |
+| **Realtime Mode Trigger** | Controls when the webhook fires during Realtime mode processing (see below).                                                                                                                                           |
+| **Custom Arguments**      | Key-value pairs included in every webhook payload under `data.user_args`. Useful for routing or tagging deliveries in your receiving system.                                                                           |
+| **Generate title for transcript** | When enabled, transcript webhooks generate a concise LLM-powered title before firing. A "Webhook queued" notification appears while the title is being generated, followed by "Webhook delivered successfully" once sent. Uses the default AI model, or the overridden model for "Webhook Transcript Title" if configured in Feature-Specific Models. When disabled (default), transcript webhooks fire immediately with `summary_title: null`. |
+| **Title Prompt**          | (Visible when title generation is enabled.) Customize the system prompt used when generating transcript titles. Click **Edit** to open the prompt editor. Leave empty to use the default prompt. |
+| **Test Webhook**          | Sends a test payload with the full `summary.completed` schema (using sample data) to your configured URL to verify it is reachable and to validate your receiver against the real payload shape. The test payload uses `event: "test.completed"` and `mode: "test"` so receivers can distinguish it from real deliveries. A green dot indicates success; a red dot (with hover tooltip) indicates failure. The status resets when the URL changes. |
 
 #### Standard mode triggers
 
-| Trigger                        | Behaviour                                                                                                |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| **After Summary** (default)    | Fires once after summary generation completes, or after form output completion if a form is configured.  |
-| **After Transcript & Summary** | Fires twice: once after the transcript is ready, and again after the summary (or form output) completes. |
+| Trigger                                    | Behaviour                                                                                                                                                                                                         |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **After Summary** (default)                | Fires once after summary generation completes, or after form output completion if a form is configured.                                                                                                           |
+| **After Transcript (immediately) & Summary** | Fires twice: once immediately after the transcript is ready (before speaker mapping), and again after the summary (or form output) completes.                                                                    |
+| **After Transcript (speaker mapping) & Summary** | Fires twice: once after speaker names are applied via the **Apply Names** button (with the speaker mapping included), and again after the summary (or form output) completes. If speaker mapping is skipped, the transcript webhook is not fired. |
 
 #### Realtime mode triggers
 
@@ -1163,7 +1168,7 @@ The `data` object may include:
 - `prompt` — the prompt that was used.
 - `language` — the output language.
 - `token_usage` — token consumption details for the request.
-- `summary_title` — the title extracted from the first line of the summary (heading markers stripped). Only present when `content_type` is `summary`.
+- `summary_title` — a concise, descriptive title generated via a dedicated structured-output LLM call. For `content_type: "summary"`, the title is always generated. For `content_type: "transcript"`, the title is included only when "Generate title for transcript" is enabled in webhook settings — otherwise `null`.
 - `form_output` — the structured form output, if a form was configured.
 - `questions` — questions and topics captured during a Realtime session (Realtime mode only).
 - `user_args` — a key-value object containing the Custom Arguments configured in Settings. `null` if none are configured.
@@ -1177,10 +1182,12 @@ You can also configure webhooks through the AI Assistant (chatbot) using natural
 - **"Set webhook URL to https://..."** — configures the webhook destination.
 - **"Clear webhook URL"** — removes the URL and disables webhooks.
 - **"Set webhook secret to ..."** — configures the HMAC-SHA256 signing secret.
-- **"Set standard webhook trigger to transcript_and_summary"** — changes the Standard mode trigger.
+- **"Set standard webhook trigger to transcript_and_summary"** or **"transcript_mapped_and_summary"** — changes the Standard mode trigger.
 - **"Set realtime webhook trigger to on_stop_with_final_summary"** — changes the Realtime mode trigger.
+- **"Enable/disable webhook transcript title"** — toggles title generation for transcript webhooks.
+- **"Update webhook title prompt to ..."** — sets a custom prompt for title generation (empty string resets to default).
 
-> **Tip:** Use the **Test Webhook** button to quickly verify your webhook URL is reachable. To inspect the full payload structure, you can use a free request-inspection tool such as [webhook.site](https://webhook.site) as your Webhook URL and then run a short transcription to see the payload that gets delivered.
+> **Tip:** Use the **Test Webhook** button to quickly verify your webhook URL is reachable and to inspect the full payload structure — the test payload uses the same schema as a real `summary.completed` delivery (with sample data), so you can validate your receiver without running a transcription. For a visual inspection, try a free request-inspection tool such as [webhook.site](https://webhook.site) as your Webhook URL.
 
 ---
 

@@ -48,7 +48,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { extractDateFromFilename } from "@/lib/utils";
 import { parseConfigString, importSettings, configContainsApiKeys } from "@/lib/config-export";
 import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType, TokenUsage, TranscriptUtterance, WebhookStandardTrigger, WebhookRealtimeTrigger } from "@/lib/types";
-import { buildWebhookPayload, fireWebhookWithToast } from "@/lib/webhook";
+import { buildWebhookPayload, buildTestWebhookPayload, fireWebhookWithToast, fireTranscriptWebhookWithTitle } from "@/lib/webhook";
 import { getContextWindow } from "@/lib/token-utils";
 import { APP_VERSION } from "@/lib/constants";
 import { changelog } from "@/lib/changelog";
@@ -83,6 +83,8 @@ const WEBHOOK_SECRET_KEY = "aias:v1:webhook_secret";
 const WEBHOOK_STANDARD_TRIGGER_KEY = "aias:v1:webhook_standard_trigger";
 const WEBHOOK_REALTIME_TRIGGER_KEY = "aias:v1:webhook_realtime_trigger";
 const WEBHOOK_USER_ARGS_KEY = "aias:v1:webhook_user_args";
+const WEBHOOK_TRANSCRIPT_TITLE_KEY = "aias:v1:webhook_transcript_title";
+const WEBHOOK_TITLE_PROMPT_KEY = "aias:v1:webhook_title_prompt";
 
 export const DEFAULT_REALTIME_SYSTEM_PROMPT = `You are a real-time meeting assistant maintaining a live, structured & concise summary of an ongoing conversation.
 
@@ -370,6 +372,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [utterances, setUtterances] = useState<TranscriptUtterance[]>(initialStandardSession.utterances ?? []);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [summary, setSummary] = useState(initialStandardSession.summary);
+  const [summaryTitle, setSummaryTitle] = useState<string | null>(null);
   const [summaryUsage, setSummaryUsage] = useState<TokenUsage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -479,6 +482,13 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     },
   );
 
+  const [webhookTranscriptTitle, setWebhookTranscriptTitle] = useState(
+    () => serverPreferences?.webhook_transcript_title ?? safeGet(WEBHOOK_TRANSCRIPT_TITLE_KEY, "false") === "true",
+  );
+  const [webhookTitlePrompt, setWebhookTitlePrompt] = useState(
+    () => serverPreferences?.webhook_title_prompt || safeGet(WEBHOOK_TITLE_PROMPT_KEY, ""),
+  );
+
   // Display name (defaults to Google Auth name)
   const [displayName, setDisplayName] = useState(
     () => serverPreferences?.display_name || safeGet(DISPLAY_NAME_KEY, "") || authName || "",
@@ -569,6 +579,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     const handler = () => {
       sessionPersistence.clearStandardSession();
       setSummary("");
+      setSummaryTitle(null);
       setUtterances([]);
       setFormValues({});
       setSelectedFormTemplateId(null);
@@ -806,6 +817,18 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     savePreferences();
   }, [savePreferences]);
 
+  const handleWebhookTranscriptTitleChange = useCallback((enabled: boolean) => {
+    setWebhookTranscriptTitle(enabled);
+    safeSet(WEBHOOK_TRANSCRIPT_TITLE_KEY, enabled ? "true" : "false");
+    savePreferences();
+  }, [savePreferences]);
+
+  const handleWebhookTitlePromptChange = useCallback((prompt: string) => {
+    setWebhookTitlePrompt(prompt);
+    safeSet(WEBHOOK_TITLE_PROMPT_KEY, prompt);
+    savePreferences();
+  }, [savePreferences]);
+
   const handleDisplayNameChange = useCallback((name: string) => {
     setDisplayName(name);
     safeSet(DISPLAY_NAME_KEY, name);
@@ -892,6 +915,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     safeSet(WEBHOOK_REALTIME_TRIGGER_KEY, "on_stop");
     setWebhookUserArgs([]);
     safeSet(WEBHOOK_USER_ARGS_KEY, "[]");
+    setWebhookTranscriptTitle(false);
+    safeSet(WEBHOOK_TRANSCRIPT_TITLE_KEY, "false");
+    setWebhookTitlePrompt("");
+    safeSet(WEBHOOK_TITLE_PROMPT_KEY, "");
 
     savePreferences();
   }, [savePreferences, globalSync]);
@@ -1173,7 +1200,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     },
     set_webhook_standard_trigger: async (params) => {
       const trigger = params.trigger as string;
-      const valid = ["summary", "transcript_and_summary"];
+      const valid = ["summary", "transcript_and_summary", "transcript_mapped_and_summary"];
       if (!valid.includes(trigger)) throw new Error(`Invalid trigger: ${trigger}. Valid: ${valid.join(", ")}`);
       handleWebhookStandardTriggerChange(trigger as import("@/lib/types").WebhookStandardTrigger);
       toast.success(`Standard webhook trigger set to "${trigger}"`);
@@ -1184,6 +1211,16 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       if (!valid.includes(trigger)) throw new Error(`Invalid trigger: ${trigger}. Valid: ${valid.join(", ")}`);
       handleWebhookRealtimeTriggerChange(trigger as import("@/lib/types").WebhookRealtimeTrigger);
       toast.success(`Realtime webhook trigger set to "${trigger}"`);
+    },
+    toggle_webhook_transcript_title: async (params) => {
+      const enabled = !!params.enabled;
+      handleWebhookTranscriptTitleChange(enabled);
+      toast.success(`Webhook transcript title generation ${enabled ? "enabled" : "disabled"}`);
+    },
+    update_webhook_title_prompt: async (params) => {
+      const prompt = (params.prompt as string) ?? "";
+      handleWebhookTitlePromptChange(prompt);
+      toast.success(prompt ? "Webhook title prompt updated" : "Webhook title prompt reset to default");
     },
     test_llm_connection: async () => {
       const apiKey = getKey(selectedProvider);
@@ -1209,13 +1246,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       const result = await fireWebhook({
         webhook_url: webhookUrl,
         webhook_secret: webhookSecret || undefined,
-        payload: {
-          event: "test.ping",
-          mode: "test",
-          content_type: "test",
-          timestamp: new Date().toISOString(),
-          data: { message: "This is a test webhook from AIAudioSummary" },
-        },
+        payload: buildTestWebhookPayload(webhookUserArgs.length > 0 ? webhookUserArgs : null),
       });
       if (result.success) {
         toast.success("Webhook test delivered successfully");
@@ -1223,7 +1254,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         throw new Error(result.error ?? `Webhook failed with HTTP ${result.status_code}`);
       }
     },
-  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, selectedModel, azureConfig, langdockConfig, getKey, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates, saveKeytermsList, updateKeytermsList, deleteKeytermsList, keytermsLists, selectedKeytermsListId, handleKeytermsListChange, handleResetSettings, handleWebhookUrlChange, handleWebhookSecretChange, handleWebhookStandardTriggerChange, handleWebhookRealtimeTriggerChange, webhookUrl, webhookSecret]);
+  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, selectedModel, azureConfig, langdockConfig, getKey, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates, saveKeytermsList, updateKeytermsList, deleteKeytermsList, keytermsLists, selectedKeytermsListId, handleKeytermsListChange, handleResetSettings, handleWebhookUrlChange, handleWebhookSecretChange, handleWebhookStandardTriggerChange, handleWebhookRealtimeTriggerChange, webhookUrl, webhookSecret, webhookUserArgs]);
 
   const getAssemblyAiKey = useCallback((): string | null => {
     const key = getKey("assemblyai");
@@ -1440,6 +1471,74 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     );
   }, []);
 
+  // Fire webhook manually from Speaker Mapper button
+  const handleFireWebhookFromSpeakerMapper = useCallback(() => {
+    if (!webhookUrl) return;
+    const { provider: titleProvider, model: titleModel } = resolveModelConfig("webhook_title");
+    const payloadParams = {
+      transcript,
+      speakerMapping: speakerRenamesRef.current,
+      summary: "",
+      summaryTitle: null,
+      mode: "standard" as const,
+      contentType: "transcript" as const,
+      meetingDate,
+      model: selectedModel,
+      provider: selectedProvider,
+      prompt: "",
+      language: selectedLanguage,
+      tokenUsage: null,
+      formOutput: null,
+      questions: null,
+      userArgs: webhookUserArgs,
+    };
+    fireTranscriptWebhookWithTitle(webhookUrl, webhookSecret, payloadParams, {
+      enabled: webhookTranscriptTitle,
+      provider: titleProvider,
+      apiKey: getKey(titleProvider) ?? "",
+      model: titleModel,
+      azureConfig: titleProvider === "azure_openai" ? azureConfig : null,
+      langdockConfig: titleProvider === "langdock" ? langdockConfig : undefined,
+      language: selectedLanguage,
+      date: meetingDate,
+      systemPrompt: webhookTitlePrompt || undefined,
+    });
+  }, [webhookUrl, webhookSecret, transcript, meetingDate, selectedModel, selectedProvider, selectedLanguage, webhookUserArgs, webhookTranscriptTitle, webhookTitlePrompt, getKey, azureConfig, langdockConfig, resolveModelConfig]);
+
+  // Automatically fire webhook after speaker mapping is applied (for transcript_mapped_and_summary trigger)
+  const handleSpeakerMappingApplied = useCallback((mappings: Record<string, string>) => {
+    if (!webhookUrl || webhookStandardTrigger !== "transcript_mapped_and_summary") return;
+    const { provider: titleProvider, model: titleModel } = resolveModelConfig("webhook_title");
+    const payloadParams = {
+      transcript,
+      speakerMapping: mappings,
+      summary: "",
+      summaryTitle: null,
+      mode: "standard" as const,
+      contentType: "transcript" as const,
+      meetingDate,
+      model: selectedModel,
+      provider: selectedProvider,
+      prompt: "",
+      language: selectedLanguage,
+      tokenUsage: null,
+      formOutput: null,
+      questions: null,
+      userArgs: webhookUserArgs,
+    };
+    fireTranscriptWebhookWithTitle(webhookUrl, webhookSecret, payloadParams, {
+      enabled: webhookTranscriptTitle,
+      provider: titleProvider,
+      apiKey: getKey(titleProvider) ?? "",
+      model: titleModel,
+      azureConfig: titleProvider === "azure_openai" ? azureConfig : null,
+      langdockConfig: titleProvider === "langdock" ? langdockConfig : undefined,
+      language: selectedLanguage,
+      date: meetingDate,
+      systemPrompt: webhookTitlePrompt || undefined,
+    });
+  }, [webhookUrl, webhookSecret, webhookStandardTrigger, transcript, meetingDate, selectedModel, selectedProvider, selectedLanguage, webhookUserArgs, webhookTranscriptTitle, webhookTitlePrompt, getKey, azureConfig, langdockConfig, resolveModelConfig]);
+
   // Step 1 → 2: file selected, start transcription
   const handleFileSelected = useCallback(
     async (file: File) => {
@@ -1459,6 +1558,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
 
       // Clear previous session data — new upload replaces everything
       setSummary("");
+      setSummaryTitle(null);
       setUtterances([]);
       setFormValues({});
       setSelectedFormTemplateId(null);
@@ -1486,12 +1586,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         toast.success("Transcription complete!");
         // Fire webhook on transcript completion if configured
         if (webhookUrl && webhookStandardTrigger === "transcript_and_summary") {
-          fireWebhookWithToast(webhookUrl, webhookSecret, buildWebhookPayload({
+          const { provider: titleProvider, model: titleModel } = resolveModelConfig("webhook_title");
+          const payloadParams = {
             transcript: result.transcript,
             speakerMapping: {},
             summary: "",
-            mode: "standard",
-            contentType: "transcript",
+            summaryTitle: null,
+            mode: "standard" as const,
+            contentType: "transcript" as const,
             meetingDate,
             model: selectedModel,
             provider: selectedProvider,
@@ -1501,7 +1603,18 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             formOutput: null,
             questions: null,
             userArgs: webhookUserArgs,
-          }));
+          };
+          fireTranscriptWebhookWithTitle(webhookUrl, webhookSecret, payloadParams, {
+            enabled: webhookTranscriptTitle,
+            provider: titleProvider,
+            apiKey: getKey(titleProvider) ?? "",
+            model: titleModel,
+            azureConfig: titleProvider === "azure_openai" ? azureConfig : null,
+            langdockConfig: titleProvider === "langdock" ? langdockConfig : undefined,
+            language: selectedLanguage,
+            date: meetingDate,
+            systemPrompt: webhookTitlePrompt || undefined,
+          });
         }
       } catch (e) {
         toast.error(getErrorMessage(e, "transcript"));
@@ -1512,13 +1625,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         setIsTranscribing(false);
       }
     },
-    [getKey, minSpeakers, maxSpeakers, selectedKeyterms, sessionPersistence.clearStandardSession, savePreferences, webhookUrl, webhookSecret, webhookStandardTrigger, meetingDate, selectedModel, selectedProvider, selectedLanguage],
+    [getKey, minSpeakers, maxSpeakers, selectedKeyterms, sessionPersistence.clearStandardSession, savePreferences, webhookUrl, webhookSecret, webhookStandardTrigger, meetingDate, selectedModel, selectedProvider, selectedLanguage, webhookTranscriptTitle, webhookTitlePrompt, azureConfig, langdockConfig, resolveModelConfig],
   );
 
   // Skip upload: go directly to step 2 with empty transcript
   const handleSkipUpload = useCallback(() => {
     // Clear previous session data
     setSummary("");
+    setSummaryTitle(null);
     setUtterances([]);
     setFormValues({});
     setSelectedFormTemplateId(null);
@@ -1552,12 +1666,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     setMaxReachedStep((prev) => Math.max(prev, 3) as 1 | 2 | 3);
     setIsGenerating(true);
     setSummary("");
+    setSummaryTitle(null);
     setSummaryUsage(null);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
     let accumulatedSummary = "";
     let capturedUsage: TokenUsage | null = null;
+    let capturedTitle: string | null = null;
 
     try {
       const result = await createSummary(
@@ -1580,11 +1696,19 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           setSummary((prev) => prev + chunk);
         },
         controller.signal,
+        (title) => {
+          capturedTitle = title;
+          setSummaryTitle(title);
+        },
       );
-      // Use cleaned text (usage marker stripped) and capture usage
+      // Use cleaned text (usage marker stripped) and capture usage/title
       if (result.text) {
         accumulatedSummary = result.text;
         setSummary(result.text);
+      }
+      if (result.summaryTitle) {
+        capturedTitle = result.summaryTitle;
+        setSummaryTitle(result.summaryTitle);
       }
       if (result.usage) {
         capturedUsage = result.usage;
@@ -1615,6 +1739,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           transcript,
           speakerMapping: speakerRenamesRef.current,
           summary: accumulatedSummary,
+          summaryTitle: capturedTitle,
           mode: "standard",
           contentType: "summary",
           meetingDate,
@@ -1776,6 +1901,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           transcript,
           speakerMapping: speakerRenamesRef.current,
           summary: "",
+          summaryTitle: null,
           mode: "standard",
           contentType: "form",
           meetingDate,
@@ -1923,6 +2049,10 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         onWebhookRealtimeTriggerChange={handleWebhookRealtimeTriggerChange}
         webhookUserArgs={webhookUserArgs}
         onWebhookUserArgsChange={handleWebhookUserArgsChange}
+        webhookTranscriptTitle={webhookTranscriptTitle}
+        onWebhookTranscriptTitleChange={handleWebhookTranscriptTitleChange}
+        webhookTitlePrompt={webhookTitlePrompt}
+        onWebhookTitlePromptChange={handleWebhookTitlePromptChange}
         onResetSettings={handleResetSettings}
       />
 
@@ -2111,6 +2241,9 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
                     onKeyPointsRemap={handleKeyPointsRemap}
                     onTranscriptReplaced={handleTranscriptReplaced}
                     suggestedNames={suggestedNames}
+                    showFireWebhook={!!webhookUrl}
+                    onFireWebhook={handleFireWebhookFromSpeakerMapper}
+                    onSpeakerMappingApplied={handleSpeakerMappingApplied}
                   />
 
                   {/* Output mode toggle */}
@@ -2231,6 +2364,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
                   outputMode === "summary" ? (
                     <SummaryView
                       summary={summary}
+                      summaryTitle={summaryTitle}
                       loading={isGenerating}
                       onStop={handleStopGenerating}
                       onRegenerate={handleRegenerate}

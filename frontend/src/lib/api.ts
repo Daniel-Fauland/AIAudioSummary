@@ -29,11 +29,14 @@ import type {
   TestLLMResponse,
   WebhookFireRequest,
   WebhookFireResponse,
+  GenerateTitleRequest,
+  GenerateTitleResponse,
 } from "./types";
 
 const API_BASE = "/api/proxy";
 const STREAM_ERROR_RE = /\n?\n?<!--STREAM_ERROR:(.+?)-->$/;
 const TOKEN_USAGE_RE = /\n?\n?<!--TOKEN_USAGE:(.+?)-->$/;
+const SUMMARY_TITLE_RE = /^<!--SUMMARY_TITLE:(.+?)-->\n/;
 
 export class ApiError extends Error {
   constructor(
@@ -128,7 +131,8 @@ export async function createSummary(
   request: CreateSummaryRequest,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal,
-): Promise<{ text: string; usage?: TokenUsage }> {
+  onTitle?: (title: string) => void,
+): Promise<{ text: string; usage?: TokenUsage; summaryTitle?: string }> {
   const sanitized = {
     ...request,
     date: request.date || null,
@@ -160,13 +164,51 @@ export async function createSummary(
 
     const decoder = new TextDecoder();
     let fullText = "";
+    let buffer = "";
+    let titleExtracted = false;
+    let summaryTitle: string | undefined;
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       const chunk = decoder.decode(value, { stream: true });
-      fullText += chunk;
-      onChunk(chunk);
+
+      if (!titleExtracted) {
+        // Buffer initial chunks until the title marker is consumed
+        buffer += chunk;
+        const titleMatch = buffer.match(SUMMARY_TITLE_RE);
+        if (titleMatch) {
+          summaryTitle = titleMatch[1];
+          titleExtracted = true;
+          onTitle?.(summaryTitle);
+          const remainder = buffer.slice(titleMatch[0].length);
+          if (remainder) {
+            fullText += remainder;
+            onChunk(remainder);
+          }
+        } else if (buffer.length > 300 || !buffer.startsWith("<!")) {
+          // No title marker present — flush buffer as body content
+          titleExtracted = true;
+          fullText += buffer;
+          onChunk(buffer);
+        }
+      } else {
+        fullText += chunk;
+        onChunk(chunk);
+      }
+    }
+
+    // If buffer was never flushed (stream ended while still buffering)
+    if (!titleExtracted && buffer) {
+      const titleMatch = buffer.match(SUMMARY_TITLE_RE);
+      if (titleMatch) {
+        summaryTitle = titleMatch[1];
+        onTitle?.(summaryTitle);
+        const remainder = buffer.slice(titleMatch[0].length);
+        if (remainder) fullText += remainder;
+      } else {
+        fullText += buffer;
+      }
     }
 
     // Extract usage marker before checking for errors
@@ -185,11 +227,11 @@ export async function createSummary(
       throw new ApiError(502, errorMatch[1]);
     }
 
-    return { text: fullText, usage };
+    return { text: fullText, usage, summaryTitle };
   }
 
   const data = (await response.json()) as CreateSummaryResponse;
-  return { text: data.summary, usage: data.usage };
+  return { text: data.summary, usage: data.usage, summaryTitle: data.summary_title ?? undefined };
 }
 
 export async function createIncrementalSummary(
@@ -256,6 +298,17 @@ export async function evaluateLiveQuestions(
     body: JSON.stringify(request),
   });
   return handleResponse<EvaluateQuestionsResponse>(response);
+}
+
+export async function generateTitle(
+  request: GenerateTitleRequest,
+): Promise<GenerateTitleResponse> {
+  const response = await fetch(`${API_BASE}/generateTitle`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<GenerateTitleResponse>(response);
 }
 
 export async function getMe(): Promise<UserProfile> {

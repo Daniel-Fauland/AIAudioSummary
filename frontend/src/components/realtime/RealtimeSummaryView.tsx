@@ -26,6 +26,7 @@ import type { ContentPayload, TokenUsage } from "@/lib/types";
 
 interface RealtimeSummaryViewProps {
   summary: string;
+  summaryTitle?: string | null;
   summaryUpdatedAt: string | null;
   isSummaryUpdating: boolean;
   isSessionEnded: boolean;
@@ -46,6 +47,7 @@ function getRelativeTime(isoTimestamp: string): string {
 
 export function RealtimeSummaryView({
   summary,
+  summaryTitle,
   summaryUpdatedAt,
   isSummaryUpdating,
   isSessionEnded,

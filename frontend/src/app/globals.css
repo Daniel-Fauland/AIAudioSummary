@@ -385,8 +385,9 @@
 }
 
 /* Native scrollbar styling — matches shadcn ScrollArea appearance.
-   Applies to elements that can't use ScrollArea (e.g. <textarea>). */
-::-webkit-scrollbar {
+   Applies to elements that can't use ScrollArea (e.g. <textarea>).
+   Exclude Radix ScrollArea viewports which manage their own scrollbars. */
+:not([data-radix-scroll-area-viewport])::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }

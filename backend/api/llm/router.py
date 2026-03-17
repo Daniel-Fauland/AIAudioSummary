@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import StreamingResponse
 from service.llm.core import LLMService
-from models.llm import CreateSummaryRequest, CreateSummaryResponse, ExtractKeyPointsRequest, ExtractKeyPointsResponse, TestLLMRequest, TestLLMResponse, TokenUsage
+from models.llm import CreateSummaryRequest, CreateSummaryResponse, ExtractKeyPointsRequest, ExtractKeyPointsResponse, TestLLMRequest, TestLLMResponse, TokenUsage, GenerateTitleRequest, GenerateTitleResponse
 from utils.logging import logger
 
 llm_router = APIRouter()
@@ -35,7 +35,7 @@ async def create_summary(
 
             return StreamingResponse(_with_first(), media_type="text/plain")
 
-        output, usage = await service.generate_summary(request)
+        title, output, usage = await service.generate_summary(request)
         token_usage = None
         try:
             token_usage = TokenUsage(
@@ -45,7 +45,7 @@ async def create_summary(
             )
         except Exception:
             pass
-        return CreateSummaryResponse(summary=output, usage=token_usage)
+        return CreateSummaryResponse(summary=output, summary_title=title, usage=token_usage)
 
     except Exception as e:
         error_msg = str(e).lower()
@@ -133,4 +133,37 @@ async def extract_key_points(
         raise HTTPException(
             status_code=502,
             detail=f"LLM provider error ({provider_name}): {str(e)}"
+        )
+
+
+@llm_router.post(
+    "/generateTitle",
+    status_code=200,
+    response_model=GenerateTitleResponse,
+)
+async def generate_title(request: GenerateTitleRequest = Body(...)):
+    """Generate a concise title from a transcript using structured output."""
+    try:
+        title, usage = await service.generate_title_standalone(request)
+        return GenerateTitleResponse(title=title, usage=usage)
+    except Exception as e:
+        error_msg = str(e).lower()
+        provider_name = request.provider.value
+
+        if "auth" in error_msg or "api key" in error_msg or "unauthorized" in error_msg or "invalid x-api-key" in error_msg or "invalid api key" in error_msg:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid API key for {provider_name}"
+            )
+
+        if "model" in error_msg and ("not found" in error_msg or "does not exist" in error_msg or "not exist" in error_msg):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model '{request.model}' not found for provider {provider_name}"
+            )
+
+        logger.error(f"Title generation error ({provider_name}): {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Title generation error ({provider_name}): {str(e)}"
         )

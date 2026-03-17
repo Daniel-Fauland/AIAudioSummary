@@ -37,6 +37,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
   } = options;
 
   const [realtimeSummary, setRealtimeSummary] = useState(initialSummary ?? "");
+  const [realtimeSummaryTitle, setRealtimeSummaryTitle] = useState<string | null>(null);
   const [summaryUpdatedAt, setSummaryUpdatedAt] = useState<string | null>(null);
   const [isSummaryUpdating, setIsSummaryUpdating] = useState(false);
   const [summaryInterval, setSummaryIntervalState] = useState<SummaryInterval>(2);
@@ -123,6 +124,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
     try {
       const response = await createIncrementalSummary(request);
       setRealtimeSummary(response.summary);
+      if (response.summary_title) setRealtimeSummaryTitle(response.summary_title);
       setSummaryUpdatedAt(response.updated_at);
       accumulateUsage(response.usage);
       lastSummaryTranscriptLenRef.current = effectiveTranscript.length;
@@ -133,6 +135,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
       try {
         const response = await createIncrementalSummary(request);
         setRealtimeSummary(response.summary);
+        if (response.summary_title) setRealtimeSummaryTitle(response.summary_title);
         setSummaryUpdatedAt(response.updated_at);
         accumulateUsage(response.usage);
         lastSummaryTranscriptLenRef.current = effectiveTranscript.length;
@@ -211,6 +214,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
 
   const clearSummary = useCallback(() => {
     setRealtimeSummary("");
+    setRealtimeSummaryTitle(null);
     setSummaryUpdatedAt(null);
     realtimeSummaryRef.current = "";
     summaryCountRef.current = 0;
@@ -222,6 +226,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
       summaryTimerRef.current = null;
     }
     setRealtimeSummary("");
+    setRealtimeSummaryTitle(null);
     setSummaryUpdatedAt(null);
     setIsSummaryUpdating(false);
     setSummaryCountdown(0);
@@ -243,6 +248,7 @@ export function useRealtimeSummary(options: UseRealtimeSummaryOptions) {
 
   return {
     realtimeSummary,
+    realtimeSummaryTitle,
     summaryUpdatedAt,
     isSummaryUpdating,
     summaryInterval,

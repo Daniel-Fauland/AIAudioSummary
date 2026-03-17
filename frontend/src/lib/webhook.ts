@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 
-import { fireWebhook } from "./api";
-import type { TokenUsage, WebhookPayload } from "./types";
+import { fireWebhook, generateTitle } from "./api";
+import type { AzureConfig, LangdockConfig, LLMProvider, TokenUsage, WebhookPayload } from "./types";
 
 /**
  * Strip markdown formatting to produce plain text.
@@ -42,6 +42,7 @@ export interface WebhookPayloadParams {
   transcript: string;
   speakerMapping: Record<string, string>;
   summary: string;
+  summaryTitle: string | null;
   mode: "standard" | "realtime";
   contentType: "transcript" | "summary" | "form";
   meetingDate: string | null;
@@ -81,9 +82,7 @@ export function buildWebhookPayload(params: WebhookPayloadParams): WebhookPayloa
       prompt: params.prompt,
       language: params.language,
       token_usage: params.tokenUsage,
-      summary_title: params.contentType === "summary" && params.summary
-        ? params.summary.split("\n")[0].replace(/^#+\s*/, "").trim() || null
-        : null,
+      summary_title: params.summaryTitle ?? null,
       form_output: params.formOutput,
       questions: params.questions,
       user_args: params.userArgs && params.userArgs.length > 0
@@ -91,6 +90,41 @@ export function buildWebhookPayload(params: WebhookPayloadParams): WebhookPayloa
         : null,
     },
   };
+}
+
+/**
+ * Build a test webhook payload that matches the real summary.completed schema.
+ * Uses sample data so receivers can validate their integration against the full shape.
+ */
+export function buildTestWebhookPayload(
+  userArgs: { key: string; value: string }[] | null,
+): WebhookPayload {
+  const sampleSummaryMarkdown =
+    "## Sample Meeting Summary\n- This is a test webhook from AIAudioSummary\n- It uses the same schema as a real webhook\n\n## Action Items\n- Verify webhook integration is working correctly";
+
+  const payload = buildWebhookPayload({
+    transcript:
+      "This is a sample transcript from a test webhook. It demonstrates the full payload schema that your webhook endpoint will receive when a real summary is completed.",
+    speakerMapping: {},
+    summary: sampleSummaryMarkdown,
+    summaryTitle: "Sample Meeting Summary",
+    mode: "realtime",
+    contentType: "summary",
+    meetingDate: new Date().toISOString().split("T")[0],
+    model: "test-model",
+    provider: "test-provider",
+    prompt: "This is a sample system prompt used for testing purposes.",
+    language: "English",
+    tokenUsage: { input_tokens: 100, output_tokens: 50, total_tokens: 150 },
+    formOutput: null,
+    questions: null,
+    userArgs,
+  });
+
+  payload.event = "test.completed";
+  payload.mode = "test";
+
+  return payload;
 }
 
 /**
@@ -116,5 +150,57 @@ export function fireWebhookWithToast(
     })
     .catch(() => {
       toast.error("Webhook delivery failed");
+    });
+}
+
+/**
+ * Fire a transcript webhook, optionally generating a title first.
+ * When generateTitleEnabled is true, shows "Webhook queued" while generating,
+ * then fires the webhook and shows "Webhook delivered successfully".
+ */
+export function fireTranscriptWebhookWithTitle(
+  webhookUrl: string,
+  webhookSecret: string,
+  payloadParams: WebhookPayloadParams,
+  titleConfig: {
+    enabled: boolean;
+    provider: LLMProvider;
+    apiKey: string;
+    model: string;
+    azureConfig: AzureConfig | null;
+    langdockConfig?: LangdockConfig;
+    language: string;
+    date: string | null;
+    systemPrompt?: string;
+  },
+): void {
+  if (!titleConfig.enabled || !titleConfig.apiKey) {
+    // No title generation — fire immediately with null title
+    fireWebhookWithToast(webhookUrl, webhookSecret, buildWebhookPayload(payloadParams));
+    return;
+  }
+
+  const toastId = toast.info("Webhook queued — generating title…", { duration: Infinity });
+
+  generateTitle({
+    provider: titleConfig.provider,
+    api_key: titleConfig.apiKey,
+    model: titleConfig.model,
+    azure_config: titleConfig.azureConfig,
+    langdock_config: titleConfig.langdockConfig,
+    transcript: payloadParams.transcript,
+    target_language: titleConfig.language,
+    date: titleConfig.date,
+    system_prompt: titleConfig.systemPrompt,
+  })
+    .then((titleRes) => {
+      toast.dismiss(toastId);
+      const payload = buildWebhookPayload({ ...payloadParams, summaryTitle: titleRes.title });
+      fireWebhookWithToast(webhookUrl, webhookSecret, payload);
+    })
+    .catch((err) => {
+      toast.dismiss(toastId);
+      toast.error(`Title generation failed: ${err instanceof Error ? err.message : "unknown error"} — firing webhook without title`);
+      fireWebhookWithToast(webhookUrl, webhookSecret, buildWebhookPayload(payloadParams));
     });
 }

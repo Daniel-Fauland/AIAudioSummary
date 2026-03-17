@@ -125,8 +125,19 @@ async def create_incremental_summary(
         except Exception:
             pass
 
+        # Generate dedicated title via structured output
+        summary_title = None
+        try:
+            summary_title, _ = await llm_service._generate_title(
+                model, request.provider, model_name,
+                request.full_transcript, language, None,
+            )
+        except Exception as e:
+            logger.warning(f"Realtime title generation failed: {e}")
+
         return IncrementalSummaryResponse(
             summary=result.output,
+            summary_title=summary_title,
             updated_at=datetime.now(timezone.utc).isoformat(),
             usage=token_usage,
         )
