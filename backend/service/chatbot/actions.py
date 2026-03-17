@@ -312,9 +312,9 @@ ACTION_REGISTRY = [
     },
     {
         "action_id": "set_webhook_standard_trigger",
-        "description": "Set when webhooks fire in standard mode. Options: 'summary' (fire after summary/form output) or 'transcript_and_summary' (fire after transcript AND after summary/form output).",
+        "description": "Set when webhooks fire in standard mode. Options: 'summary' (fire after summary/form output), 'transcript_and_summary' (fire after transcript immediately AND after summary/form output), or 'transcript_mapped_and_summary' (fire after speaker mapping is applied AND after summary/form output).",
         "params": {
-            "trigger": {"type": "string", "enum": ["summary", "transcript_and_summary"], "description": "When to fire webhooks in standard mode"},
+            "trigger": {"type": "string", "enum": ["summary", "transcript_and_summary", "transcript_mapped_and_summary"], "description": "When to fire webhooks in standard mode"},
         },
     },
     {
@@ -323,5 +323,15 @@ ACTION_REGISTRY = [
         "params": {
             "trigger": {"type": "string", "enum": ["on_stop", "on_stop_with_final_summary", "only_with_final_summary"], "description": "When to fire webhooks in realtime mode"},
         },
+    },
+    {
+        "action_id": "toggle_webhook_transcript_title",
+        "description": "Enable or disable generating an LLM-powered title for transcript webhooks. When enabled, a concise title is generated before firing transcript webhooks (the webhook is queued until the title is ready). When disabled, transcript webhooks fire immediately with summary_title: null.",
+        "params": {"enabled": {"type": "boolean"}},
+    },
+    {
+        "action_id": "update_webhook_title_prompt",
+        "description": "Update the system prompt used when generating titles for transcript webhooks. Pass an empty string to reset to the default prompt.",
+        "params": {"prompt": {"type": "string", "description": "The custom system prompt for title generation, or empty string for default"}},
     },
 ]

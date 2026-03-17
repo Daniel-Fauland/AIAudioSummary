@@ -29,6 +29,8 @@ import type {
   TestLLMResponse,
   WebhookFireRequest,
   WebhookFireResponse,
+  GenerateTitleRequest,
+  GenerateTitleResponse,
 } from "./types";
 
 const API_BASE = "/api/proxy";
@@ -296,6 +298,17 @@ export async function evaluateLiveQuestions(
     body: JSON.stringify(request),
   });
   return handleResponse<EvaluateQuestionsResponse>(response);
+}
+
+export async function generateTitle(
+  request: GenerateTitleRequest,
+): Promise<GenerateTitleResponse> {
+  const response = await fetch(`${API_BASE}/generateTitle`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  return handleResponse<GenerateTitleResponse>(response);
 }
 
 export async function getMe(): Promise<UserProfile> {

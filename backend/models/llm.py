@@ -94,3 +94,26 @@ class TestLLMRequest(BaseModel):
 class TestLLMResponse(BaseModel):
     success: bool = Field(..., description="Whether the test was successful")
     error: str | None = Field(None, description="Error message if the test failed")
+
+
+class GenerateTitleRequest(BaseModel):
+    provider: LLMProvider = Field(..., description="Which LLM provider to use")
+    api_key: str = Field(..., min_length=1, description="Provider API key")
+    model: str = Field(..., min_length=1, description="Model identifier")
+    azure_config: AzureConfig | None = Field(None, description="Required only when provider is 'azure_openai'")
+    langdock_config: LangdockConfig = Field(default_factory=LangdockConfig, description="Langdock region config")
+    transcript: str = Field(..., min_length=1, description="The transcript text to generate a title from")
+    target_language: str = Field("English", description="Output language for the title")
+    date: datetime.date | None = Field(None, description="Meeting date")
+    system_prompt: str | None = Field(None, description="Optional custom system prompt for title generation")
+
+    @model_validator(mode="after")
+    def validate_azure_config(self):
+        if self.provider == LLMProvider.AZURE_OPENAI and self.azure_config is None:
+            raise ValueError("azure_config is required when provider is 'azure_openai'")
+        return self
+
+
+class GenerateTitleResponse(BaseModel):
+    title: str = Field(..., description="The generated title")
+    usage: TokenUsage | None = Field(None, description="Token usage for this request")

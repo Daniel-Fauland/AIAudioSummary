@@ -12,12 +12,22 @@ export const changelog: ChangelogEntry[] = [
   {
     version: "2.5.0",
     date: "2026-03-17",
-    title: "Dedicated summary title via structured output, improved test webhooks & card overflow fixes",
+    title: "Webhook transcript title, manual Fire Webhook button & new trigger option",
     changes: [
       {
         type: "added",
         description:
-          "Every summary now has a dedicated title generated via a separate structured-output LLM call. This ensures the webhook summary_title field is always present and reliable, regardless of whether the user's prompt produces a heading. The title is generated from the transcript and matches the summary language.",
+          'New "Generate title for transcript" toggle in webhook settings. When enabled, transcript webhooks generate a concise title via LLM before firing — a "Webhook queued" notification appears while the title is being generated. Includes a customizable title prompt editor and a dedicated Feature-Specific Model override ("Webhook Transcript Title") so you can use a different/cheaper model for title generation.',
+      },
+      {
+        type: "added",
+        description:
+          'Manual "Fire Webhook" button in the Speaker Mapping section. Sends a transcript webhook on demand with the current speaker mapping. If unmapped speakers are detected (e.g. "Speaker A"), a confirmation dialog asks before firing.',
+      },
+      {
+        type: "added",
+        description:
+          'New Standard mode webhook trigger: "After Transcript (speaker mapping) & Summary". Automatically fires the transcript webhook after speaker names are applied via Apply Names, ensuring the payload includes the speaker mapping. The summary webhook still fires normally after summary generation.',
       },
       {
         type: "changed",
@@ -27,7 +37,12 @@ export const changelog: ChangelogEntry[] = [
       {
         type: "changed",
         description:
-          "Test webhook now sends the full summary.completed payload schema (with sample data) instead of a minimal ping — makes it easier to validate your webhook receiver against the real payload shape. The event is set to \"test.completed\" and mode to \"test\" so receivers can distinguish test payloads from real ones.",
+          'Test webhook now sends the full summary.completed payload schema (with sample data) instead of a minimal ping — makes it easier to validate your webhook receiver against the real payload shape. The event is set to "test.completed" and mode to "test" so receivers can distinguish test payloads from real ones.',
+      },
+      {
+        type: "changed",
+        description:
+          'Renamed Standard mode trigger "After Transcript & Summary" to "After Transcript (immediately) & Summary" for clarity — behaviour is unchanged.',
       },
       {
         type: "fixed",
@@ -53,8 +68,7 @@ export const changelog: ChangelogEntry[] = [
       },
       {
         type: "added",
-        description:
-          "Webhook payloads now include a summary_title field when the content type is \"summary\".",
+        description: 'Webhook payloads now include a summary_title field when the content type is "summary".',
       },
       {
         type: "added",

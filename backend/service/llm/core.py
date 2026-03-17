@@ -13,7 +13,7 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
-from models.llm import LLMProvider, AzureConfig, LangdockConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse, TestLLMRequest
+from models.llm import LLMProvider, AzureConfig, LangdockConfig, CreateSummaryRequest, ExtractKeyPointsRequest, ExtractKeyPointsResponse, TestLLMRequest, GenerateTitleRequest, TokenUsage
 from service.misc.core import MiscService
 
 
@@ -289,13 +289,14 @@ class LLMService:
     async def _generate_title(
         self, model, provider: LLMProvider, model_name: str,
         transcript: str, target_language: str, date: datetime.date | None = None,
+        custom_system_prompt: str | None = None,
     ) -> tuple[str, object]:
         """Generate a concise summary title using structured output.
 
         Returns:
             Tuple of (title_string, usage).
         """
-        system_prompt = (
+        system_prompt = custom_system_prompt or (
             f"Generate a concise, descriptive title for a meeting/recording summary. "
             f"The title must be in {target_language}. "
             f"Keep it under 10 words. Capture the main topic of the meeting."
@@ -313,6 +314,28 @@ class LLMService:
         )
         result = await agent.run(user_prompt)
         return result.output.title, result.usage()
+
+    async def generate_title_standalone(self, request: GenerateTitleRequest) -> tuple[str, TokenUsage | None]:
+        """Generate a title from a transcript without generating a summary."""
+        model = self._create_model(
+            request.provider, request.model, request.api_key,
+            request.azure_config, request.langdock_config,
+        )
+        title, usage = await self._generate_title(
+            model, request.provider, request.model,
+            request.transcript, request.target_language, request.date,
+            request.system_prompt,
+        )
+        token_usage = None
+        try:
+            token_usage = TokenUsage(
+                input_tokens=usage.request_tokens or 0,
+                output_tokens=usage.response_tokens or 0,
+                total_tokens=(usage.request_tokens or 0) + (usage.response_tokens or 0),
+            )
+        except Exception:
+            pass
+        return title, token_usage
 
     async def _stream_response(
         self, agent: Agent, user_prompt: str,

@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 
-import { fireWebhook } from "./api";
-import type { TokenUsage, WebhookPayload } from "./types";
+import { fireWebhook, generateTitle } from "./api";
+import type { AzureConfig, LangdockConfig, LLMProvider, TokenUsage, WebhookPayload } from "./types";
 
 /**
  * Strip markdown formatting to produce plain text.
@@ -150,5 +150,57 @@ export function fireWebhookWithToast(
     })
     .catch(() => {
       toast.error("Webhook delivery failed");
+    });
+}
+
+/**
+ * Fire a transcript webhook, optionally generating a title first.
+ * When generateTitleEnabled is true, shows "Webhook queued" while generating,
+ * then fires the webhook and shows "Webhook delivered successfully".
+ */
+export function fireTranscriptWebhookWithTitle(
+  webhookUrl: string,
+  webhookSecret: string,
+  payloadParams: WebhookPayloadParams,
+  titleConfig: {
+    enabled: boolean;
+    provider: LLMProvider;
+    apiKey: string;
+    model: string;
+    azureConfig: AzureConfig | null;
+    langdockConfig?: LangdockConfig;
+    language: string;
+    date: string | null;
+    systemPrompt?: string;
+  },
+): void {
+  if (!titleConfig.enabled || !titleConfig.apiKey) {
+    // No title generation — fire immediately with null title
+    fireWebhookWithToast(webhookUrl, webhookSecret, buildWebhookPayload(payloadParams));
+    return;
+  }
+
+  const toastId = toast.info("Webhook queued — generating title…", { duration: Infinity });
+
+  generateTitle({
+    provider: titleConfig.provider,
+    api_key: titleConfig.apiKey,
+    model: titleConfig.model,
+    azure_config: titleConfig.azureConfig,
+    langdock_config: titleConfig.langdockConfig,
+    transcript: payloadParams.transcript,
+    target_language: titleConfig.language,
+    date: titleConfig.date,
+    system_prompt: titleConfig.systemPrompt,
+  })
+    .then((titleRes) => {
+      toast.dismiss(toastId);
+      const payload = buildWebhookPayload({ ...payloadParams, summaryTitle: titleRes.title });
+      fireWebhookWithToast(webhookUrl, webhookSecret, payload);
+    })
+    .catch((err) => {
+      toast.dismiss(toastId);
+      toast.error(`Title generation failed: ${err instanceof Error ? err.message : "unknown error"} — firing webhook without title`);
+      fireWebhookWithToast(webhookUrl, webhookSecret, buildWebhookPayload(payloadParams));
     });
 }

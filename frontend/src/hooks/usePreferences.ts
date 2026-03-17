@@ -240,6 +240,8 @@ function collectPreferences(): UserPreferences {
     webhook_standard_trigger: (safeLocalGet("aias:v1:webhook_standard_trigger") as import("@/lib/types").WebhookStandardTrigger) || undefined,
     webhook_realtime_trigger: (safeLocalGet("aias:v1:webhook_realtime_trigger") as import("@/lib/types").WebhookRealtimeTrigger) || undefined,
     webhook_user_args: (() => { try { const v = safeLocalGet("aias:v1:webhook_user_args"); return v ? JSON.parse(v) : undefined; } catch { return undefined; } })(),
+    webhook_transcript_title: safeLocalGet("aias:v1:webhook_transcript_title") === "true" ? true : undefined,
+    webhook_title_prompt: safeLocalGet("aias:v1:webhook_title_prompt") || undefined,
     session_standard: sessionStandard,
     session_realtime: sessionRealtime,
     session_chatbot: sessionChatbot,
@@ -286,6 +288,8 @@ function applyPreferences(prefs: UserPreferences): void {
   if (prefs.webhook_standard_trigger) safeLocalSet("aias:v1:webhook_standard_trigger", prefs.webhook_standard_trigger);
   if (prefs.webhook_realtime_trigger) safeLocalSet("aias:v1:webhook_realtime_trigger", prefs.webhook_realtime_trigger);
   if (prefs.webhook_user_args !== undefined) safeLocalSet("aias:v1:webhook_user_args", JSON.stringify(prefs.webhook_user_args));
+  if (prefs.webhook_transcript_title !== undefined) safeLocalSet("aias:v1:webhook_transcript_title", prefs.webhook_transcript_title ? "true" : "false");
+  if (prefs.webhook_title_prompt !== undefined) safeLocalSet("aias:v1:webhook_title_prompt", prefs.webhook_title_prompt);
   applySessionData(prefs);
 }
 

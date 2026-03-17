@@ -196,7 +196,8 @@ export type LLMFeature =
   | "prompt_assistant"
   | "live_question_evaluation"
   | "chatbot"
-  | "form_output";
+  | "form_output"
+  | "webhook_title";
 
 export const LLM_FEATURE_LABELS: Record<LLMFeature, string> = {
   summary_generation: "Summary Generation",
@@ -206,6 +207,7 @@ export const LLM_FEATURE_LABELS: Record<LLMFeature, string> = {
   live_question_evaluation: "Live Question Evaluation",
   chatbot: "Chatbot",
   form_output: "Form Output",
+  webhook_title: "Webhook Transcript Title",
 };
 
 export interface FeatureModelOverride {
@@ -365,9 +367,28 @@ export interface ContentPayload {
   fileNamePrefix: string;
 }
 
+// === Title Generation types ===
+
+export interface GenerateTitleRequest {
+  provider: LLMProvider;
+  api_key: string;
+  model: string;
+  azure_config: AzureConfig | null;
+  langdock_config?: LangdockConfig;
+  transcript: string;
+  target_language: string;
+  date: string | null;
+  system_prompt?: string;
+}
+
+export interface GenerateTitleResponse {
+  title: string;
+  usage?: TokenUsage;
+}
+
 // === Webhook types ===
 
-export type WebhookStandardTrigger = "summary" | "transcript_and_summary";
+export type WebhookStandardTrigger = "summary" | "transcript_and_summary" | "transcript_mapped_and_summary";
 export type WebhookRealtimeTrigger = "on_stop" | "on_stop_with_final_summary" | "only_with_final_summary";
 
 export interface WebhookPayload {
@@ -445,6 +466,8 @@ export interface UserPreferences {
   webhook_standard_trigger?: WebhookStandardTrigger;
   webhook_realtime_trigger?: WebhookRealtimeTrigger;
   webhook_user_args?: { key: string; value: string }[];
+  webhook_transcript_title?: boolean;
+  webhook_title_prompt?: string;
   display_name?: string;
   session_standard?: {
     transcript?: string;

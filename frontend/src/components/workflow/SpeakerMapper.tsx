@@ -1,11 +1,21 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ArrowRight, ChevronDown, ChevronRight, Loader2, RefreshCw, Sparkles, User } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronRight, Loader2, RefreshCw, Send, Sparkles, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { getSpeakers, updateSpeakers } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { toast } from "sonner";
@@ -23,6 +33,9 @@ interface SpeakerMapperProps {
   onKeyPointsRemap: (mappings: Record<string, string>) => void;
   onTranscriptReplaced: (transcript: string, speakers: string[]) => void;
   suggestedNames?: Record<string, string>;
+  showFireWebhook?: boolean;
+  onFireWebhook?: () => void;
+  onSpeakerMappingApplied?: (mappings: Record<string, string>) => void;
 }
 
 export function SpeakerMapper({
@@ -38,12 +51,16 @@ export function SpeakerMapper({
   onKeyPointsRemap,
   onTranscriptReplaced,
   suggestedNames,
+  showFireWebhook,
+  onFireWebhook,
+  onSpeakerMappingApplied,
 }: SpeakerMapperProps) {
   const [speakers, setSpeakers] = useState<string[]>([]);
   const [replacements, setReplacements] = useState<Record<string, string>>({});
   const [detecting, setDetecting] = useState(false);
   const [applying, setApplying] = useState(false);
   const [expandedSpeakers, setExpandedSpeakers] = useState<Set<string>>(new Set());
+  const [webhookConfirmOpen, setWebhookConfirmOpen] = useState(false);
 
   const lastDetectedTranscript = useRef("");
   const onAutoExtractKeyPointsRef = useRef(onAutoExtractKeyPoints);
@@ -156,12 +173,28 @@ export function SpeakerMapper({
       }
 
       onKeyPointsRemap(mappings);
+      onSpeakerMappingApplied?.(mappings);
 
       toast.success("Speaker names updated.");
     } catch (e) {
       toast.error(getErrorMessage(e, "speakers"));
     } finally {
       setApplying(false);
+    }
+  };
+
+  const handleFireWebhook = () => {
+    if (!onFireWebhook) return;
+    // Check if any speaker still has a default name like "Speaker A", "Speaker B", etc.
+    const unmappedPattern = /^Speaker\s+[A-Z0-9]+$/i;
+    const hasUnmapped = speakers.some((s) => {
+      const displayName = replacements[s]?.trim() || s;
+      return unmappedPattern.test(displayName);
+    });
+    if (hasUnmapped) {
+      setWebhookConfirmOpen(true);
+    } else {
+      onFireWebhook();
     }
   };
 
@@ -363,18 +396,51 @@ export function SpeakerMapper({
               </p>
             ) : null}
 
-            <Button
-              onClick={handleApply}
-              disabled={applying || !hasAnyReplacement}
-            >
-              {applying ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleApply}
+                disabled={applying || !hasAnyReplacement}
+              >
+                {applying ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Apply Names
+              </Button>
+              {showFireWebhook && onFireWebhook ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      onClick={handleFireWebhook}
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      Fire Webhook
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Send transcript webhook with current speaker mapping</TooltipContent>
+                </Tooltip>
               ) : null}
-              Apply Names
-            </Button>
+            </div>
           </div>
         ) : null}
       </CardContent>
+
+      <AlertDialog open={webhookConfirmOpen} onOpenChange={setWebhookConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unmapped speakers detected</AlertDialogTitle>
+            <AlertDialogDescription>
+              Some speakers still have default names (e.g. &quot;Speaker A&quot;). Do you want to fire the webhook anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setWebhookConfirmOpen(false); onFireWebhook?.(); }}>
+              Fire Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
