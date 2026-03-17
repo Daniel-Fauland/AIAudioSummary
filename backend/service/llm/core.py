@@ -25,6 +25,11 @@ class LangdockOpenAIChatModel(OpenAIChatModel):
         return NOT_GIVEN
 
 
+class _SummaryTitle(PydanticBaseModel):
+    title: str = PydanticField(
+        ..., description="A concise, descriptive title for the meeting summary (max 10 words)")
+
+
 class _SpeakerEntry(PydanticBaseModel):
     speaker: str = PydanticField(...,
                                  description="Speaker label (e.g. 'Speaker A')")
@@ -167,15 +172,15 @@ class LLMService:
         )
         return system_prompt, user_prompt
 
-    async def generate_summary(self, request: CreateSummaryRequest) -> Union[str, tuple[str, object], AsyncGenerator[str, None]]:
+    async def generate_summary(self, request: CreateSummaryRequest) -> Union[str, tuple, AsyncGenerator[str, None]]:
         """Generate a summary using the specified LLM provider.
 
         Args:
             request: The summary request with provider, model, key, prompt, and text.
 
         Returns:
-            Streaming: async generator of string chunks (usage marker appended at end).
-            Non-streaming: tuple of (output_text, usage).
+            Streaming: async generator of string chunks (title marker + body + usage marker).
+            Non-streaming: tuple of (summary_title, output_text, usage).
         """
         # Use deployment_name as model name for Azure OpenAI
         model_name = request.model
@@ -205,11 +210,23 @@ class LLMService:
             model_settings=self.build_model_settings(request.provider, model_name, temperature=0.5)
         )
 
+        # Generate dedicated title via structured output
+        title = None
+        title_usage = None
+        try:
+            title, title_usage = await self._generate_title(
+                model, request.provider, model_name,
+                request.text, request.target_language, request.date,
+            )
+        except Exception as e:
+            from utils.logging import logger
+            logger.warning(f"Title generation failed (proceeding without): {e}")
+
         if request.stream:
-            return self._stream_response(agent, user_prompt)
+            return self._stream_response(agent, user_prompt, title=title, title_usage=title_usage)
         else:
             result = await agent.run(user_prompt)
-            return result.output, result.usage()
+            return title, result.output, result.usage()
 
     async def extract_key_points(self, request: ExtractKeyPointsRequest) -> ExtractKeyPointsResponse:
         """Extract 1-3 sentence key point summaries per speaker from a transcript."""
@@ -269,22 +286,64 @@ class LLMService:
 
         return ExtractKeyPointsResponse(key_points=key_points, speaker_labels=speaker_labels)
 
-    async def _stream_response(self, agent: Agent, user_prompt: str) -> AsyncGenerator[str, None]:
+    async def _generate_title(
+        self, model, provider: LLMProvider, model_name: str,
+        transcript: str, target_language: str, date: datetime.date | None = None,
+    ) -> tuple[str, object]:
+        """Generate a concise summary title using structured output.
+
+        Returns:
+            Tuple of (title_string, usage).
+        """
+        system_prompt = (
+            f"Generate a concise, descriptive title for a meeting/recording summary. "
+            f"The title must be in {target_language}. "
+            f"Keep it under 10 words. Capture the main topic of the meeting."
+        )
+        truncated = transcript[:2000]
+        user_prompt = (
+            f"Recording Date: {date or datetime.date.today()}\n\n"
+            f"Transcript (excerpt):\n{truncated}"
+        )
+        agent = Agent(
+            model,
+            system_prompt=system_prompt,
+            output_type=_SummaryTitle,
+            model_settings=self.build_model_settings(provider, model_name, temperature=0.3),
+        )
+        result = await agent.run(user_prompt)
+        return result.output.title, result.usage()
+
+    async def _stream_response(
+        self, agent: Agent, user_prompt: str,
+        title: str | None = None, title_usage: object | None = None,
+    ) -> AsyncGenerator[str, None]:
         """Stream response chunks from the LLM agent."""
         import json as _json
         has_yielded = False
+
+        # Yield title marker before body content
+        if title is not None:
+            clean_title = title.replace("\n", " ").strip()
+            yield f"<!--SUMMARY_TITLE:{clean_title}-->\n"
+
         try:
             async with agent.run_stream(user_prompt) as stream:
                 async for chunk in stream.stream_text(delta=True):
                     has_yielded = True
                     yield chunk
-                # After stream completes, yield usage marker
+                # After stream completes, yield usage marker (combined with title usage)
                 try:
                     usage = stream.usage()
+                    input_tokens = usage.request_tokens or 0
+                    output_tokens = usage.response_tokens or 0
+                    if title_usage:
+                        input_tokens += getattr(title_usage, "request_tokens", 0) or 0
+                        output_tokens += getattr(title_usage, "response_tokens", 0) or 0
                     usage_data = _json.dumps({
-                        "input_tokens": usage.request_tokens or 0,
-                        "output_tokens": usage.response_tokens or 0,
-                        "total_tokens": (usage.request_tokens or 0) + (usage.response_tokens or 0),
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "total_tokens": input_tokens + output_tokens,
                     })
                     yield f"\n\n<!--TOKEN_USAGE:{usage_data}-->"
                 except Exception:

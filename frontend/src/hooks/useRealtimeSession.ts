@@ -140,6 +140,7 @@ export function useRealtimeSession(options?: UseRealtimeSessionOptions) {
 
     // State from summary hook
     realtimeSummary: summary.realtimeSummary,
+    realtimeSummaryTitle: summary.realtimeSummaryTitle,
     summaryUpdatedAt: summary.summaryUpdatedAt,
     isSummaryUpdating: summary.isSummaryUpdating,
     summaryInterval: summary.summaryInterval,

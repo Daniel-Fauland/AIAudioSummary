@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 interface SideBySideLayoutProps {
   left: ReactNode;
@@ -8,31 +8,16 @@ interface SideBySideLayoutProps {
 }
 
 /**
- * Two-column layout where the right column determines the row height
- * and the left column matches it (with internal scrolling if needed).
+ * Two-column layout where both columns share the same max height
+ * and scroll their content independently.
  */
 export function SideBySideLayout({ left, right }: SideBySideLayoutProps) {
-  const rightRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | undefined>(undefined);
-
-  useEffect(() => {
-    const el = rightRef.current;
-    if (!el) return;
-
-    const update = () => setHeight(el.offsetHeight);
-    update();
-
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 items-start">
-      <div style={height ? { height } : undefined} className="overflow-hidden">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:h-[70vh]">
+      <div className="min-h-0 h-full">
         {left}
       </div>
-      <div ref={rightRef}>
+      <div className="min-h-0 h-full">
         {right}
       </div>
     </div>

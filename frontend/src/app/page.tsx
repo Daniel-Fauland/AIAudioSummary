@@ -48,7 +48,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { extractDateFromFilename } from "@/lib/utils";
 import { parseConfigString, importSettings, configContainsApiKeys } from "@/lib/config-export";
 import type { AzureConfig, LangdockConfig, LLMProvider, SummaryInterval, LLMFeature, FeatureModelOverride, ConfigResponse, AppContext, FormTemplate, FormFieldType, TokenUsage, TranscriptUtterance, WebhookStandardTrigger, WebhookRealtimeTrigger } from "@/lib/types";
-import { buildWebhookPayload, fireWebhookWithToast } from "@/lib/webhook";
+import { buildWebhookPayload, buildTestWebhookPayload, fireWebhookWithToast } from "@/lib/webhook";
 import { getContextWindow } from "@/lib/token-utils";
 import { APP_VERSION } from "@/lib/constants";
 import { changelog } from "@/lib/changelog";
@@ -370,6 +370,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [utterances, setUtterances] = useState<TranscriptUtterance[]>(initialStandardSession.utterances ?? []);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [summary, setSummary] = useState(initialStandardSession.summary);
+  const [summaryTitle, setSummaryTitle] = useState<string | null>(null);
   const [summaryUsage, setSummaryUsage] = useState<TokenUsage | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -569,6 +570,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     const handler = () => {
       sessionPersistence.clearStandardSession();
       setSummary("");
+      setSummaryTitle(null);
       setUtterances([]);
       setFormValues({});
       setSelectedFormTemplateId(null);
@@ -1209,13 +1211,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
       const result = await fireWebhook({
         webhook_url: webhookUrl,
         webhook_secret: webhookSecret || undefined,
-        payload: {
-          event: "test.ping",
-          mode: "test",
-          content_type: "test",
-          timestamp: new Date().toISOString(),
-          data: { message: "This is a test webhook from AIAudioSummary" },
-        },
+        payload: buildTestWebhookPayload(webhookUserArgs.length > 0 ? webhookUserArgs : null),
       });
       if (result.success) {
         toast.success("Webhook test delivered successfully");
@@ -1223,7 +1219,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
         throw new Error(result.error ?? `Webhook failed with HTTP ${result.status_code}`);
       }
     },
-  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, selectedModel, azureConfig, langdockConfig, getKey, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates, saveKeytermsList, updateKeytermsList, deleteKeytermsList, keytermsLists, selectedKeytermsListId, handleKeytermsListChange, handleResetSettings, handleWebhookUrlChange, handleWebhookSecretChange, handleWebhookStandardTriggerChange, handleWebhookRealtimeTriggerChange, webhookUrl, webhookSecret]);
+  }), [setTheme, handleModeChange, handleProviderChange, handleModelChange, handleSyncStandardRealtimeChange, handleAutoKeyPointsChange, handleSpeakerLabelsChange, handleMinSpeakersChange, handleMaxSpeakersChange, handleRealtimeSystemPromptChange, handleRealtimeSummaryIntervalChange, handleRealtimeFinalSummaryEnabledChange, handleDefaultCopyFormatChange, handleDefaultSaveFormatChange, handleDefaultChatbotCopyFormatChange, setKey, config, selectedProvider, selectedModel, azureConfig, langdockConfig, getKey, saveCustomTemplate, updateCustomTemplate, deleteCustomTemplate, customTemplates, saveFormTemplate, updateFormTemplate, deleteFormTemplate, formTemplates, saveKeytermsList, updateKeytermsList, deleteKeytermsList, keytermsLists, selectedKeytermsListId, handleKeytermsListChange, handleResetSettings, handleWebhookUrlChange, handleWebhookSecretChange, handleWebhookStandardTriggerChange, handleWebhookRealtimeTriggerChange, webhookUrl, webhookSecret, webhookUserArgs]);
 
   const getAssemblyAiKey = useCallback((): string | null => {
     const key = getKey("assemblyai");
@@ -1459,6 +1455,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
 
       // Clear previous session data — new upload replaces everything
       setSummary("");
+      setSummaryTitle(null);
       setUtterances([]);
       setFormValues({});
       setSelectedFormTemplateId(null);
@@ -1490,6 +1487,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
             transcript: result.transcript,
             speakerMapping: {},
             summary: "",
+            summaryTitle: null,
             mode: "standard",
             contentType: "transcript",
             meetingDate,
@@ -1519,6 +1517,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const handleSkipUpload = useCallback(() => {
     // Clear previous session data
     setSummary("");
+    setSummaryTitle(null);
     setUtterances([]);
     setFormValues({});
     setSelectedFormTemplateId(null);
@@ -1552,12 +1551,14 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
     setMaxReachedStep((prev) => Math.max(prev, 3) as 1 | 2 | 3);
     setIsGenerating(true);
     setSummary("");
+    setSummaryTitle(null);
     setSummaryUsage(null);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
     let accumulatedSummary = "";
     let capturedUsage: TokenUsage | null = null;
+    let capturedTitle: string | null = null;
 
     try {
       const result = await createSummary(
@@ -1580,11 +1581,19 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           setSummary((prev) => prev + chunk);
         },
         controller.signal,
+        (title) => {
+          capturedTitle = title;
+          setSummaryTitle(title);
+        },
       );
-      // Use cleaned text (usage marker stripped) and capture usage
+      // Use cleaned text (usage marker stripped) and capture usage/title
       if (result.text) {
         accumulatedSummary = result.text;
         setSummary(result.text);
+      }
+      if (result.summaryTitle) {
+        capturedTitle = result.summaryTitle;
+        setSummaryTitle(result.summaryTitle);
       }
       if (result.usage) {
         capturedUsage = result.usage;
@@ -1615,6 +1624,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           transcript,
           speakerMapping: speakerRenamesRef.current,
           summary: accumulatedSummary,
+          summaryTitle: capturedTitle,
           mode: "standard",
           contentType: "summary",
           meetingDate,
@@ -1776,6 +1786,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
           transcript,
           speakerMapping: speakerRenamesRef.current,
           summary: "",
+          summaryTitle: null,
           mode: "standard",
           contentType: "form",
           meetingDate,
@@ -2231,6 +2242,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
                   outputMode === "summary" ? (
                     <SummaryView
                       summary={summary}
+                      summaryTitle={summaryTitle}
                       loading={isGenerating}
                       onStop={handleStopGenerating}
                       onRegenerate={handleRegenerate}

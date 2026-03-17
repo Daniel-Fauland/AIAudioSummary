@@ -264,6 +264,7 @@ export function RealtimeMode({
       transcript: session.accumulatedTranscript,
       speakerMapping: speakerMappings,
       summary: session.realtimeSummary,
+      summaryTitle: session.realtimeSummaryTitle ?? null,
       mode: "realtime",
       contentType: session.realtimeSummary ? "summary" : "transcript",
       meetingDate: meetingDate || null,
@@ -276,7 +277,7 @@ export function RealtimeMode({
       questions: questionsData,
       userArgs: webhookUserArgs ?? null,
     }));
-  }, [webhookUrl, webhookSecret, session.accumulatedTranscript, session.realtimeSummary, session.summaryAccumulatedUsage, speakerMappings, liveQuestions.questions, formOutput.values, meetingDate, selectedModel, selectedProvider, realtimeSystemPrompt, selectedLanguage, webhookUserArgs]);
+  }, [webhookUrl, webhookSecret, session.accumulatedTranscript, session.realtimeSummary, session.realtimeSummaryTitle, session.summaryAccumulatedUsage, speakerMappings, liveQuestions.questions, formOutput.values, meetingDate, selectedModel, selectedProvider, realtimeSystemPrompt, selectedLanguage, webhookUserArgs]);
 
   useEffect(() => {
     if (session.isSessionEnded && !prevIsSessionEndedRef.current) {
@@ -698,6 +699,7 @@ export function RealtimeMode({
           />
           <RealtimeSummaryView
             summary={session.realtimeSummary}
+            summaryTitle={session.realtimeSummaryTitle}
             summaryUpdatedAt={session.summaryUpdatedAt}
             isSummaryUpdating={session.isSummaryUpdating}
             isSessionEnded={session.isSessionEnded}
@@ -751,6 +753,7 @@ export function RealtimeMode({
           <div className="flex flex-col gap-4">
             <RealtimeSummaryView
               summary={session.realtimeSummary}
+              summaryTitle={session.realtimeSummaryTitle}
               summaryUpdatedAt={session.summaryUpdatedAt}
               isSummaryUpdating={session.isSummaryUpdating}
               isSessionEnded={session.isSessionEnded}

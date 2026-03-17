@@ -42,6 +42,7 @@ export interface WebhookPayloadParams {
   transcript: string;
   speakerMapping: Record<string, string>;
   summary: string;
+  summaryTitle: string | null;
   mode: "standard" | "realtime";
   contentType: "transcript" | "summary" | "form";
   meetingDate: string | null;
@@ -81,9 +82,7 @@ export function buildWebhookPayload(params: WebhookPayloadParams): WebhookPayloa
       prompt: params.prompt,
       language: params.language,
       token_usage: params.tokenUsage,
-      summary_title: params.contentType === "summary" && params.summary
-        ? params.summary.split("\n")[0].replace(/^#+\s*/, "").trim() || null
-        : null,
+      summary_title: params.summaryTitle ?? null,
       form_output: params.formOutput,
       questions: params.questions,
       user_args: params.userArgs && params.userArgs.length > 0
@@ -91,6 +90,41 @@ export function buildWebhookPayload(params: WebhookPayloadParams): WebhookPayloa
         : null,
     },
   };
+}
+
+/**
+ * Build a test webhook payload that matches the real summary.completed schema.
+ * Uses sample data so receivers can validate their integration against the full shape.
+ */
+export function buildTestWebhookPayload(
+  userArgs: { key: string; value: string }[] | null,
+): WebhookPayload {
+  const sampleSummaryMarkdown =
+    "## Sample Meeting Summary\n- This is a test webhook from AIAudioSummary\n- It uses the same schema as a real webhook\n\n## Action Items\n- Verify webhook integration is working correctly";
+
+  const payload = buildWebhookPayload({
+    transcript:
+      "This is a sample transcript from a test webhook. It demonstrates the full payload schema that your webhook endpoint will receive when a real summary is completed.",
+    speakerMapping: {},
+    summary: sampleSummaryMarkdown,
+    summaryTitle: "Sample Meeting Summary",
+    mode: "realtime",
+    contentType: "summary",
+    meetingDate: new Date().toISOString().split("T")[0],
+    model: "test-model",
+    provider: "test-provider",
+    prompt: "This is a sample system prompt used for testing purposes.",
+    language: "English",
+    tokenUsage: { input_tokens: 100, output_tokens: 50, total_tokens: 150 },
+    formOutput: null,
+    questions: null,
+    userArgs,
+  });
+
+  payload.event = "test.completed";
+  payload.mode = "test";
+
+  return payload;
 }
 
 /**

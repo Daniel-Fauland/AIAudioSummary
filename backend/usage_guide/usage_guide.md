@@ -130,7 +130,7 @@ At the very bottom of the page:
 - **Imprint** — service operator information
 - **Privacy Policy** — full data processing details
 - **Cookie Settings** — explains what browser storage is used
-- **v2.4.0** — click to view the changelog of recent updates
+- **v2.5.0** — click to view the changelog of recent updates
 
 ### 3.5 User Menu
 
@@ -1115,14 +1115,14 @@ Webhooks let you automatically send transcripts, summaries, and form outputs to 
 
 Webhook settings are found in **Settings → Webhooks**. The Webhooks section only appears when **Advanced Settings** is enabled in the Settings panel.
 
-| Setting                   | Description                                                                                                                                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Webhook URL**           | The destination URL that will receive POST requests when processing completes. Leave empty to disable webhooks.                                                                                                    |
-| **Webhook Secret**        | An optional HMAC-SHA256 secret. When set, each request includes an `X-Webhook-Signature` header containing a signature of the payload body, allowing the receiving server to verify that the request is authentic. |
-| **Standard Mode Trigger** | Controls when the webhook fires during Standard mode processing (see below).                                                                                                                                       |
-| **Realtime Mode Trigger** | Controls when the webhook fires during Realtime mode processing (see below).                                                                                                                                       |
-| **Custom Arguments**      | Key-value pairs included in every webhook payload under `data.user_args`. Useful for routing or tagging deliveries in your receiving system.                                                                       |
-| **Test Webhook**          | Sends a test payload (`event: "test.ping"`) to your configured URL to verify it is reachable. A green dot indicates success; a red dot (with hover tooltip) indicates failure. The status resets when the URL changes. |
+| Setting                   | Description                                                                                                                                                                                                            |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Webhook URL**           | The destination URL that will receive POST requests when processing completes. Leave empty to disable webhooks.                                                                                                        |
+| **Webhook Secret**        | An optional HMAC-SHA256 secret. When set, each request includes an `X-Webhook-Signature` header containing a signature of the payload body, allowing the receiving server to verify that the request is authentic.     |
+| **Standard Mode Trigger** | Controls when the webhook fires during Standard mode processing (see below).                                                                                                                                           |
+| **Realtime Mode Trigger** | Controls when the webhook fires during Realtime mode processing (see below).                                                                                                                                           |
+| **Custom Arguments**      | Key-value pairs included in every webhook payload under `data.user_args`. Useful for routing or tagging deliveries in your receiving system.                                                                           |
+| **Test Webhook**          | Sends a test payload with the full `summary.completed` schema (using sample data) to your configured URL to verify it is reachable and to validate your receiver against the real payload shape. The test payload uses `event: "test.completed"` and `mode: "test"` so receivers can distinguish it from real deliveries. A green dot indicates success; a red dot (with hover tooltip) indicates failure. The status resets when the URL changes. |
 
 #### Standard mode triggers
 
@@ -1163,7 +1163,7 @@ The `data` object may include:
 - `prompt` — the prompt that was used.
 - `language` — the output language.
 - `token_usage` — token consumption details for the request.
-- `summary_title` — the title extracted from the first line of the summary (heading markers stripped). Only present when `content_type` is `summary`.
+- `summary_title` — a concise, descriptive title for the summary, generated independently via a dedicated structured-output LLM call. This ensures every summary has a reliable title regardless of the user's prompt. `null` when `content_type` is not `summary` or if title generation failed.
 - `form_output` — the structured form output, if a form was configured.
 - `questions` — questions and topics captured during a Realtime session (Realtime mode only).
 - `user_args` — a key-value object containing the Custom Arguments configured in Settings. `null` if none are configured.
@@ -1180,7 +1180,7 @@ You can also configure webhooks through the AI Assistant (chatbot) using natural
 - **"Set standard webhook trigger to transcript_and_summary"** — changes the Standard mode trigger.
 - **"Set realtime webhook trigger to on_stop_with_final_summary"** — changes the Realtime mode trigger.
 
-> **Tip:** Use the **Test Webhook** button to quickly verify your webhook URL is reachable. To inspect the full payload structure, you can use a free request-inspection tool such as [webhook.site](https://webhook.site) as your Webhook URL and then run a short transcription to see the payload that gets delivered.
+> **Tip:** Use the **Test Webhook** button to quickly verify your webhook URL is reachable and to inspect the full payload structure — the test payload uses the same schema as a real `summary.completed` delivery (with sample data), so you can validate your receiver without running a transcription. For a visual inspection, try a free request-inspection tool such as [webhook.site](https://webhook.site) as your Webhook URL.
 
 ---
 

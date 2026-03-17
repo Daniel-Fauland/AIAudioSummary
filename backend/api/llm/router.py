@@ -35,7 +35,7 @@ async def create_summary(
 
             return StreamingResponse(_with_first(), media_type="text/plain")
 
-        output, usage = await service.generate_summary(request)
+        title, output, usage = await service.generate_summary(request)
         token_usage = None
         try:
             token_usage = TokenUsage(
@@ -45,7 +45,7 @@ async def create_summary(
             )
         except Exception:
             pass
-        return CreateSummaryResponse(summary=output, usage=token_usage)
+        return CreateSummaryResponse(summary=output, summary_title=title, usage=token_usage)
 
     except Exception as e:
         error_msg = str(e).lower()

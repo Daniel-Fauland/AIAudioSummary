@@ -28,5 +28,6 @@ class IncrementalSummaryRequest(BaseModel):
 
 class IncrementalSummaryResponse(BaseModel):
     summary: str = Field(..., description="The updated AI summary")
+    summary_title: str | None = Field(None, description="Dedicated summary title generated via structured output")
     updated_at: str = Field(..., description="ISO timestamp of when the summary was generated")
     usage: TokenUsage | None = Field(None, description="Token usage for this request")

@@ -51,6 +51,7 @@ class TokenUsage(BaseModel):
 
 class CreateSummaryResponse(BaseModel):
     summary: str = Field(..., description="The AI summary of the transcription")
+    summary_title: str | None = Field(None, description="Dedicated summary title generated via structured output")
     usage: TokenUsage | None = Field(None, description="Token usage for this request")
 
 

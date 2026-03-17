@@ -32,6 +32,7 @@ import { KeytermsListSelector } from "@/components/settings/KeytermsListSelector
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { testLlmConnection, fireWebhook } from "@/lib/api";
+import { buildTestWebhookPayload } from "@/lib/webhook";
 import type { AzureConfig, LangdockConfig, ConfigResponse, LLMProvider, RealtimeSpeechModel, SummaryInterval, LLMFeature, FeatureModelOverride, CopyFormat, SaveFormat, ChatbotCopyFormat, KeytermsList, WebhookStandardTrigger, WebhookRealtimeTrigger } from "@/lib/types";
 import { COPY_FORMAT_LABELS, SAVE_FORMAT_LABELS, CHATBOT_COPY_FORMAT_LABELS } from "@/lib/content-formats";
 
@@ -283,18 +284,7 @@ export function SettingsSheet({
       const result = await fireWebhook({
         webhook_url: webhookUrl,
         webhook_secret: webhookSecret || undefined,
-        payload: {
-          event: "test.ping",
-          mode: "test",
-          content_type: "test",
-          timestamp: new Date().toISOString(),
-          data: {
-            message: "This is a test webhook from AIAudioSummary",
-            user_args: webhookUserArgs.length > 0
-              ? Object.fromEntries(webhookUserArgs.map(({ key, value }) => [key, value]))
-              : null,
-          },
-        },
+        payload: buildTestWebhookPayload(webhookUserArgs.length > 0 ? webhookUserArgs : null),
       });
 
       if (result.success) {

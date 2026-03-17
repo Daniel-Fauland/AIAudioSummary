@@ -21,6 +21,7 @@ import type { ContentPayload, TokenUsage } from "@/lib/types";
 
 interface SummaryViewProps {
   summary: string;
+  summaryTitle?: string | null;
   loading?: boolean;
   onCopy?: () => void;
   onStop?: () => void;
@@ -32,6 +33,7 @@ interface SummaryViewProps {
 
 export function SummaryView({
   summary,
+  summaryTitle,
   loading,
   onStop,
   onRegenerate,
@@ -89,7 +91,7 @@ export function SummaryView({
   }, [summary, loading]);
 
   return (
-    <Card className="border-border/50 bg-card/10 backdrop-blur-md flex flex-col h-full shadow-sm transition-all duration-300">
+    <Card className="border-border/50 bg-card/10 backdrop-blur-md h-full min-h-0 overflow-hidden shadow-sm transition-all duration-300">
       <CardHeader className="flex flex-row items-center justify-between border-b border-border/20 bg-background/30 backdrop-blur-sm pb-4">
         <div className="flex items-center gap-2">
           <CardTitle className="text-lg font-semibold">Summary</CardTitle>
@@ -133,7 +135,7 @@ export function SummaryView({
           ) : null}
         </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col space-y-4 p-6 overflow-hidden">
+      <CardContent className="flex-1 flex flex-col min-h-0 space-y-4 p-6 overflow-hidden">
         <ScrollArea ref={scrollRef} className="flex-1 min-h-0 pr-4">
           <div className="pb-4">
             {summary ? (

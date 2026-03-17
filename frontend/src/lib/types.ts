@@ -107,6 +107,7 @@ export interface CreateSummaryRequest {
 
 export interface CreateSummaryResponse {
   summary: string;
+  summary_title?: string | null;
   usage?: TokenUsage;
 }
 
@@ -245,6 +246,7 @@ export interface IncrementalSummaryRequest {
 
 export interface IncrementalSummaryResponse {
   summary: string;
+  summary_title?: string | null;
   updated_at: string;
   usage?: TokenUsage;
 }
@@ -370,8 +372,8 @@ export type WebhookRealtimeTrigger = "on_stop" | "on_stop_with_final_summary" | 
 
 export interface WebhookPayload {
   event: string;
-  mode: "standard" | "realtime";
-  content_type: "transcript" | "summary" | "form";
+  mode: "standard" | "realtime" | "test";
+  content_type: "transcript" | "summary" | "form" | "test";
   timestamp: string;
   data: {
     transcript: string;
