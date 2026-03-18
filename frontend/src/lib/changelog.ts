@@ -10,6 +10,28 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "2.5.1",
+    date: "2026-03-18",
+    title: "Form output card overflow, fullscreen view & server-side exception fix",
+    changes: [
+      {
+        type: "added",
+        description:
+          "Fullscreen button for the form output card (desktop only) — expand the form to a full-screen dialog for easier editing, matching the transcript card's fullscreen behavior.",
+      },
+      {
+        type: "fixed",
+        description:
+          "Form output card in Standard mode no longer overflows — content is now contained within the card with scrollable form fields and always-visible action buttons pinned at the bottom.",
+      },
+      {
+        type: "fixed",
+        description:
+          "Fixed a server-side exception that occurred when opening the app in a new browser or incognito window — caused by Auth.js cookie writes inside server components. Auth checks are now handled entirely in the proxy middleware.",
+      },
+    ],
+  },
+  {
     version: "2.5.0",
     date: "2026-03-17",
     title: "Webhook transcript title, manual Fire Webhook button & new trigger option",

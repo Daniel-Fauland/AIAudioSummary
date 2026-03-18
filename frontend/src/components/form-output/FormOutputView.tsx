@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { RefreshCw, ArrowLeft, Loader2 } from "lucide-react";
+import { RefreshCw, ArrowLeft, Loader2, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,8 +15,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { FormFieldDefinition, FormFieldType, ContentPayload } from "@/lib/types";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { CopyAsButton, SaveAsButton } from "@/components/ui/ContentActions";
 import { buildFormPayload } from "@/lib/content-formats";
 
@@ -232,70 +239,109 @@ export function FormOutputView({
   const filledCount = fields.filter((f) => values[f.id] != null).length;
   const unfilledFields = fields.filter((f) => values[f.id] == null);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  const formFields = (
+    <>
+      {fields.map((field) => (
+        <FormFieldRow
+          key={field.id}
+          field={field}
+          value={values[field.id] ?? null}
+          onEdit={(val) => onManualEdit(field.id, val)}
+        />
+      ))}
+    </>
+  );
+
+  const actionButtons = (
+    <div className="grid grid-cols-2 gap-2">
+      <Button variant="outline" size="sm" onClick={onBack}>
+        <ArrowLeft className="mr-1.5 h-4 w-4" />
+        Back
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onRefill}
+        disabled={refillDisabled || isFilling}
+      >
+        <RefreshCw className="mr-1.5 h-4 w-4" />
+        Re-fill
+      </Button>
+      <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
+      <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
+    </div>
+  );
 
   return (
-    <Card className="border-border/50 bg-card/10 backdrop-blur-md flex flex-col shadow-sm transition-all duration-300 h-full">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-base font-semibold">{templateName}</CardTitle>
-          <div className="flex items-center gap-2">
-            {isFilling && (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground-muted" />
+    <Card className="border-border/50 bg-card/10 backdrop-blur-md flex flex-col shadow-sm transition-all duration-300 h-full min-h-0 overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between shrink-0 border-b border-border/20 bg-background/30 backdrop-blur-sm pb-4">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-lg font-semibold">{templateName}</CardTitle>
+          {isFilling && (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground-muted" />
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Badge
+                variant="secondary"
+                className="text-xs font-normal cursor-pointer"
+                onMouseEnter={() => { if (window.matchMedia("(hover: hover)").matches) setPopoverOpen(true); }}
+                onMouseLeave={() => { if (window.matchMedia("(hover: hover)").matches) setPopoverOpen(false); }}
+              >
+                {filledCount}/{fields.length} filled
+              </Badge>
+            </PopoverTrigger>
+            {unfilledFields.length > 0 && (
+              <PopoverContent className="w-auto max-w-64 p-3" side="bottom" align="end">
+                <p className="text-xs font-medium mb-1.5">Unfilled fields</p>
+                <ul className="space-y-0.5">
+                  {unfilledFields.map((f) => (
+                    <li key={f.id} className="text-xs text-foreground-secondary">&bull; {f.label}</li>
+                  ))}
+                </ul>
+              </PopoverContent>
             )}
-            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Badge
-                  variant="secondary"
-                  className="text-xs font-normal cursor-pointer"
-                  onMouseEnter={() => { if (window.matchMedia("(hover: hover)").matches) setPopoverOpen(true); }}
-                  onMouseLeave={() => { if (window.matchMedia("(hover: hover)").matches) setPopoverOpen(false); }}
-                >
-                  {filledCount}/{fields.length} filled
-                </Badge>
-              </PopoverTrigger>
-              {unfilledFields.length > 0 && (
-                <PopoverContent className="w-auto max-w-64 p-3" side="bottom" align="end">
-                  <p className="text-xs font-medium mb-1.5">Unfilled fields</p>
-                  <ul className="space-y-0.5">
-                    {unfilledFields.map((f) => (
-                      <li key={f.id} className="text-xs text-foreground-secondary">&bull; {f.label}</li>
-                    ))}
-                  </ul>
-                </PopoverContent>
-              )}
-            </Popover>
-          </div>
+          </Popover>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="hidden md:inline-flex text-foreground-secondary hover:text-foreground transition-all"
+            onClick={() => setFullscreen(true)}
+          >
+            <Maximize2 className="h-4 w-4" />
+          </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {fields.map((field) => (
-          <FormFieldRow
-            key={field.id}
-            field={field}
-            value={values[field.id] ?? null}
-            onEdit={(val) => onManualEdit(field.id, val)}
-          />
-        ))}
+      <ScrollArea className="flex-1 min-h-0">
+        <CardContent className="space-y-4">
+          {formFields}
+        </CardContent>
+      </ScrollArea>
+      <div className="shrink-0 border-t border-border/20 bg-background/30 backdrop-blur-sm p-4">
+        {actionButtons}
+      </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-2">
-          <Button variant="secondary" size="default" className="justify-start" onClick={onBack}>
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Back
-          </Button>
-          <Button
-            variant="secondary"
-            size="default"
-            className="justify-start"
-            onClick={onRefill}
-            disabled={refillDisabled || isFilling}
-          >
-            <RefreshCw className="mr-1.5 h-4 w-4" />
-            Re-fill
-          </Button>
-          <CopyAsButton payload={contentPayload} variant="outline" size="sm" />
-          <SaveAsButton payload={contentPayload} variant="outline" size="sm" />
-        </div>
-      </CardContent>
+      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
+        <DialogContent className="sm:max-w-[95vw] h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{templateName}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-1 min-h-0 flex-col rounded-md bg-card">
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="space-y-4 p-4">
+                {formFields}
+              </div>
+            </ScrollArea>
+            <div className="p-4 pt-2">
+              {actionButtons}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

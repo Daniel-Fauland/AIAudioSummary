@@ -25,7 +25,16 @@ async function createBackendToken(session: { user: { email?: string | null; name
 }
 
 async function proxyRequest(request: NextRequest) {
-  const session = await auth();
+  let session;
+  try {
+    session = await auth();
+  } catch {
+    // Stale or corrupted session cookie — treat as unauthenticated
+    return new Response(JSON.stringify({ detail: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   if (!session) {
     return new Response(JSON.stringify({ detail: "Unauthorized" }), {
       status: 401,
