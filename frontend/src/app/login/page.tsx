@@ -1,17 +1,29 @@
-import { redirect } from "next/navigation";
-import { auth, signIn } from "@/auth";
+import { signIn } from "@/auth";
+import { AutoLogin } from "./AutoLogin";
 
 interface LoginPageProps {
   searchParams: Promise<{ error?: string }>;
 }
 
-export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const session = await auth();
-  if (session) redirect("/");
+async function bypassSignIn() {
+  "use server";
+  await signIn("credentials", { email: "user@example.com", redirectTo: "/" });
+}
 
-  // Auto-sign-in for local no-auth mode (throws NEXT_REDIRECT, never renders)
+async function googleSignIn() {
+  "use server";
+  await signIn("google");
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  // Note: auth() session check and redirect is handled by middleware.
+  // Calling auth() in a server component triggers cookie writes which
+  // throws "Cookies can only be modified in a Server Action or Route Handler".
+
+  // Auto-sign-in for local no-auth mode — rendered as client component
+  // that auto-submits the server action on mount
   if (process.env.AUTH_BYPASS === "true") {
-    await signIn("credentials", { email: "user@example.com", redirectTo: "/" });
+    return <AutoLogin action={bypassSignIn} />;
   }
 
   const params = await searchParams;
@@ -31,12 +43,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             Access denied. Please contact an administrator to request access.
           </div>
         )}
-        <form
-          action={async () => {
-            "use server";
-            await signIn("google");
-          }}
-        >
+        <form action={googleSignIn}>
           <button
             type="submit"
             className="flex w-full items-center justify-center gap-3 rounded-md border border-border bg-secondary px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
