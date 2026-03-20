@@ -10,6 +10,18 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "2.5.2",
+    date: "2026-03-20",
+    title: "Webhook dropdown overflow fix",
+    changes: [
+      {
+        type: "fixed",
+        description:
+          "Fixed webhook Standard Mode and Realtime Mode dropdowns pushing the settings panel content beyond the visible area when a long option was selected. The selected value now truncates with an ellipsis and shows the full text in a tooltip on hover.",
+      },
+    ],
+  },
+  {
     version: "2.5.1",
     date: "2026-03-18",
     title: "Form output card overflow, fullscreen view & server-side exception fix",

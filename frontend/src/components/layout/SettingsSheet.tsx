@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { ChevronDown, ClipboardPaste, Eye, EyeOff, Info, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -346,6 +346,21 @@ export function SettingsSheet({
     writeSection("aias:v1:settings:section:webhooks", value);
   };
   const [showWebhookSecret, setShowWebhookSecret] = useState(false);
+  const standardTriggerRef = useRef<HTMLButtonElement>(null);
+  const realtimeTriggerRef = useRef<HTMLButtonElement>(null);
+  const [standardTooltipOpen, setStandardTooltipOpen] = useState(false);
+  const [realtimeTooltipOpen, setRealtimeTooltipOpen] = useState(false);
+
+  const handleTooltipOpen = (open: boolean, ref: React.RefObject<HTMLButtonElement | null>, setOpen: (v: boolean) => void) => {
+    if (open) {
+      const valueEl = ref.current?.querySelector('[data-slot="select-value"]');
+      if (valueEl && valueEl.scrollWidth > valueEl.clientWidth) {
+        setOpen(true);
+      }
+    } else {
+      setOpen(false);
+    }
+  };
 
   // Keyboard shortcut indicators
   const [altPressed, setAltPressed] = useState(false);
@@ -483,7 +498,7 @@ export function SettingsSheet({
             </p>
           </div>
 
-          <ScrollArea className="flex-1 min-h-0">
+          <ScrollArea className="flex-1 min-h-0 [&_[data-slot=scroll-area-viewport]>div]:!block">
           <div className="space-y-6 px-4 pt-4 pb-6">
             <Collapsible open={apiKeysOpen} onOpenChange={handleApiKeysOpen}>
               <SectionHeader>API Keys</SectionHeader>
@@ -1077,9 +1092,20 @@ export function SettingsSheet({
                     <div className="space-y-1.5">
                       <Label className="text-sm">Standard Mode</Label>
                       <Select value={webhookStandardTrigger} onValueChange={(v) => onWebhookStandardTriggerChange(v as WebhookStandardTrigger)}>
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <TooltipProvider>
+                          <Tooltip open={standardTooltipOpen} onOpenChange={(open) => handleTooltipOpen(open, standardTriggerRef, setStandardTooltipOpen)}>
+                            <TooltipTrigger asChild>
+                              <SelectTrigger ref={standardTriggerRef} className="h-8 text-sm w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                              <p className="text-xs">
+                                {{ summary: "After Summary", transcript_and_summary: "After Transcript (immediately) & Summary", transcript_mapped_and_summary: "After Transcript (speaker mapping) & Summary" }[webhookStandardTrigger]}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <SelectContent>
                           <SelectItem value="summary">After Summary</SelectItem>
                           <SelectItem value="transcript_and_summary">After Transcript (immediately) &amp; Summary</SelectItem>
@@ -1091,9 +1117,20 @@ export function SettingsSheet({
                     <div className="space-y-1.5">
                       <Label className="text-sm">Realtime Mode</Label>
                       <Select value={webhookRealtimeTrigger} onValueChange={(v) => onWebhookRealtimeTriggerChange(v as WebhookRealtimeTrigger)}>
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <TooltipProvider>
+                          <Tooltip open={realtimeTooltipOpen} onOpenChange={(open) => handleTooltipOpen(open, realtimeTriggerRef, setRealtimeTooltipOpen)}>
+                            <TooltipTrigger asChild>
+                              <SelectTrigger ref={realtimeTriggerRef} className="h-8 text-sm w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                              <p className="text-xs">
+                                {{ on_stop: "When Session Stops", on_stop_with_final_summary: "After Final Summary (always fire)", only_with_final_summary: "After Final Summary (skip if disabled)" }[webhookRealtimeTrigger]}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <SelectContent>
                           <SelectItem value="on_stop">When Session Stops</SelectItem>
                           <SelectItem value="on_stop_with_final_summary">After Final Summary (always fire)</SelectItem>
