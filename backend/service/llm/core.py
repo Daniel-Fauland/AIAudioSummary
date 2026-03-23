@@ -317,12 +317,17 @@ class LLMService:
 
     async def generate_title_standalone(self, request: GenerateTitleRequest) -> tuple[str, TokenUsage | None]:
         """Generate a title from a transcript without generating a summary."""
+        # Use deployment_name as model name for Azure OpenAI
+        model_name = request.model
+        if request.provider == LLMProvider.AZURE_OPENAI and request.azure_config:
+            model_name = request.azure_config.deployment_name
+
         model = self._create_model(
-            request.provider, request.model, request.api_key,
+            request.provider, model_name, request.api_key,
             request.azure_config, request.langdock_config,
         )
         title, usage = await self._generate_title(
-            model, request.provider, request.model,
+            model, request.provider, model_name,
             request.transcript, request.target_language, request.date,
             request.system_prompt,
         )
