@@ -44,9 +44,18 @@ class ChatbotService:
         if request.app_context:
             ctx = request.app_context
             context_lines = []
+            _PROVIDER_DISPLAY_NAMES = {
+                "openai": "OpenAI",
+                "anthropic": "Anthropic",
+                "gemini": "Google Gemini",
+                "azure_openai": "Azure OpenAI",
+                "langdock": "Langdock",
+                "pwc": "PwC",
+            }
             if ctx.selected_provider:
+                display = _PROVIDER_DISPLAY_NAMES.get(ctx.selected_provider, ctx.selected_provider)
                 context_lines.append(
-                    f"- Current LLM provider: {ctx.selected_provider}")
+                    f"- Current LLM provider: {display} (id: {ctx.selected_provider})")
             if ctx.selected_model:
                 context_lines.append(
                     f"- Current LLM model: {ctx.selected_model}")

@@ -9,6 +9,13 @@ PROVIDER_MODELS = {
         "claude-sonnet-4-6-default", "claude-opus-4-6-default",
         # "gemini-2.5-pro", "gemini-2.5-flash",  # Temporarily disabled
     ],
+    "pwc": [
+        "openai.gpt-5.4",
+        "openai.gpt-5.4-mini",
+        "openai.gpt-5.4-pro",
+        "vertex_ai.anthropic.claude-opus-4-6",
+        "vertex_ai.anthropic.claude-sonnet-4-6",
+    ],
 }
 
 ACTION_REGISTRY = [

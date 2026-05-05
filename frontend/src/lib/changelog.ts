@@ -10,6 +10,18 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "2.5.3",
+    date: "2026-05-05",
+    title: "PwC hosted LLM provider",
+    changes: [
+      {
+        type: "added",
+        description:
+          "PwC GenAI Shared Service is now available as an LLM provider. Supports OpenAI-compatible models (openai.gpt-5.4, openai.gpt-5.4-mini, openai.gpt-5.4-pro) and Anthropic-compatible models (vertex_ai.anthropic.claude-opus-4-6, vertex_ai.anthropic.claude-sonnet-4-6, bedrock.anthropic.claude-opus-4-7) via the PwC API key.",
+      },
+    ],
+  },
+  {
     version: "2.5.2",
     date: "2026-03-20",
     title: "Webhook dropdown overflow fix",

@@ -1,6 +1,6 @@
 // === Enums ===
 
-export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai" | "langdock";
+export type LLMProvider = "openai" | "anthropic" | "gemini" | "azure_openai" | "langdock" | "pwc";
 
 export type RealtimeSpeechModel = "fast" | "precise";
 

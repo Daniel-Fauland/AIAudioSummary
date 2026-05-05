@@ -72,6 +72,24 @@ PROVIDERS = [
             "claude-opus-4-6-default": 200_000,
         },
     ),
+    ProviderInfo(
+        id="pwc",
+        name="PwC",
+        models=[
+            "openai.gpt-5.4",
+            "openai.gpt-5.4-mini",
+            "openai.gpt-5.4-pro",
+            "vertex_ai.anthropic.claude-opus-4-6",
+            "vertex_ai.anthropic.claude-sonnet-4-6",
+        ],
+        model_context_windows={
+            "openai.gpt-5.4": 1_000_000,
+            "openai.gpt-5.4-mini": 1_000_000,
+            "openai.gpt-5.4-pro": 1_000_000,
+            "vertex_ai.anthropic.claude-opus-4-6": 200_000,
+            "vertex_ai.anthropic.claude-sonnet-4-6": 200_000,
+        },
+    ),
 ]
 
 LANGUAGES = [

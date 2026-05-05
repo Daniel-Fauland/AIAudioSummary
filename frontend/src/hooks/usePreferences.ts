@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { getMe, getPreferences, putPreferences } from "@/lib/api";
 import type { UserPreferences, LiveQuestion } from "@/lib/types";
 
-const ALL_PROVIDERS = ["openai", "anthropic", "gemini", "azure_openai", "langdock"];
+const ALL_PROVIDERS = ["openai", "anthropic", "gemini", "azure_openai", "langdock", "pwc"];
 
 function safeLocalGet(key: string): string {
   try {

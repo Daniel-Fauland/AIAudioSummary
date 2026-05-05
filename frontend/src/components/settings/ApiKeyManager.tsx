@@ -26,6 +26,8 @@ function isKeyFormatValid(provider: LLMProvider | "assemblyai", key: string): bo
       return key.startsWith("sk-") && key.length >= 20;
     case "azure_openai":
       return key.length >= 20;
+    case "pwc":
+      return key.length >= 20;
     case "assemblyai":
       return key.length >= 20;
     default:
