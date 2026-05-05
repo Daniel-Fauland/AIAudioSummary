@@ -28,7 +28,7 @@ function safeLocalSet(key: string, value: string): void {
   } catch {}
 }
 
-const ALL_PROVIDERS = ["openai", "anthropic", "gemini", "azure_openai", "langdock"];
+const ALL_PROVIDERS = ["openai", "anthropic", "gemini", "azure_openai", "langdock", "pwc"];
 
 function applyLocalSessionData(p: UserPreferences) {
   function applyMode(data: UserPreferences["session_standard"] | UserPreferences["session_realtime"] | undefined, mode: "standard" | "realtime") {

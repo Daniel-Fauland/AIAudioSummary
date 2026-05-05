@@ -132,6 +132,23 @@ class LLMService:
                         base_url=f"https://api.langdock.com/openai/{region}/v1"
                     )
                 )
+        elif provider == LLMProvider.PWC:
+            _PWC_BASE_URL = "https://genai-sharedservice-emea.pwc.com"
+            if model_name.startswith("openai."):
+                return OpenAIChatModel(
+                    model_name,
+                    provider=OpenAIProvider(
+                        api_key=api_key,
+                        base_url=_PWC_BASE_URL
+                    )
+                )
+            else:
+                from anthropic import AsyncAnthropic
+                client = AsyncAnthropic(
+                    base_url=_PWC_BASE_URL,
+                    api_key=api_key
+                )
+                return AnthropicModel(model_name, provider=AnthropicProvider(anthropic_client=client))
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 

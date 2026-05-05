@@ -10,6 +10,7 @@ class LLMProvider(str, Enum):
     GEMINI = "gemini"
     AZURE_OPENAI = "azure_openai"
     LANGDOCK = "langdock"
+    PWC = "pwc"
 
 
 class AzureConfig(BaseModel):
