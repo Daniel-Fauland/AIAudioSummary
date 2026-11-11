@@ -305,7 +305,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     const provider = initProvider;
     const serverModel = serverPreferences?.models?.[provider];
-    return serverModel || safeGet(`${MODEL_KEY_PREFIX}${provider}`, "gpt-5.2");
+    return serverModel || safeGet(`${MODEL_KEY_PREFIX}${provider}`, "gpt-6.1-sol");
   });
   const [azureConfig, setAzureConfig] = useState<AzureConfig | null>(() => {
     if (serverPreferences?.azure?.endpoint || serverPreferences?.azure?.api_version || serverPreferences?.azure?.deployment_name) {
@@ -838,7 +838,7 @@ function HomeInner({ config, savePreferences, setStorageMode, serverPreferences,
   const handleResetSettings = useCallback(() => {
     // Provider / model
     const defaultProvider: LLMProvider = "openai";
-    const defaultModel = "gpt-5.2";
+    const defaultModel = "gpt-6.1-sol";
     setSelectedProvider(defaultProvider);
     setSelectedModel(defaultModel);
     safeSet(PROVIDER_KEY, defaultProvider);

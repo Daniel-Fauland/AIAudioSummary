@@ -26,7 +26,7 @@ class LangdockConfig(BaseModel):
 class CreateSummaryRequest(BaseModel):
     provider: LLMProvider = Field(..., description="Which LLM provider to use")
     api_key: str = Field(..., min_length=1, description="Provider API key (sent per-request)")
-    model: str = Field(..., min_length=1, description="Model identifier", examples=["gpt-4.1-mini", "claude-sonnet-4-5", "gemini-2.0-flash"])
+    model: str = Field(..., min_length=1, description="Model identifier", examples=["gpt-6.1-sol", "claude-sonnet-5-5", "gemini-3.8-flash"])
     azure_config: AzureConfig | None = Field(None, description="Required only when provider is 'azure_openai'")
     langdock_config: LangdockConfig = Field(default_factory=LangdockConfig, description="Langdock region config")
     stream: bool = Field(True, description="Whether to stream the response")
