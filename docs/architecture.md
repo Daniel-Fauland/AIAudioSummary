@@ -1168,7 +1168,7 @@ export interface TokenUsageEntry {
   timestamp: number;     // Unix ms
   feature: string;       // e.g. "summary_generation", "chatbot", "realtime_summary"
   provider: string;      // e.g. "openai"
-  model: string;         // e.g. "gpt-4.1-mini"
+  model: string;         // e.g. "gpt-6.1-sol"
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;

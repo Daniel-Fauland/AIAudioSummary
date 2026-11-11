@@ -656,7 +656,7 @@ Each key field has an **eye icon** to show/hide the key value, and an **× butto
 **Default AI Model** — the provider and model used for all features unless a per-feature override is set.
 
 - **LLM Provider** dropdown — choose your AI provider (OpenAI, Anthropic, Google Gemini, Azure OpenAI, or Langdock).
-- **Model** dropdown/input — select the specific model (e.g., `gpt-4o`, `claude-opus-4-5`, `gemini-2.0-flash`). You can type a custom model name if yours isn't listed.
+- **Model** dropdown/input — select the specific model (e.g., `gpt-6.1-sol`, `claude-sonnet-5-5`, `gemini-3.8-flash`). You can type a custom model name if yours isn't listed.
 
 **Azure OpenAI Configuration** (shown only when Azure OpenAI is selected):
 

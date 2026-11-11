@@ -1,8 +1,8 @@
 # Valid models per provider — must match the PROVIDERS list in api/misc/router.py
 PROVIDER_MODELS = {
-    "openai": ["gpt-5.2", "gpt-5-mini", "gpt-5-nano", "gpt-4.1-mini"],
-    "anthropic": ["claude-opus-4-6", "claude-sonnet-4-5", "claude-haiku-4-5"],
-    "gemini": ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-flash"],
+    "openai": ["gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna"],
+    "anthropic": ["claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+    "gemini": ["gemini-4-carbon", "gemini-4-argon", "gemini-3.8-flash", "gemini-3.5-flash-lite"],
     "azure_openai": [],  # Uses deployment name from Azure config
     "langdock": [
         # "gpt-5.2", "gpt-5.2-pro",  # Disabled — see user_stories/langdock_openai_bug_report.md
